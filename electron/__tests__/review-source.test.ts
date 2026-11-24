@@ -1,0 +1,276 @@
+import { createRequire } from 'node:module';
+import { expect, test } from 'vite-plus/test';
+
+const require = createRequire(import.meta.url);
+
+const { parseRemoteUrl, parseReviewUrl } = require('../review-source.cjs') as {
+  parseRemoteUrl: (value: string) => {
+    host: string;
+    organization?: string;
+    project?: string;
+    projectPath: string;
+    provider: 'github' | 'gitlab' | 'azure-devops';
+    repo?: string;
+    webHost?: string;
+  } | null;
+  parseReviewUrl: (value: string) => {
+    host: string;
+    number: number;
+    organization?: string;
+    owner?: string;
+    project?: string;
+    projectPath: string;
+    provider: 'github' | 'gitlab' | 'azure-devops';
+    repo?: string;
+    url: string;
+  } | null;
+};
+
+test('parseReviewUrl reads canonical GitHub pull request URLs', () => {
+  expect(parseReviewUrl('https://github.com/nkzw-tech/codiff/pull/1728')).toEqual({
+    host: 'github.com',
+    number: 1728,
+    owner: 'nkzw-tech',
+    projectPath: 'nkzw-tech/codiff',
+    provider: 'github',
+    repo: 'codiff',
+    url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+  });
+});
+
+test('parseReviewUrl ignores GitHub tab segments, queries and fragments', () => {
+  for (const value of [
+    'https://github.com/nkzw-tech/codiff/pull/1728/',
+    'https://github.com/nkzw-tech/codiff/pull/1728/changes#r2231',
+    'https://github.com/nkzw-tech/codiff/pull/1728/files',
+    'https://github.com/nkzw-tech/codiff/pull/1728/files#diff-8a1b2c',
+    'https://github.com/nkzw-tech/codiff/pull/1728/commits/0f1e2d3c',
+    'https://github.com/nkzw-tech/codiff/pull/1728?diff=split&w=1',
+    'https://github.com/nkzw-tech/codiff/pull/1728#issuecomment-4412',
+  ]) {
+    expect(parseReviewUrl(value)).toMatchObject({
+      number: 1728,
+      provider: 'github',
+      url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+    });
+  }
+});
+
+test('parseReviewUrl accepts GitHub URLs pasted without a scheme or with `www`', () => {
+  for (const value of [
+    'github.com/nkzw-tech/codiff/pull/1728/changes',
+    'www.github.com/nkzw-tech/codiff/pull/1728',
+    'https://www.github.com/nkzw-tech/codiff/pull/1728/files',
+    'HTTPS://GitHub.com/nkzw-tech/codiff/pull/1728',
+    '<https://github.com/nkzw-tech/codiff/pull/1728>',
+    '  https://github.com/nkzw-tech/codiff/pull/1728/files  ',
+  ]) {
+    expect(parseReviewUrl(value)).toMatchObject({
+      host: 'github.com',
+      number: 1728,
+      owner: 'nkzw-tech',
+      repo: 'codiff',
+      url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+    });
+  }
+});
+
+test('parseReviewUrl strips a `.git` suffix from GitHub repositories', () => {
+  expect(parseReviewUrl('https://github.com/nkzw-tech/codiff.git/pull/1728')).toMatchObject({
+    projectPath: 'nkzw-tech/codiff',
+    repo: 'codiff',
+    url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+  });
+});
+
+test('parseReviewUrl reads GitLab merge request URLs on arbitrary hosts', () => {
+  expect(
+    parseReviewUrl('https://gitlab.example.com/group/subgroup/project/-/merge_requests/23'),
+  ).toEqual({
+    host: 'gitlab.example.com',
+    number: 23,
+    projectPath: 'group/subgroup/project',
+    provider: 'gitlab',
+    url: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
+  });
+});
+
+test('parseReviewUrl ignores GitLab tab segments, queries and fragments', () => {
+  for (const value of [
+    'https://gitlab.example.com/group/project/-/merge_requests/23/',
+    'https://gitlab.example.com/group/project/-/merge_requests/23/diffs',
+    'https://gitlab.example.com/group/project/-/merge_requests/23/diffs#note_9182',
+    'https://gitlab.example.com/group/project/-/merge_requests/23/commits',
+    'https://gitlab.example.com/group/project/-/merge_requests/23/pipelines',
+    'https://gitlab.example.com/group/project/-/merge_requests/23?commit_id=0f1e2d3c',
+    'gitlab.example.com/group/project/-/merge_requests/23/diffs',
+  ]) {
+    expect(parseReviewUrl(value)).toMatchObject({
+      number: 23,
+      projectPath: 'group/project',
+      provider: 'gitlab',
+      url: 'https://gitlab.example.com/group/project/-/merge_requests/23',
+    });
+  }
+});
+
+test('parseReviewUrl reads legacy GitLab merge request URLs without the `/-/` segment', () => {
+  expect(
+    parseReviewUrl('https://gitlab.example.com/group/project/merge_requests/23/diffs'),
+  ).toMatchObject({
+    number: 23,
+    projectPath: 'group/project',
+    provider: 'gitlab',
+    url: 'https://gitlab.example.com/group/project/-/merge_requests/23',
+  });
+});
+
+test('parseReviewUrl rejects values that are not review URLs', () => {
+  for (const value of [
+    '',
+    'main',
+    'feature/pull/1',
+    'https://github.com/nkzw-tech/codiff',
+    'https://github.com/nkzw-tech/codiff/pull/0',
+    'https://github.com/nkzw-tech/codiff/pull/abc',
+    'https://github.com/nkzw-tech/codiff/issues/1728',
+    'https://example.com/nkzw-tech/codiff/pull/1728',
+    'https://dev.azure.com/org/project/_git/repo',
+    'some/local/path/merge_requests/23',
+  ]) {
+    expect(parseReviewUrl(value)).toBe(null);
+  }
+});
+
+test('parseRemoteUrl drops a custom port from `ssh://` remotes', () => {
+  expect(parseRemoteUrl('ssh://git@gitlab.example.com:2222/group/project.git')).toEqual({
+    host: 'gitlab.example.com',
+    projectPath: 'group/project',
+    provider: 'gitlab',
+  });
+});
+
+test('parseRemoteUrl keeps an explicit port on `https://` remotes', () => {
+  expect(parseRemoteUrl('https://gitlab.example.com:8443/group/subgroup/project.git')).toEqual({
+    host: 'gitlab.example.com:8443',
+    projectPath: 'group/subgroup/project',
+    provider: 'gitlab',
+  });
+});
+
+test('parseRemoteUrl reads scp-style and GitHub remotes', () => {
+  expect(parseRemoteUrl('git@gitlab.example.com:group/project.git')).toEqual({
+    host: 'gitlab.example.com',
+    projectPath: 'group/project',
+    provider: 'gitlab',
+  });
+  expect(parseRemoteUrl('https://github.com/nkzw-tech/codiff.git')).toEqual({
+    host: 'github.com',
+    projectPath: 'nkzw-tech/codiff',
+    provider: 'github',
+  });
+});
+
+test('parseReviewUrl reads Azure DevOps pull request URLs', () => {
+  expect(
+    parseReviewUrl('https://dev.azure.com/contoso/Fabrikam/_git/Storefront/pullrequest/492'),
+  ).toMatchObject({
+    host: 'dev.azure.com',
+    number: 492,
+    organization: 'contoso',
+    project: 'Fabrikam',
+    projectPath: 'contoso/Fabrikam/Storefront',
+    provider: 'azure-devops',
+    repo: 'Storefront',
+    url: 'https://dev.azure.com/contoso/Fabrikam/_git/Storefront/pullrequest/492',
+  });
+});
+
+test('parseReviewUrl ignores Azure DevOps tab segments, queries and fragments', () => {
+  for (const value of [
+    'https://dev.azure.com/org/project/_git/repo/pullrequest/42/',
+    'https://dev.azure.com/org/project/_git/repo/pullrequest/42?_a=files',
+    'https://dev.azure.com/org/project/_git/repo/pullrequest/42?discussionId=18',
+    'https://dev.azure.com/org/project/_git/repo/pullrequest/42#_a=overview',
+    'dev.azure.com/org/project/_git/repo/pullrequest/42?path=/src/a.ts',
+    '<https://dev.azure.com/org/project/_git/repo/pullRequest/42>',
+  ]) {
+    expect(parseReviewUrl(value)).toMatchObject({
+      number: 42,
+      provider: 'azure-devops',
+      url: 'https://dev.azure.com/org/project/_git/repo/pullrequest/42',
+    });
+  }
+});
+
+test('parseReviewUrl reads visualstudio.com Azure DevOps pull request URLs', () => {
+  expect(
+    parseReviewUrl('https://contoso.visualstudio.com/Fabrikam/_git/Widgets/pullrequest/9'),
+  ).toMatchObject({
+    host: 'contoso.visualstudio.com',
+    number: 9,
+    organization: 'contoso',
+    project: 'Fabrikam',
+    provider: 'azure-devops',
+    repo: 'Widgets',
+    url: 'https://contoso.visualstudio.com/Fabrikam/_git/Widgets/pullrequest/9',
+  });
+});
+
+test('Azure DevOps URLs require a known cloud host and preserve encoded project names', () => {
+  expect(parseReviewUrl('https://example.com/org/project/_git/repo/pullrequest/42')).toBeNull();
+  expect(
+    parseReviewUrl('https://dev.azure.com.evil.example/org/project/_git/repo/pullrequest/42'),
+  ).toBeNull();
+  expect(
+    parseReviewUrl('https://dev.azure.com/org/My%20Project/_git/My%20Repo/pullrequest/42'),
+  ).toMatchObject({
+    project: 'My Project',
+    repo: 'My Repo',
+    url: 'https://dev.azure.com/org/My%20Project/_git/My%20Repo/pullrequest/42',
+  });
+  expect(
+    parseReviewUrl(
+      'https://contoso.visualstudio.com/DefaultCollection/My%20Project/_git/repo/pullrequest/42',
+    ),
+  ).toMatchObject({
+    organization: 'contoso',
+    project: 'My Project',
+    url: 'https://contoso.visualstudio.com/My%20Project/_git/repo/pullrequest/42',
+  });
+});
+
+test('parseRemoteUrl classifies Azure DevOps HTTPS and SSH remotes', () => {
+  expect(parseRemoteUrl('https://dev.azure.com/contoso/Fabrikam/_git/Storefront')).toMatchObject({
+    organization: 'contoso',
+    project: 'Fabrikam',
+    provider: 'azure-devops',
+    repo: 'Storefront',
+    webHost: 'dev.azure.com',
+  });
+  expect(parseRemoteUrl('git@ssh.dev.azure.com:v3/contoso/Fabrikam/Storefront')).toMatchObject({
+    organization: 'contoso',
+    project: 'Fabrikam',
+    provider: 'azure-devops',
+    repo: 'Storefront',
+    webHost: 'dev.azure.com',
+  });
+  expect(
+    parseRemoteUrl('git@vs-ssh.visualstudio.com:v3/contoso/Fabrikam/Widgets.git'),
+  ).toMatchObject({
+    organization: 'contoso',
+    project: 'Fabrikam',
+    provider: 'azure-devops',
+    repo: 'Widgets',
+    webHost: 'contoso.visualstudio.com',
+  });
+  expect(
+    parseRemoteUrl('vsshadmin@contoso@vs-ssh.visualstudio.com:v3/contoso/Fabrikam/Widgets.git'),
+  ).toMatchObject({
+    organization: 'contoso',
+    project: 'Fabrikam',
+    provider: 'azure-devops',
+    repo: 'Widgets',
+    webHost: 'contoso.visualstudio.com',
+  });
+});

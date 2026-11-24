@@ -1,0 +1,4677 @@
+/**
+ * @vitest-environment jsdom
+ */
+
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { CodeView } from '@pierre/diffs';
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { beforeEach, expect, test, vi } from 'vite-plus/test';
+import App from '../App.tsx';
+import { createDefaultConfig, defaultSettings } from '../config/defaults.ts';
+import type { ReviewComment } from '../lib/app-types.ts';
+import { getAskConversationKey, updateAskThread } from '../lib/ask-cache.ts';
+import {
+  consumeReloadSelection,
+  getReloadSelectionPath,
+  writeReloadSelection,
+} from '../lib/reload-selection.ts';
+import type {
+  ChangedFile,
+  CommitMetadata,
+  NarrativeWalkthrough,
+  PlanReview,
+  RepositoryState,
+  ReviewAssistantResult,
+  ReviewSource,
+  WalkthroughProgressEvent,
+} from '../types.ts';
+import { createChangedFile } from './helpers/fixtures.ts';
+import { renderReact, setInputValue, waitFor } from './helpers/react.tsx';
+
+const reactActEnvironment = globalThis as typeof globalThis & {
+  ResizeObserver?: typeof ResizeObserver;
+  Worker?: typeof Worker;
+};
+reactActEnvironment.ResizeObserver ??= class ResizeObserver {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+};
+HTMLElement.prototype.scrollBy ??= function scrollBy() {};
+HTMLElement.prototype.scrollTo ??= function scrollTo() {};
+class StubWorker extends EventTarget {
+  constructor(_scriptURL: string | URL, _options?: WorkerOptions) {
+    super();
+  }
+  onerror = null;
+  onmessage = null;
+  postMessage() {}
+  terminate() {}
+}
+reactActEnvironment.Worker ??= StubWorker as unknown as typeof Worker;
+
+beforeEach(() => {
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  document.documentElement.style.removeProperty('--font-diff-line-height');
+  document.documentElement.style.removeProperty('--font-diff-mono');
+  document.documentElement.style.removeProperty('--font-diff-size');
+});
+
+const repositoryState = {
+  branch: 'main',
+  files: [],
+  generatedAt: 1,
+  launchPath: '/repo',
+  root: '/repo',
+  source: { type: 'working-tree' },
+} satisfies RepositoryState;
+
+const createCommitMetadataFixture = (body: string): CommitMetadata => ({
+  author: {
+    date: '2026-01-01T12:00:00Z',
+    email: 'author@example.com',
+    gravatarUrl: 'https://www.gravatar.com/avatar/fallback',
+    name: 'Author',
+  },
+  body,
+  committer: {
+    date: '2026-01-01T13:00:00Z',
+    email: 'committer@example.com',
+    name: 'Committer',
+  },
+  files: [
+    {
+      additions: 1,
+      binary: false,
+      deletions: 1,
+      path: 'src/app.ts',
+      status: 'modified',
+    },
+  ],
+  parents: ['parent-sha'],
+  ref: 'abc1234',
+  refs: ['main'],
+  shortRef: 'abc1234',
+  signature: {
+    key: 'SHA256:abcdefghijklmnopqrstuvwxyz0123456789',
+    signer: 'signer@example.test',
+    status: 'G',
+  },
+  stats: {
+    additions: 1,
+    binaryFiles: 0,
+    deletions: 1,
+    files: 1,
+    renamedFiles: 0,
+  },
+  subject: 'Commit subject',
+  trailers: [
+    {
+      key: 'Co-authored-by',
+      value: 'Second Author <second@example.com>',
+    },
+  ],
+});
+
+const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['codiff'] => ({
+  applyUpdate: vi.fn(async () => ({
+    currentVersion: '1.9.2',
+    phase: 'idle' as const,
+  })),
+  askReviewAssistant: vi.fn(async () => ({
+    reason: 'Unavailable in tests.',
+    status: 'unavailable' as const,
+  })),
+  completePlan: vi.fn(async () => {}),
+  createWalkthroughCommit: vi.fn(async () => ({
+    hash: '0000000000000000000000000000000000000000',
+    status: 'committed' as const,
+  })),
+  decreaseCodeFontSize: vi.fn(async () => {}),
+  dismissUpdate: vi.fn(async () => ({
+    currentVersion: '1.9.2',
+    phase: 'idle' as const,
+  })),
+  findDefinitions: vi.fn(async (request) => ({
+    candidates: [],
+    identifier: request.identifier,
+    status: 'ready' as const,
+  })),
+  getAgentSkillStatus: vi.fn(async () => ({
+    installed: true,
+    path: '/Users/reviewer/.codex/skills/codiff',
+  })),
+  getConfig: vi.fn(async () => createDefaultConfig()),
+  getDiffImageContent: vi.fn(async () => ({
+    reason: 'Unavailable in tests.',
+    status: 'unavailable' as const,
+  })),
+  getDiffSectionContent: vi.fn(async () => {
+    throw new Error('Unexpected diff section load.');
+  }),
+  getGitIdentity: vi.fn(async () => ({
+    email: 'reviewer@example.com',
+    name: 'Reviewer',
+  })),
+  getKeyboardLayout: vi.fn(async () => null),
+  getLaunchOptions: vi.fn(async () => ({
+    repositoryPathProvided: true,
+    walkthrough: false,
+  })),
+  getMarkdownDocument: vi.fn(async ({ kind, path }) => ({
+    content: '# Plan\n',
+    id: `${kind}:${path}`,
+    kind,
+    path,
+    version: 'version',
+  })),
+  getNarrativeWalkthrough: vi.fn(async () => ({
+    reason: 'Unavailable in tests.',
+    status: 'unavailable' as const,
+  })),
+  getPlanReview: vi.fn(async () => null),
+  getPreferences: vi.fn(async () => ({
+    agentBackend: 'codex' as const,
+    claudeModel: defaultSettings.claudeModel,
+    codeFontFamily: defaultSettings.codeFontFamily,
+    codeFontSize: defaultSettings.codeFontSize,
+    copyCommentsOnClose: true,
+    diffStyle: 'split' as const,
+    editorCommand: '',
+    expandUnchanged: false,
+    lastRepositoryPath: '/repo',
+    openAIModel: defaultSettings.openAIModel,
+    openAIReasoningEffort: defaultSettings.openAIReasoningEffort,
+    opencodeModel: defaultSettings.opencodeModel,
+    piModel: defaultSettings.piModel,
+    renderMarkdownAs: defaultSettings.renderMarkdownAs,
+    reviewCommentsPrefix: defaultSettings.reviewCommentsPrefix,
+    reviewTheme: defaultSettings.reviewTheme,
+    showOutdated: false,
+    showWhitespace: false,
+    sidebarPosition: defaultSettings.sidebarPosition,
+    theme: 'system' as const,
+    walkthroughPrompt: defaultSettings.walkthroughPrompt,
+    wordWrap: false,
+  })),
+  getRepositoryFile: vi.fn(async (path) => ({
+    content: 'new\n',
+    path,
+    root: '/repo',
+    version: 'version',
+  })),
+  getRepositoryHistory: vi.fn(async () => ({
+    entries: [],
+    root: '/repo',
+  })),
+  getRepositoryState: vi.fn(async () => repositoryState),
+  getReviewBriefComments: vi.fn(async () => []),
+  getTerminalHelperStatus: vi.fn(async () => ({
+    command: 'codiff',
+    installed: true,
+    path: '/usr/local/bin/codiff',
+  })),
+  getUpdateStatus: vi.fn(async () => ({
+    currentVersion: '1.9.2',
+    phase: 'idle' as const,
+  })),
+  increaseCodeFontSize: vi.fn(async () => {}),
+  installAgentSkill: vi.fn(async () => ({
+    installed: true,
+    path: '/Users/reviewer/.codex/skills/codiff',
+  })),
+  installTerminalHelper: vi.fn(async () => ({
+    command: 'codiff',
+    installed: true,
+    path: '/usr/local/bin/codiff',
+  })),
+  isWindowFullScreen: vi.fn(async () => false),
+  markPlanReady: vi.fn(async () => {}),
+  markWindowReady: vi.fn(),
+  onConfigChanged: vi.fn(() => () => {}),
+  onCopyPendingCommentsRequest: vi.fn(() => () => {}),
+  onFindInDiffs: vi.fn(() => () => {}),
+  onKeyboardLayoutChanged: vi.fn(() => () => {}),
+  onMarkdownDocumentChanged: vi.fn(() => () => {}),
+  onOpenReviewSource: vi.fn(() => () => {}),
+  onPlanCloseRequested: vi.fn(() => () => {}),
+  onRefreshRequest: vi.fn(() => () => {}),
+  onRepositoryChanged: vi.fn(() => () => {}),
+  onUpdateStatusChanged: vi.fn(() => () => {}),
+  onWalkthroughCommitOutput: vi.fn(() => () => {}),
+  onWalkthroughProgress: vi.fn(() => () => {}),
+  onWindowFullScreenChanged: vi.fn(() => () => {}),
+  openConfigFile: vi.fn(async () => {}),
+  openFile: vi.fn(async () => {}),
+  openReleasePage: vi.fn(async () => {}),
+  openRepositoryFolder: vi.fn(async () => {}),
+  resetCodeFontSize: vi.fn(async () => {}),
+  resolvePullRequestUrl: vi.fn(async () => 'https://github.com/owner/repo/pull/1'),
+  saveMarkdownDocument: vi.fn(async (request) => ({
+    document: {
+      content: request.content,
+      id: `${request.kind}:${request.path}`,
+      kind: request.kind,
+      path: request.path,
+      version: 'next-version',
+    },
+    status: 'saved' as const,
+  })),
+  savePlanReview: vi.fn(async (review) => review),
+  saveRepositoryFile: vi.fn(async (request) => ({
+    document: { ...request, version: 'next-version' },
+    status: 'saved' as const,
+  })),
+  setDiffStyle: vi.fn(async () => {}),
+  setPullRequestFileViewed: vi.fn(async () => {}),
+  setReviewTheme: vi.fn(async () => {}),
+  setShowOutdated: vi.fn(async () => {}),
+  setWordWrap: vi.fn(async () => {}),
+  showInFolder: vi.fn(async () => {}),
+  submitPullRequestComment: vi.fn(async () => {
+    throw new Error('Unexpected pull request comment submit.');
+  }),
+  submitPullRequestReview: vi.fn(async () => {}),
+  updateWalkthroughCommitMessage: vi.fn(async () => ({
+    reason: 'Unavailable in tests.',
+    status: 'unavailable' as const,
+  })),
+  ...overrides,
+});
+
+const createNarrativeWalkthroughFixture = (
+  hunks: ReadonlyArray<{
+    added: number;
+    path: string;
+    status: ChangedFile['status'];
+  }>,
+) =>
+  ({
+    agent: 'codex',
+    chapters: [
+      {
+        blurb: 'Review the implementation.',
+        icon: 'gear',
+        id: 'impl',
+        stops: [
+          {
+            added: hunks.reduce((sum, hunk) => sum + hunk.added, 0),
+            deleted: 1,
+            hunkIds: hunks.map((hunk) => `${hunk.path}:unstaged:h1`),
+            hunks: hunks.map((hunk) => ({
+              added: hunk.added,
+              anchor: {
+                display: hunk.path,
+                sectionId: `${hunk.path}:unstaged`,
+                side: 'both',
+              },
+              deleted: hunk.path === 'src/app.ts' ? 1 : 0,
+              id: `${hunk.path}:unstaged:h1`,
+              path: hunk.path,
+              status: hunk.status,
+            })),
+            id: 'implementation-path',
+            importance: 'critical',
+            prose: 'Review these changes.',
+            title: 'Implementation path',
+          },
+        ],
+        title: 'Implementation',
+      },
+    ],
+    focus: 'Focus.',
+    generatedAt: '2026-06-07T00:00:00.000Z',
+    kind: 'narrative',
+    repo: { branch: 'main', root: '/repo' },
+    source: { type: 'working-tree' },
+    support: [],
+    title: 'Narrative',
+    version: 4,
+  }) satisfies NarrativeWalkthrough;
+
+const dispatchModifiedKey = (key: string, shiftKey = false) => {
+  const isMac = navigator.platform.toLowerCase().includes('mac');
+  window.dispatchEvent(
+    new KeyboardEvent('keydown', { ctrlKey: !isMac, key, metaKey: isMac, shiftKey }),
+  );
+};
+
+const renderAppForOpenFileShortcut = async (file: ChangedFile) => {
+  const openFile = vi.fn(async () => {});
+
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [file],
+    })),
+    openFile,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(container.querySelector('.codiff-file-header')).not.toBeNull();
+  });
+
+  return {
+    container,
+    openFile,
+    async [Symbol.asyncDispose]() {
+      await act(async () => root.unmount());
+      container.remove();
+    },
+  };
+};
+
+test('displays a diff while setup status and history are still pending', async () => {
+  const getAgentSkillStatus = vi.fn(() => new Promise<never>(() => {}));
+  const getRepositoryHistory = vi.fn(
+    () => new Promise<Awaited<ReturnType<Window['codiff']['getRepositoryHistory']>>>(() => {}),
+  );
+  window.codiff = createCodiffMock({
+    getAgentSkillStatus,
+    getRepositoryHistory,
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+    })),
+    getTerminalHelperStatus: vi.fn(() => new Promise<never>(() => {})),
+  });
+  await using view = await renderReact(<App />);
+  await waitFor(() => {
+    expect(view.container.querySelector('.codiff-file-header')).not.toBeNull();
+    expect(view.container.querySelector('.loading')).toBeNull();
+  });
+  await waitFor(() => {
+    expect(getRepositoryHistory).toHaveBeenCalledOnce();
+  });
+  await waitFor(() => expect(getAgentSkillStatus).toHaveBeenCalledOnce());
+  await waitFor(() => expect(window.codiff.markWindowReady).toHaveBeenCalledOnce());
+});
+
+test('the first review layout uses the loaded preferences', async () => {
+  const config = Promise.withResolvers<ReturnType<typeof createDefaultConfig>>();
+  const nextConfig = createDefaultConfig();
+  nextConfig.settings.sidebarPosition = 'right';
+  window.codiff = createCodiffMock({ getConfig: vi.fn(() => config.promise) });
+  await using view = await renderReact(<App />);
+  expect(view.container.querySelector('.app-shell')).toBeNull();
+  expect(window.codiff.markWindowReady).not.toHaveBeenCalled();
+  await act(async () => config.resolve(nextConfig));
+  await waitFor(() => {
+    expect(view.container.querySelector('.app-shell')?.getAttribute('data-sidebar-position')).toBe(
+      'right',
+    );
+    expect(window.codiff.markWindowReady).toHaveBeenCalledOnce();
+  });
+});
+
+test('unavailable preferences still reveal the review with defaults', async () => {
+  window.codiff = createCodiffMock({
+    getConfig: vi.fn(async () => {
+      throw new Error('Unavailable');
+    }),
+  });
+  await using view = await renderReact(<App />);
+  await waitFor(() => {
+    expect(view.container.querySelector('.app-shell')).not.toBeNull();
+    expect(window.codiff.markWindowReady).toHaveBeenCalledOnce();
+  });
+});
+
+test('a failed background history request does not hide the diff', async () => {
+  const getRepositoryHistory = vi.fn(async () => {
+    throw new Error('History is unavailable');
+  });
+  window.codiff = createCodiffMock({
+    getRepositoryHistory,
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+    })),
+  });
+  await using view = await renderReact(<App />);
+  await waitFor(() => expect(getRepositoryHistory).toHaveBeenCalledOnce());
+  expect(view.container.querySelector('.codiff-file-header')).not.toBeNull();
+  expect(view.container.textContent).not.toContain('History is unavailable');
+});
+
+test('displays the repository while its initial walkthrough is being generated', async () => {
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough: vi.fn(() => new Promise<never>(() => {})),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+    })),
+  });
+  await using view = await renderReact(<App />);
+  await waitFor(() => {
+    expect(view.container.querySelector('.app-shell')).not.toBeNull();
+    expect(view.container.querySelector('.loading')).toBeNull();
+    expect(view.container.textContent).toContain('app.ts');
+  });
+});
+
+test('code font preferences update root CSS variables', async () => {
+  const nextConfig = createDefaultConfig();
+  nextConfig.settings.codeFontFamily = 'JetBrains Mono';
+  nextConfig.settings.codeFontSize = 14;
+  window.codiff = createCodiffMock({
+    getConfig: vi.fn(async () => nextConfig),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  await waitFor(() => {
+    expect(document.documentElement.style.getPropertyValue('--font-diff-mono')).toBe(
+      '"JetBrains Mono", monospace',
+    );
+    expect(document.documentElement.style.getPropertyValue('--font-diff-size')).toBe('14px');
+    expect(document.documentElement.style.getPropertyValue('--font-diff-line-height')).toBe('22px');
+  });
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+test('desktop app places the sidebar on the configured side', async () => {
+  const nextConfig = createDefaultConfig();
+  nextConfig.settings.sidebarPosition = 'right';
+  window.codiff = createCodiffMock({
+    getConfig: vi.fn(async () => nextConfig),
+  });
+
+  await using app = await renderReact(<App />);
+
+  await waitFor(() => {
+    const shell = app.container.querySelector<HTMLElement>('.app-shell');
+    expect(shell?.dataset.sidebarPosition).toBe('right');
+    expect(shell?.style.gridTemplateColumns).toBe('minmax(0, 1fr) 0 292px');
+  });
+});
+
+test('empty code font family removes the root CSS variable', async () => {
+  document.documentElement.style.setProperty('--font-diff-mono', 'stale');
+  window.codiff = createCodiffMock();
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  await waitFor(() => {
+    expect(document.documentElement.style.getPropertyValue('--font-diff-mono')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--font-diff-size')).toBe('13px');
+    expect(document.documentElement.style.getPropertyValue('--font-diff-line-height')).toBe('20px');
+  });
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+test('stale persisted collapsed sidebar state does not hide the sidebar on launch', async () => {
+  window.localStorage.setItem('codiff:sidebar-collapsed', 'true');
+  window.codiff = createCodiffMock();
+
+  await using app = await renderReact(<App />);
+
+  await waitFor(() => {
+    expect(app.container.querySelector('.app-shell')?.classList.contains('sidebar-collapsed')).toBe(
+      false,
+    );
+    expect(app.container.querySelector('.sidebar')).not.toBeNull();
+    expect(app.container.querySelector('.review-top-bar [role="tablist"]')).not.toBeNull();
+  });
+
+  const topBar = app.container.querySelector('.review-top-bar');
+  expect(app.container.querySelector('.sidebar [role="tablist"]')).toBeNull();
+  const modeControl = topBar?.querySelector('.review-mode-control');
+  const modes = modeControl?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [];
+  expect([...modes].map((mode) => mode.textContent)).toEqual(['Walkthrough', 'Tree', 'History']);
+  const sidebarToggle = topBar?.querySelector<HTMLButtonElement>('.sidebar-toggle-button');
+  await act(async () => sidebarToggle?.click());
+  expect(app.container.querySelector('.app-shell')?.classList.contains('sidebar-collapsed')).toBe(
+    true,
+  );
+  expect(app.container.querySelector('.review-top-bar')).toBe(topBar);
+});
+
+test('keeps source-loading errors in the open-source dialog', async () => {
+  const openReviewSourceListeners: Array<Parameters<Window['codiff']['onOpenReviewSource']>[0]> =
+    [];
+  const getRepositoryState = vi.fn(async (source?: ReviewSource) => {
+    if (source?.type === 'branch-working-tree') {
+      throw new Error(`Branch "${source.ref}" does not exist in this repository.`);
+    }
+    return repositoryState;
+  });
+  window.codiff = createCodiffMock({
+    getRepositoryState,
+    onOpenReviewSource: vi.fn((callback) => {
+      openReviewSourceListeners.push(callback);
+      return () => {};
+    }),
+  });
+
+  await using app = await renderReact(<App />);
+  await waitFor(() => expect(app.container.querySelector('.app-shell')).not.toBeNull());
+
+  await act(async () => openReviewSourceListeners[0]?.('branch'));
+  const input = app.container.querySelector<HTMLInputElement>('#open-review-source-input');
+  const form = app.container.querySelector('form.open-review-source-dialog');
+  if (!input || !form) {
+    throw new Error('Expected the open branch dialog.');
+  }
+
+  await setInputValue(input, 'missing-branch');
+  await act(async () => {
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  });
+
+  await waitFor(() => {
+    expect(app.container.querySelector('[role="alert"]')?.textContent).toBe(
+      'Branch "missing-branch" does not exist in this repository.',
+    );
+  });
+  expect(app.container.querySelector('.open-review-source-dialog')).not.toBeNull();
+  expect(app.container.querySelector('.app-shell')).not.toBeNull();
+  expect(app.container.textContent).not.toContain('Unable to read repository');
+});
+
+test('top bar source menu opens the review source dialog', async () => {
+  window.codiff = createCodiffMock();
+
+  await using app = await renderReact(<App />);
+  await waitFor(() => expect(app.container.querySelector('.app-shell')).not.toBeNull());
+
+  const trigger = app.container.querySelector<HTMLButtonElement>(
+    '.review-top-bar .open-review-source-trigger',
+  );
+  if (!trigger) {
+    throw new Error('Expected the open review source trigger in the top bar.');
+  }
+  await act(async () => {
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+
+  const pullRequestItem = [
+    ...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+  ].find((item) => item.textContent === 'Open PR');
+  if (!pullRequestItem) {
+    throw new Error('Expected an Open PR menu item.');
+  }
+  await act(async () => {
+    pullRequestItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+
+  const input = app.container.querySelector<HTMLInputElement>('#open-review-source-input');
+  expect(input?.placeholder).toBe('#123 or https://github.com/owner/repo/pull/123');
+  expect(document.querySelector('[role="menu"]')).toBeNull();
+});
+
+test('repository label is plain text and clicking it does nothing', async () => {
+  const openRepositoryFolder = vi.fn(async () => {});
+  window.codiff = createCodiffMock({ openRepositoryFolder });
+
+  await using app = await renderReact(<App />);
+  await waitFor(() => expect(app.container.querySelector('.app-shell')).not.toBeNull());
+
+  const label = app.container.querySelector<HTMLElement>('.review-top-bar-repository');
+  if (!label) {
+    throw new Error('Expected the repository label in the top bar.');
+  }
+  expect(label.tagName).toBe('SPAN');
+  expect(label.textContent).toBe('/repo');
+  expect(label.closest('.review-top-bar-repository-slot')?.getAttribute('title')).toBe('/repo');
+  expect(app.container.querySelector('a.review-top-bar-repository')).toBeNull();
+  expect(app.container.querySelector('button.review-top-bar-repository')).toBeNull();
+
+  await act(async () => {
+    label.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+
+  expect(openRepositoryFolder).not.toHaveBeenCalled();
+});
+
+test('the branch name renders in the top bar context', async () => {
+  window.codiff = createCodiffMock();
+
+  await using app = await renderReact(<App />);
+  await waitFor(() => expect(app.container.querySelector('.app-shell')).not.toBeNull());
+
+  const branch = app.container.querySelector<HTMLElement>('.review-top-bar-branch');
+  expect(branch?.textContent).toBe('main');
+  expect(branch?.getAttribute('title')).toBe('main');
+  expect(branch?.parentElement?.className).toBe('review-top-bar-context');
+});
+
+test('empty repository state fills the review pane for centered layout', async () => {
+  window.codiff = createCodiffMock();
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  await waitFor(() => {
+    const emptyState = container.querySelector<HTMLElement>('.review > .empty-state');
+    expect(emptyState?.textContent).toContain('No local changes');
+  });
+  const css = readFileSync(resolve('core/App.css'), 'utf8');
+  const emptyStateRule = css.match(/\.review > \.empty-state \{([^}]*)\}/)?.[1];
+  expect(emptyStateRule).toContain('flex: 1;');
+  expect(emptyStateRule).toContain('min-width: 0;');
+  expect(emptyStateRule).toContain('width: 100%;');
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+test('showWhitespace config changes reload the current repository state', async () => {
+  let configListener: ((config: ReturnType<typeof createDefaultConfig>) => void) | null = null;
+  const nextConfig = createDefaultConfig();
+  nextConfig.settings.showWhitespace = true;
+  const initialState = {
+    ...repositoryState,
+    files: [createChangedFile('src/initial.ts')],
+  };
+  const reloadedState = {
+    ...repositoryState,
+    files: [createChangedFile('src/reloaded.ts')],
+  };
+  const getRepositoryState = vi
+    .fn<Window['codiff']['getRepositoryState']>()
+    .mockResolvedValueOnce(initialState)
+    .mockResolvedValueOnce(reloadedState);
+  window.codiff = createCodiffMock({
+    getRepositoryState,
+    onConfigChanged: vi.fn((callback) => {
+      configListener = callback;
+      return () => {};
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  await waitFor(() => {
+    expect(container.textContent).toContain('src/initial.ts');
+  });
+
+  await act(async () => {
+    configListener?.(nextConfig);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  await waitFor(() => {
+    expect(container.textContent).toContain('src/reloaded.ts');
+  });
+  expect(getRepositoryState).toHaveBeenLastCalledWith({ type: 'working-tree' });
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+test('sidebar commit button toggles back to tree when commit view is open', async () => {
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/change.ts')],
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  await waitFor(() => {
+    expect(container.querySelector('.sidebar-commit-button')?.textContent).toBe('Commit');
+  });
+
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.sidebar-commit-button')?.click();
+  });
+
+  await waitFor(() => {
+    expect(container.querySelector('.wt-commit')).not.toBeNull();
+    expect(container.querySelector('.sidebar-commit-button')?.textContent).toBe('Tree');
+  });
+
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.sidebar-commit-button')?.click();
+  });
+
+  await waitFor(() => {
+    expect(container.querySelector('.wt-commit')).toBeNull();
+    expect(container.querySelector('.sidebar-commit-button')?.textContent).toBe('Commit');
+  });
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+test('history summarizes the selected commit independently of file and history filters', async () => {
+  let resolveCommit: ((state: RepositoryState) => void) | undefined;
+  const commitSource = { ref: 'aaa1111', type: 'commit' } satisfies ReviewSource;
+  const emptySource = { ref: 'bbb2222', type: 'commit' } satisfies ReviewSource;
+  const files = [
+    createChangedFile('src/app.ts'),
+    createChangedFile('tests/app.ts'),
+    createChangedFile('README.md'),
+  ];
+  window.codiff = createCodiffMock({
+    getRepositoryHistory: vi.fn(async () => ({
+      entries: [
+        {
+          author: 'Reviewer',
+          committedAt: Date.now(),
+          parents: [],
+          ref: commitSource.ref,
+          subject: 'Update tests',
+        },
+        {
+          author: 'Reviewer',
+          committedAt: Date.now(),
+          parents: [],
+          ref: emptySource.ref,
+          subject: 'Empty commit',
+        },
+      ],
+      root: '/repo',
+    })),
+    getRepositoryState: vi.fn((source?: ReviewSource) => {
+      if (source?.type === 'commit' && source.ref === commitSource.ref) {
+        return new Promise<RepositoryState>((resolve) => {
+          resolveCommit = resolve;
+        });
+      }
+      return Promise.resolve({
+        ...repositoryState,
+        files: source?.type === 'commit' ? [] : files,
+        source: source ?? repositoryState.source,
+      });
+    }),
+  });
+  await using app = await renderReact(<App />);
+  const total = () => app.container.querySelector('.sidebar-total-line-count')?.textContent;
+  await waitFor(() => expect(total()).toBe('+3-3'));
+  await setInputValue(app.container.querySelector<HTMLInputElement>('.sidebar-search')!, 'README');
+  await waitFor(() => expect(total()).toBe('+1-1'));
+  await act(async () =>
+    [...app.container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find((button) => button.textContent === 'History')!
+      .click(),
+  );
+  await waitFor(() => expect(total()).toBe('+3-3'));
+  await setInputValue(app.container.querySelector<HTMLInputElement>('.sidebar-search')!, 'tests');
+  expect(total()).toBe('+3-3');
+  const breakdown = app.container.querySelector('.sidebar-summary-breakdown');
+  await act(async () =>
+    app.container.querySelector<HTMLButtonElement>('.history-entry[title="Update tests"]')!.click(),
+  );
+  expect(total()).toBeUndefined();
+  expect(app.container.querySelector('.sidebar-summary-breakdown')).toBe(breakdown);
+  expect(app.container.querySelector('.sidebar-summary-footer[aria-busy="true"]')).not.toBeNull();
+  await act(async () =>
+    resolveCommit!({ ...repositoryState, files: [files[1]], source: commitSource }),
+  );
+  await waitFor(() => expect(total()).toBe('+1-1'));
+  expect(
+    [...app.container.querySelectorAll('.sidebar-summary-breakdown > div')].map(
+      (row) => row.textContent,
+    ),
+  ).toEqual(['Prod+0-0', 'Tests+1-1', 'Other+0-0']);
+  await setInputValue(app.container.querySelector<HTMLInputElement>('.sidebar-search')!, '');
+  await act(async () =>
+    app.container.querySelector<HTMLButtonElement>('.history-entry[title="Empty commit"]')!.click(),
+  );
+  await waitFor(() =>
+    expect(app.container.querySelector('.sidebar-total-empty')?.textContent).toBe('—'),
+  );
+  expect(app.container.querySelector('.sidebar-summary-footer')).not.toBeNull();
+});
+
+test('repository reload restores the selected file when it still exists', async () => {
+  const firstFile = createChangedFile('src/first.ts');
+  const secondFile = createChangedFile('src/second.ts');
+  const nextState = {
+    ...repositoryState,
+    files: [firstFile, secondFile],
+  } satisfies RepositoryState;
+
+  writeReloadSelection(nextState, secondFile.path);
+  const openFile = vi.fn(async () => {});
+
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => nextState),
+    openFile,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+      window.sessionStorage.clear();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(container.querySelector('.codiff-file-header')).not.toBeNull();
+  });
+  await act(async () => {
+    dispatchModifiedKey('O', true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(openFile).toHaveBeenCalledWith(secondFile.path);
+});
+
+test('repository reload restores the selected file from the previous source', async () => {
+  const firstFile = createChangedFile('src/first.ts');
+  const secondFile = createChangedFile('src/second.ts');
+  const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
+  const nextState = {
+    ...repositoryState,
+    files: [firstFile, secondFile],
+    source,
+  } satisfies RepositoryState;
+  const getRepositoryState = vi.fn(async (requestedSource?: ReviewSource) =>
+    requestedSource?.type === 'commit' ? nextState : repositoryState,
+  );
+
+  writeReloadSelection(nextState, secondFile.path);
+  const openFile = vi.fn(async () => {});
+
+  window.codiff = createCodiffMock({
+    getRepositoryState,
+    openFile,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(container.querySelector('.codiff-file-header')).not.toBeNull();
+  });
+  await act(async () => {
+    dispatchModifiedKey('O', true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(openFile).toHaveBeenCalledWith(secondFile.path);
+  expect(getRepositoryState).toHaveBeenCalledWith(source);
+});
+
+test('repository reload preserves a branch diff source even without a selected file', async () => {
+  const source = {
+    baseRef: 'base123',
+    headRef: 'head123',
+    ref: 'main',
+    type: 'branch-diff',
+  } satisfies ReviewSource;
+  const nextState = {
+    ...repositoryState,
+    files: [],
+    source,
+  } satisfies RepositoryState;
+  const getRepositoryState = vi.fn(async (requestedSource?: ReviewSource) =>
+    requestedSource?.type === 'branch-diff' ? nextState : repositoryState,
+  );
+
+  writeReloadSelection(nextState, null);
+
+  window.codiff = createCodiffMock({
+    getRepositoryState,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+  });
+  expect(getRepositoryState).toHaveBeenCalledWith(source);
+});
+
+test('branch history keeps branch diff available after selecting uncommitted changes', async () => {
+  const branchSource = {
+    baseRef: 'base123',
+    headRef: 'head123',
+    ref: 'main',
+    type: 'branch-diff',
+  } satisfies ReviewSource;
+  const branchState = {
+    ...repositoryState,
+    branch: 'fork',
+    source: branchSource,
+  } satisfies RepositoryState;
+  const workingTreeState = {
+    ...repositoryState,
+    branch: 'fork',
+    source: { type: 'working-tree' },
+  } satisfies RepositoryState;
+  const getRepositoryState = vi.fn(async (requestedSource?: ReviewSource) =>
+    requestedSource?.type === 'working-tree' ? workingTreeState : branchState,
+  );
+
+  window.codiff = createCodiffMock({
+    getRepositoryHistory: vi.fn(async () => ({
+      entries: [
+        {
+          author: 'Reviewer',
+          committedAt: Date.now(),
+          parents: [],
+          ref: '99e7b27',
+          subject: 'Add branch diff review mode',
+        },
+      ],
+      root: '/repo',
+    })),
+    getRepositoryState,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  const findButton = (label: string) =>
+    Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes(label),
+    );
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(findButton('Committed only vs main')).toBeTruthy();
+    expect(findButton('All changes vs main')).toBeTruthy();
+  });
+  await act(async () => {
+    findButton('Uncommitted')?.click();
+  });
+  await waitFor(() => {
+    expect(getRepositoryState).toHaveBeenCalledWith({ type: 'working-tree' });
+    expect(findButton('Committed only vs main')).toBeTruthy();
+  });
+  await act(async () => {
+    findButton('Committed only vs main')?.click();
+  });
+  await waitFor(() => {
+    expect(getRepositoryState).toHaveBeenCalledWith(branchSource);
+  });
+});
+
+test('repository reload restores branch diff scope after selecting uncommitted changes', async () => {
+  const branchSource = {
+    baseRef: 'base123',
+    headRef: 'head123',
+    ref: 'main',
+    type: 'branch-diff',
+  } satisfies ReviewSource;
+  const workingTreeState = {
+    ...repositoryState,
+    branch: 'fork',
+    source: { type: 'working-tree' },
+  } satisfies RepositoryState;
+  const getRepositoryHistory = vi.fn(async () => ({
+    entries: [
+      {
+        author: 'Reviewer',
+        committedAt: Date.now(),
+        parents: [],
+        ref: '99e7b27',
+        subject: 'Add branch diff review mode',
+      },
+    ],
+    root: '/repo',
+  }));
+  const getRepositoryState = vi.fn(async () => workingTreeState);
+
+  writeReloadSelection(workingTreeState, null, branchSource);
+
+  window.codiff = createCodiffMock({
+    getRepositoryHistory,
+    getRepositoryState,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  const findButton = (label: string) =>
+    Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes(label),
+    );
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(findButton('Committed only vs main')).toBeTruthy();
+  });
+  expect(getRepositoryState).toHaveBeenCalledWith({ type: 'working-tree' });
+  expect(getRepositoryHistory).toHaveBeenCalledWith(expect.any(Number), branchSource);
+});
+
+test('repository reload does not let stale selection override launch source', async () => {
+  const launchSource = {
+    ref: 'main',
+    type: 'branch-working-tree',
+  } satisfies ReviewSource;
+  const staleState = {
+    ...repositoryState,
+    source: { type: 'working-tree' },
+  } satisfies RepositoryState;
+  const branchState = {
+    ...repositoryState,
+    source: launchSource,
+  } satisfies RepositoryState;
+  const getRepositoryState = vi.fn(async (requestedSource?: ReviewSource) =>
+    requestedSource?.type === 'working-tree' ? staleState : branchState,
+  );
+
+  writeReloadSelection(staleState, null);
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source: launchSource,
+      walkthrough: false,
+    })),
+    getRepositoryState,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+  });
+  expect(getRepositoryState).toHaveBeenCalledWith(undefined);
+  expect(getRepositoryState).not.toHaveBeenCalledWith(staleState.source);
+});
+
+test('repository reload colors only git status glyphs for files changed after reload', async () => {
+  const unchangedFile = createChangedFile('src/unchanged.ts', {
+    fingerprint: 'same',
+  });
+  const changedFileBeforeReload = createChangedFile('src/changed.ts', {
+    fingerprint: 'before',
+  });
+  const changedFileAfterReload = createChangedFile('src/changed.ts', {
+    fingerprint: 'after',
+  });
+  const previousState = {
+    ...repositoryState,
+    files: [unchangedFile, changedFileBeforeReload],
+  } satisfies RepositoryState;
+  const nextState = {
+    ...repositoryState,
+    files: [unchangedFile, changedFileAfterReload],
+  } satisfies RepositoryState;
+
+  writeReloadSelection(previousState, changedFileBeforeReload.path);
+
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => nextState),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    const shadowRoot = container.querySelector('file-tree-container')?.shadowRoot;
+    const styleText =
+      shadowRoot?.querySelector('style[data-codiff-reload-delta-git-status]')?.textContent ?? '';
+    expect(styleText).toContain('[data-item-path="src/changed.ts"][data-item-git-status]');
+    expect(styleText).not.toContain('[data-item-path="src/unchanged.ts"][data-item-git-status]');
+    expect(styleText).toContain("> [data-item-section='git']");
+    expect(
+      shadowRoot?.querySelector(
+        '[data-item-path="src/changed.ts"][data-item-git-status] > [data-item-section="git"]',
+      ),
+    ).toBeTruthy();
+    expect(
+      shadowRoot?.querySelector(
+        '[data-item-path="src/unchanged.ts"][data-item-git-status] > [data-item-section="git"]',
+      ),
+    ).toBeTruthy();
+  });
+});
+
+test('walkthrough file reload keeps uncovered files in support', async () => {
+  const unchangedFile = createChangedFile('src/unchanged.ts', {
+    fingerprint: 'same',
+  });
+  const changedFileBeforeReload = createChangedFile('src/changed.ts', {
+    fingerprint: 'before',
+  });
+  const changedFileAfterReload = createChangedFile('src/changed.ts', {
+    fingerprint: 'after',
+  });
+  const addedFile = createChangedFile('src/added.ts', {
+    fingerprint: 'added',
+    status: 'added',
+  });
+  const previousState = {
+    ...repositoryState,
+    files: [unchangedFile, changedFileBeforeReload],
+  } satisfies RepositoryState;
+  const nextState = {
+    ...repositoryState,
+    files: [unchangedFile, changedFileAfterReload, addedFile],
+  } satisfies RepositoryState;
+  const narrativeWalkthrough = createNarrativeWalkthroughFixture([
+    { added: 1, path: unchangedFile.path, status: 'modified' },
+  ]);
+
+  writeReloadSelection(previousState, changedFileBeforeReload.path);
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: false,
+      walkthroughFile: '/tmp/walkthrough.json',
+    })),
+    getNarrativeWalkthrough: vi.fn(async () => ({
+      status: 'ready' as const,
+      walkthrough: narrativeWalkthrough,
+    })),
+    getRepositoryState: vi.fn(async () => nextState),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.wt-stop-block')).not.toBeNull();
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.wt-upnext')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('Support');
+    expect(container.textContent).toContain('changed.ts');
+    expect(container.textContent).toContain('added.ts');
+    expect(container.textContent).not.toContain('Regenerate walkthrough');
+    expect(container.textContent).not.toContain('Changed after the walkthrough was generated.');
+    expect(container.textContent).not.toContain('unchanged.tsChanged');
+  });
+});
+
+test('reload forces a new generated walkthrough when local files changed', async () => {
+  const previousFile = createChangedFile('src/app.ts', {
+    fingerprint: 'before',
+  });
+  const refreshedFile = createChangedFile('src/app.ts', {
+    fingerprint: 'after',
+  });
+  const previousState = {
+    ...repositoryState,
+    files: [previousFile],
+  } satisfies RepositoryState;
+  const refreshedState = {
+    ...repositoryState,
+    files: [refreshedFile],
+  } satisfies RepositoryState;
+  const getNarrativeWalkthrough = vi.fn(async () => ({
+    status: 'ready' as const,
+    walkthrough: createNarrativeWalkthroughFixture([
+      { added: 1, path: refreshedFile.path, status: 'modified' },
+    ]),
+  }));
+
+  writeReloadSelection(previousState, previousFile.path);
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough,
+    getRepositoryState: vi.fn(async () => refreshedState),
+  });
+
+  await using app = await renderReact(<App />);
+
+  await waitFor(() => {
+    expect(getNarrativeWalkthrough).toHaveBeenCalledWith(refreshedState.source, {
+      force: true,
+    });
+    expect(app.container.querySelector('.wt-stop-block')).not.toBeNull();
+  });
+});
+
+test('tree sidebar subtly mutes files currently marked viewed', async () => {
+  const viewedFile = createChangedFile('src/viewed.ts', {
+    fingerprint: 'viewed-current',
+  });
+  const staleViewedFile = createChangedFile('src/stale.ts', {
+    fingerprint: 'stale-current',
+  });
+  const nextState = {
+    ...repositoryState,
+    files: [viewedFile, staleViewedFile],
+  } satisfies RepositoryState;
+
+  window.localStorage.setItem(
+    'codiff:viewed:/repo',
+    JSON.stringify({
+      [staleViewedFile.path]: 'stale-previous',
+      [viewedFile.path]: viewedFile.fingerprint,
+    }),
+  );
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => nextState),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    const shadowRoot = container.querySelector('file-tree-container')?.shadowRoot;
+    const styleText =
+      shadowRoot?.querySelector('style[data-codiff-viewed-rows]')?.textContent ?? '';
+    expect(styleText).toContain('[data-item-path="src/viewed.ts"]');
+    expect(styleText).not.toContain('[data-item-path="src/stale.ts"]');
+    expect(styleText).not.toContain('color-mix(in srgb, var(--viewed)');
+    expect(styleText).toContain(
+      "[data-item-path=\"src/viewed.ts\"] > [data-item-section='icon'] > :where(:not([data-icon-name='file-tree-icon-chevron']))",
+    );
+    expect(styleText).toContain("> [data-item-section='content']");
+    expect(styleText).toContain('color: var(--muted)');
+  });
+});
+
+test('GitHub Viewed state loads, saves checkbox changes, and reconciles on refresh', async () => {
+  const file = createChangedFile('src/app.ts');
+  const source = {
+    provider: 'github',
+    type: 'pull-request',
+    url: 'https://github.com/nkzw-tech/codiff/pull/12',
+  } as const;
+  let viewedFiles = { [file.path]: file.fingerprint } as Record<string, string>;
+  let refresh: (() => void) | undefined;
+  const setPullRequestFileViewed = vi.fn(async () => {});
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [file],
+      source,
+      viewedFiles,
+    })),
+    onRefreshRequest: (callback) => {
+      refresh = callback;
+      return () => {};
+    },
+    setPullRequestFileViewed,
+  });
+  await using app = await renderReact(<App />);
+  const checkbox = () => app.container.querySelector<HTMLButtonElement>('.codiff-viewed-button');
+  await waitFor(() => expect(checkbox()?.getAttribute('aria-pressed')).toBe('true'));
+  expect(setPullRequestFileViewed).not.toHaveBeenCalled();
+  await act(async () => checkbox()?.click());
+  expect(checkbox()?.getAttribute('aria-pressed')).toBe('false');
+  expect(setPullRequestFileViewed).toHaveBeenLastCalledWith({
+    path: file.path,
+    source,
+    viewed: false,
+  });
+  await act(async () => checkbox()?.click());
+  expect(checkbox()?.getAttribute('aria-pressed')).toBe('true');
+  expect(setPullRequestFileViewed).toHaveBeenLastCalledWith({
+    path: file.path,
+    source,
+    viewed: true,
+  });
+  viewedFiles = {};
+  await act(async () => refresh?.());
+  await waitFor(() => expect(checkbox()?.getAttribute('aria-pressed')).toBe('false'));
+  expect(app.container.querySelector('.codiff-file-header.viewed')).toBeNull();
+  expect(setPullRequestFileViewed).toHaveBeenCalledTimes(2);
+});
+
+test('before unload saves the current source and selected file for any reload trigger', async () => {
+  const changedFile = createChangedFile('src/app.ts');
+  const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
+  const nextState = {
+    ...repositoryState,
+    files: [changedFile],
+    source,
+  } satisfies RepositoryState;
+
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => nextState),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+  });
+  window.dispatchEvent(new Event('beforeunload'));
+  const selection = consumeReloadSelection();
+  expect(selection?.source).toEqual(source);
+  expect(getReloadSelectionPath(selection, nextState)).toBe(changedFile.path);
+});
+
+test.each([
+  { key: 'P', shift: true },
+  { key: 'k', shift: false },
+])('Mod+$key (shift=$shift) opens the command palette', async ({ key, shift }) => {
+  const changedFile = createChangedFile('src/app.ts');
+  await using app = await renderAppForOpenFileShortcut(changedFile);
+
+  await act(async () => {
+    dispatchModifiedKey(key, shift);
+  });
+
+  expect(app.container.querySelector('.command-bar-input')).not.toBeNull();
+  expect(app.openFile).not.toHaveBeenCalled();
+});
+
+test('Keyboard Shortcuts in the command palette opens a persistent dialog', async () => {
+  await using app = await renderAppForOpenFileShortcut(createChangedFile('src/app.ts'));
+  await act(async () => dispatchModifiedKey('k', false));
+
+  const command = [...app.container.querySelectorAll<HTMLButtonElement>('.command-bar-item')].find(
+    (button) => button.textContent?.startsWith('Keyboard Shortcuts'),
+  );
+  expect(command).toBeDefined();
+  await act(async () => command?.click());
+
+  const dialog = app.container.querySelector<HTMLDialogElement>(
+    'dialog[aria-label="Keyboard Shortcuts"]',
+  );
+  expect(dialog?.open).toBe(true);
+  expect(dialog?.textContent).toContain('Ask without posting');
+  expect(app.container.querySelector('.command-bar-input')).toBeNull();
+  await act(async () => dialog?.dispatchEvent(new Event('cancel', { cancelable: true })));
+  expect(app.container.querySelector('dialog[aria-label="Keyboard Shortcuts"]')).toBeNull();
+  expect(document.activeElement?.getAttribute('aria-label')).toBe('Open command palette');
+});
+
+test('Copy Re-review Brief previews posted PR comments before copying Markdown', async () => {
+  const source = {
+    number: 42,
+    provider: 'azure-devops',
+    type: 'pull-request',
+    url: 'https://dev.azure.com/org/project/_git/repo/pullrequest/42',
+  } as const;
+  const getReviewBriefComments = vi.fn(async () => [
+    {
+      body: 'Does the default runner stay active?',
+      resolved: false,
+      url: `${source.url}?discussionId=3`,
+    },
+  ]);
+  const writeText = vi.fn(async () => {});
+  const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  await using _clipboard = {
+    async [Symbol.asyncDispose]() {
+      if (clipboard) {
+        Object.defineProperty(navigator, 'clipboard', clipboard);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    },
+  };
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => ({ ...repositoryState, source })),
+    getReviewBriefComments,
+  });
+  await using view = await renderReact(<App />);
+  await waitFor(() => expect(view.container.querySelector('.review-top-bar')).not.toBeNull());
+  await act(async () => dispatchModifiedKey('k', false));
+  const command = [...view.container.querySelectorAll<HTMLButtonElement>('.command-bar-item')].find(
+    (button) => button.textContent === 'Copy Re-review Brief',
+  );
+  expect(command).toBeDefined();
+  await act(async () => command?.click());
+  const dialog = view.container.querySelector<HTMLDialogElement>('.review-brief-dialog');
+  expect(dialog?.open).toBe(true);
+  expect(getReviewBriefComments).toHaveBeenCalledWith(source);
+  const markdown = dialog?.querySelector('textarea')?.value;
+  expect(markdown).toContain('## Areas to investigate');
+  expect(markdown).toContain('Does the default runner stay active?');
+  expect(writeText).not.toHaveBeenCalled();
+  const copy = [...(dialog?.querySelectorAll('button') ?? [])].find(
+    (button) => button.textContent === 'Copy Markdown',
+  );
+  await act(async () => copy?.click());
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(markdown);
+});
+
+test('Ask History shows saved replies that no longer appear in the diff', async () => {
+  const state = {
+    ...repositoryState,
+    source: {
+      baseSha: 'base',
+      headSha: 'updated-head',
+      number: 42,
+      provider: 'azure-devops',
+      type: 'pull-request',
+      url: 'https://dev.azure.com/org/project/_git/repo/pullrequest/42',
+    },
+  } as const;
+  updateAskThread(state, 'old-ask', () => ({
+    body: 'Which runner is used?',
+    codexReply: {
+      reviewKey: 'prior version',
+      status: 'ready',
+      turns: [{ question: 'Which runner is used?', reply: 'The default runner.' }],
+    },
+    filePath: 'src/runner.ts',
+    id: 'old-ask',
+    lineNumber: 12,
+    sectionId: 'old-section',
+  }));
+  window.codiff = createCodiffMock({ getRepositoryState: vi.fn(async () => state) });
+  await using view = await renderReact(<App />);
+  await waitFor(() => expect(view.container.querySelector('.review-top-bar')).not.toBeNull());
+  expect(view.container.textContent).not.toContain('The default runner.');
+  await act(async () => dispatchModifiedKey('k', false));
+  const command = [...view.container.querySelectorAll<HTMLButtonElement>('.command-bar-item')].find(
+    (button) => button.textContent === 'Ask History',
+  );
+  expect(command).toBeDefined();
+  await act(async () => command?.click());
+  const dialog = view.container.querySelector<HTMLDialogElement>(
+    'dialog[aria-labelledby="ask-history-title"]',
+  );
+  expect(dialog?.open).toBe(true);
+  expect(dialog?.querySelector('textarea')?.value).toContain('Reply: The default runner.');
+});
+
+test('clicking an Ask notification reveals a filtered, collapsed file and jumps to the question', async () => {
+  const file = createChangedFile('src/runner.ts', { kind: 'pull-request' });
+  const state = {
+    ...repositoryState,
+    files: [file],
+    source: {
+      baseSha: 'base',
+      headSha: 'head',
+      number: 42,
+      provider: 'azure-devops',
+      type: 'pull-request',
+      url: 'https://dev.azure.com/org/project/_git/repo/pullrequest/42',
+    },
+  } satisfies RepositoryState;
+  const comment = {
+    body: 'Which runner is used?',
+    filePath: file.path,
+    id: 'runner-ask',
+    lineNumber: 1,
+    sectionId: file.sections[0].id,
+    side: 'deletions',
+  } satisfies ReviewComment;
+  updateAskThread(state, comment.id, () => ({
+    ...comment,
+    codexReply: {
+      reviewKey: getAskConversationKey(state, comment),
+      status: 'ready',
+      turns: [{ question: comment.body, reply: 'The default runner.' }],
+    },
+  }));
+  const pending = Promise.withResolvers<ReviewAssistantResult>();
+  const askReviewAssistant = vi.fn(() => pending.promise);
+  window.codiff = createCodiffMock({
+    askReviewAssistant,
+    getRepositoryState: vi.fn(async () => state),
+  });
+  using scrollTo = vi.spyOn(CodeView.prototype, 'scrollTo');
+  await using view = await renderReact(<App />);
+  const { container } = view;
+  const followUp = '.review-comment-assistant-follow-up';
+  await waitFor(() => expect(container.querySelector(`${followUp} textarea`)).not.toBeNull());
+  await setInputValue(
+    container.querySelector<HTMLTextAreaElement>(`${followUp} textarea`)!,
+    'What about the fallback?',
+  );
+  await act(async () => container.querySelector<HTMLButtonElement>(`${followUp} button`)?.click());
+  expect(askReviewAssistant).toHaveBeenCalledTimes(1);
+
+  const tab = (label: string) =>
+    [...container.querySelectorAll<HTMLButtonElement>('button[role="tab"]')].find(
+      (button) => button.textContent === label,
+    );
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Collapse file"]')?.click(),
+  );
+  expect(container.querySelector('[aria-label="Expand file"]')).not.toBeNull();
+  await setInputValue(
+    container.querySelector<HTMLInputElement>('input[placeholder="Filter files"]')!,
+    'no matching file',
+  );
+  expect(container.textContent).toContain('No matching files');
+  await act(async () => tab('History')?.click());
+  expect(tab('History')?.getAttribute('aria-selected')).toBe('true');
+
+  await act(async () =>
+    pending.resolve({ reply: 'The fallback uses the same runner.', status: 'ready' }),
+  );
+  const notice = container.querySelector<HTMLButtonElement>('.ask-notice');
+  expect(notice?.title).toBe('Jump to src/runner.ts:1');
+  scrollTo.mockClear();
+  await act(async () => notice?.click());
+  expect(tab('Tree')?.getAttribute('aria-selected')).toBe('true');
+  expect(
+    container.querySelector<HTMLInputElement>('input[placeholder="Filter files"]')?.value,
+  ).toBe('');
+  expect(container.querySelector('.ask-notice')).toBeNull();
+  expect(document.activeElement).toBe(container.querySelector('main.review'));
+  await waitFor(() => {
+    expect(container.querySelector('[aria-label="Collapse file"]')).not.toBeNull();
+    expect(scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        align: 'center',
+        id: `diff:${comment.sectionId}`,
+        lineNumber: 1,
+        side: 'deletions',
+        type: 'line',
+      }),
+    );
+  });
+});
+
+test.each([
+  { method: 'increaseCodeFontSize', title: 'Increase Code Font Size' },
+  { method: 'decreaseCodeFontSize', title: 'Decrease Code Font Size' },
+  { method: 'resetCodeFontSize', title: 'Reset Code Font Size' },
+] as const)('Commands button exposes and runs $title', async ({ method, title }) => {
+  const changedFile = createChangedFile('src/app.ts');
+  await using app = await renderAppForOpenFileShortcut(changedFile);
+  const openPalette = app.container.querySelector<HTMLButtonElement>(
+    '[aria-label="Open command palette"]',
+  )!;
+  await act(async () => openPalette.click());
+  const search = app.container.querySelector<HTMLInputElement>('[aria-label="Search commands"]')!;
+  expect(document.activeElement).toBe(search);
+  await act(async () => setInputValue(search, title));
+  const commands = app.container.querySelectorAll<HTMLButtonElement>('.command-bar-item');
+  expect(commands).toHaveLength(1);
+  expect(commands[0]!.textContent).toContain(title);
+  await act(async () =>
+    search.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })),
+  );
+  expect(window.codiff[method]).toHaveBeenCalledOnce();
+  expect(app.container.querySelector('[aria-label="Command palette"]')).toBeNull();
+});
+
+test.each([
+  { reviewTheme: 'neutral', title: 'Review Theme: Neutral Review' },
+  { reviewTheme: 'blue-amber', title: 'Review Theme: Blue/Amber' },
+] as const)(
+  '$title applies a saved preference without reloading the review',
+  async ({ reviewTheme, title }) => {
+    let configChanged: ((config: ReturnType<typeof createDefaultConfig>) => void) | undefined;
+    const config = createDefaultConfig();
+    config.settings.theme = 'dark';
+    window.codiff = createCodiffMock({
+      getConfig: vi.fn(async () => config),
+      onConfigChanged: vi.fn((callback) => {
+        configChanged = callback;
+        return () => {};
+      }),
+      setReviewTheme: vi.fn(async (value) => {
+        configChanged?.({ ...config, settings: { ...config.settings, reviewTheme: value } });
+      }),
+    });
+    await using view = await renderReact(<App />);
+    await waitFor(() => expect(view.container.querySelector('.loading')).toBeNull());
+    const reads = vi.mocked(window.codiff.getRepositoryState).mock.calls.length;
+    await act(async () =>
+      view.container
+        .querySelector<HTMLButtonElement>('[aria-label="Open command palette"]')!
+        .click(),
+    );
+    const search = view.container.querySelector<HTMLInputElement>(
+      '[aria-label="Search commands"]',
+    )!;
+    await act(async () => setInputValue(search, title));
+    await act(async () =>
+      search.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })),
+    );
+    expect(window.codiff.setReviewTheme).toHaveBeenCalledWith(reviewTheme);
+    expect(document.documentElement.getAttribute('data-review-theme')).toBe(reviewTheme);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(view.container.querySelector('[aria-label="Command palette"]')).toBeNull();
+    expect(window.codiff.getRepositoryState).toHaveBeenCalledTimes(reads);
+  },
+);
+
+test('a failed review theme save keeps the review visible and reports the error', async () => {
+  window.codiff = createCodiffMock({
+    setReviewTheme: vi.fn(async () => {
+      throw new Error('Config is read-only');
+    }),
+  });
+  await using view = await renderReact(<App />);
+  await waitFor(() => expect(view.container.querySelector('.loading')).toBeNull());
+  await act(async () =>
+    view.container.querySelector<HTMLButtonElement>('[aria-label="Open command palette"]')!.click(),
+  );
+  const search = view.container.querySelector<HTMLInputElement>('[aria-label="Search commands"]')!;
+  await act(async () => setInputValue(search, 'Review Theme: Blue/Amber'));
+  await act(async () =>
+    search.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })),
+  );
+  expect(view.container.querySelector('[role="alert"]')?.textContent).toContain(
+    'Review theme change failed: Config is read-only',
+  );
+  expect(document.documentElement.getAttribute('data-review-theme')).toBe('neutral');
+  expect(view.container.querySelector('.app-shell')).not.toBeNull();
+});
+
+test('Mod+Shift+O opens the selected file in the editor', async () => {
+  const changedFile = createChangedFile('src/app.ts');
+  await using app = await renderAppForOpenFileShortcut(changedFile);
+
+  await act(async () => {
+    dispatchModifiedKey('O', true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(app.openFile).toHaveBeenCalledWith(changedFile.path);
+});
+
+test('Mod+Shift+O does not open deleted files', async () => {
+  const deletedFile = {
+    ...createChangedFile('src/removed.ts'),
+    status: 'deleted',
+  } satisfies ChangedFile;
+  await using app = await renderAppForOpenFileShortcut(deletedFile);
+
+  await act(async () => {
+    dispatchModifiedKey('O', true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(app.openFile).not.toHaveBeenCalled();
+});
+
+test('commit messages use the shared source description presentation', async () => {
+  const changedFile = createChangedFile('src/app.ts');
+  const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
+  const commitMetadata = createCommitMetadataFixture('## Details\n\nDetailed **commit** body.');
+  const historyAvatarUrl = 'https://avatars.githubusercontent.com/u/1?v=4';
+
+  window.codiff = createCodiffMock({
+    getRepositoryHistory: vi.fn(async () => ({
+      entries: [
+        {
+          author: commitMetadata.author.name,
+          committedAt: Date.parse(commitMetadata.author.date),
+          gravatarUrl: historyAvatarUrl,
+          parents: commitMetadata.parents,
+          ref: commitMetadata.ref,
+          subject: commitMetadata.subject,
+        },
+      ],
+      root: '/repo',
+    })),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      commitMetadata,
+      files: [changedFile],
+      source,
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(container.querySelector('.codiff-source-description-header')).not.toBeNull();
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.source-description-markdown')?.textContent).toContain(
+      'Detailed commit body.',
+    );
+  });
+  const header = container.querySelector<HTMLElement>('.codiff-source-description-header');
+  expect(header?.querySelector('.source-description-title')?.textContent).toBe(
+    commitMetadata.subject,
+  );
+  expect(container.querySelector('.source-description-author-header')?.textContent).toContain(
+    commitMetadata.author.name,
+  );
+  expect(
+    container.querySelector<HTMLImageElement>('.source-description-comment > .avatar.medium')?.src,
+  ).toBe(historyAvatarUrl);
+  expect(container.querySelector('[aria-label="Preview commit message"]')).not.toBeNull();
+  expect(container.querySelector('.codiff-commit-details-header')).toBeNull();
+  expect(container.querySelector('.commit-details-panel')).toBeNull();
+  expect(container.textContent).not.toContain('Verified signature');
+  expect(container.textContent).not.toContain('Co-authored-by');
+});
+
+test('bodyless commits still render the author and profile image', async () => {
+  const commitMetadata = createCommitMetadataFixture('');
+  const source = {
+    ref: commitMetadata.ref,
+    type: 'commit',
+  } satisfies ReviewSource;
+
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      commitMetadata,
+      files: [createChangedFile('src/app.ts')],
+      source,
+    })),
+  });
+
+  await using app = await renderReact(<App />);
+
+  await waitFor(() => {
+    expect(app.container.querySelector('.source-description-author-header')?.textContent).toContain(
+      commitMetadata.author.name,
+    );
+  });
+  expect(
+    app.container.querySelector<HTMLImageElement>('.source-description-comment > .avatar.medium')
+      ?.src,
+  ).toBe(commitMetadata.author.gravatarUrl);
+  expect(
+    app.container.querySelector('.source-description-author-header.without-description'),
+  ).not.toBeNull();
+  expect(app.container.querySelector('.source-description-markdown')).toBeNull();
+  expect(
+    app.container
+      .querySelector('.codiff-source-description-header')
+      ?.querySelector('.source-description-title')?.textContent,
+  ).toBe(commitMetadata.subject);
+});
+
+test('pull request descriptions render as provider-aware Markdown source context', async () => {
+  const changedFile = createChangedFile('src/app.ts');
+  const cases: ReadonlyArray<{
+    label: string;
+    source: Extract<ReviewSource, { type: 'pull-request' }>;
+  }> = [
+    {
+      label: 'PR description',
+      source: {
+        author: {
+          avatarUrl: 'https://avatars.githubusercontent.com/u/1?v=4',
+          login: 'octocat',
+          url: 'https://github.com/octocat',
+        },
+        description: '## Intent\n\nShip **review** context.',
+        number: 12,
+        provider: 'github',
+        type: 'pull-request',
+        url: 'https://github.com/nkzw-tech/codiff/pull/12',
+      },
+    },
+    {
+      label: 'MR description',
+      source: {
+        description: '## Intent\n\nShip **review** context.',
+        number: 13,
+        provider: 'gitlab',
+        type: 'pull-request',
+        url: 'https://gitlab.example.com/group/project/-/merge_requests/13',
+      },
+    },
+    {
+      label: 'Description',
+      source: {
+        description: '## Intent\n\nShip **review** context.',
+        number: 14,
+        type: 'pull-request',
+        url: 'https://example.com/reviews/14',
+      },
+    },
+  ];
+
+  for (const { label, source } of cases) {
+    window.codiff = createCodiffMock({
+      getRepositoryState: vi.fn(async () => ({
+        ...repositoryState,
+        files: [changedFile],
+        source,
+      })),
+    });
+    await using app = await renderReact(<App />);
+
+    await waitFor(() => {
+      expect(app.container.querySelector('.codiff-source-description-header')).not.toBeNull();
+    });
+    const header = app.container.querySelector<HTMLElement>('.codiff-source-description-header');
+    const body = app.container.querySelector<HTMLElement>('.source-description-markdown');
+    expect(body?.textContent).toContain('Intent');
+    expect(body?.textContent).toContain('Ship review context.');
+    expect(header?.querySelector('.codiff-file-path')?.textContent).toBe(label);
+    expect(header?.querySelector('.source-description-title')).toBeNull();
+    if (source.author) {
+      expect(header?.querySelector('.source-description-author')).toBeNull();
+      expect(
+        app.container.querySelector('.source-description-author-header')?.textContent,
+      ).toContain(source.author.name ?? `@${source.author.login}`);
+    } else {
+      expect(header?.querySelector('.source-description-author')).toBeNull();
+    }
+    const toggle = header?.querySelector<HTMLButtonElement>('button.codiff-header-toggle');
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle?.type).toBe('button');
+  }
+});
+
+test('pull request description collapse button toggles the markdown body', async () => {
+  const source = {
+    description: '## Intent\n\nShip **review** context.',
+    number: 12,
+    provider: 'github',
+    type: 'pull-request',
+    url: 'https://github.com/nkzw-tech/codiff/pull/12',
+  } satisfies ReviewSource;
+
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+      source,
+    })),
+  });
+
+  await using app = await renderReact(<App />);
+
+  await waitFor(() => {
+    expect(app.container.querySelector('.source-description-markdown')).not.toBeNull();
+  });
+  const repositoryLabel = app.container.querySelector<HTMLElement>('.review-top-bar-repository');
+  const sourceLink = app.container.querySelector<HTMLAnchorElement>('.review-top-bar-source');
+  expect(repositoryLabel).not.toBeNull();
+  expect(sourceLink?.href).toBe(source.url);
+  expect(sourceLink?.textContent).toBe('PR #12');
+  expect(sourceLink?.querySelector('svg')).not.toBeNull();
+  let toggle = app.container.querySelector<HTMLButtonElement>('button.codiff-header-toggle');
+  expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  expect(app.container.querySelector('.source-description-markdown')?.textContent).toContain(
+    'Ship review context.',
+  );
+  await act(async () => {
+    toggle?.click();
+  });
+  await waitFor(() => {
+    toggle = app.container.querySelector<HTMLButtonElement>('button.codiff-header-toggle');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(app.container.querySelector('.source-description-markdown')).toBeNull();
+  });
+  await act(async () => {
+    toggle?.click();
+  });
+  await waitFor(() => {
+    expect(
+      app.container
+        .querySelector<HTMLButtonElement>('button.codiff-header-toggle')
+        ?.getAttribute('aria-expanded'),
+    ).toBe('true');
+    expect(app.container.querySelector('.source-description-markdown')?.textContent).toContain(
+      'Ship review context.',
+    );
+  });
+});
+
+test('missing pull request descriptions do not render placeholder source context', async () => {
+  window.codiff = createCodiffMock({
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+      source: {
+        description: '   ',
+        number: 12,
+        provider: 'github',
+        type: 'pull-request',
+        url: 'https://github.com/nkzw-tech/codiff/pull/12',
+      } satisfies ReviewSource,
+    })),
+  });
+
+  await using app = await renderReact(<App />);
+
+  await waitFor(() => {
+    expect(app.container.querySelector('.codiff-file-header')).not.toBeNull();
+  });
+  expect(app.container.querySelector('.codiff-source-description-header')).toBeNull();
+  expect(app.container.textContent).not.toContain('PR description');
+});
+
+test('title-only pull request source context renders as a collapsed static header', async () => {
+  const cases: ReadonlyArray<Extract<ReviewSource, { type: 'pull-request' }>> = [
+    {
+      description: '   ',
+      number: 12,
+      provider: 'github',
+      title: 'Title without a body',
+      type: 'pull-request',
+      url: 'https://github.com/nkzw-tech/codiff/pull/12',
+    },
+    {
+      number: 13,
+      provider: 'gitlab',
+      title: 'Merge request title only',
+      type: 'pull-request',
+      url: 'https://gitlab.example.com/group/project/-/merge_requests/13',
+    },
+  ];
+
+  for (const source of cases) {
+    window.codiff = createCodiffMock({
+      getRepositoryState: vi.fn(async () => ({
+        ...repositoryState,
+        files: [createChangedFile('src/app.ts')],
+        source,
+      })),
+    });
+    await using app = await renderReact(<App />);
+
+    await waitFor(() => {
+      expect(app.container.querySelector('.codiff-source-description-header')).not.toBeNull();
+    });
+    const header = app.container.querySelector<HTMLElement>('.codiff-source-description-header');
+    expect(header?.classList.contains('collapsed')).toBe(true);
+    expect(header?.querySelector('.source-description-title')?.textContent).toBe(source.title);
+    expect(header?.querySelector('.codiff-header-toggle-static')).not.toBeNull();
+    expect(header?.querySelector('button.codiff-header-toggle')).toBeNull();
+    expect(header?.querySelector('.codiff-chevron-box')).toBeNull();
+    expect(app.container.querySelector('.source-description-markdown')).toBeNull();
+  }
+});
+
+test('walkthroughs keep PR descriptions but render generated references as text', async () => {
+  const changedFile = createChangedFile('src/app.ts');
+  const source = {
+    description: '## Summary\n\nKeep the PR context visible.',
+    number: 12,
+    provider: 'github',
+    title: 'Keep context visible in walkthrough',
+    type: 'pull-request',
+    url: 'https://github.com/nkzw-tech/codiff/pull/12',
+  } satisfies ReviewSource;
+  const narrativeWalkthrough = {
+    agent: 'codex',
+    chapters: [
+      {
+        blurb: 'Review the implementation.',
+        icon: 'gear',
+        id: 'impl',
+        stops: [
+          {
+            added: 1,
+            deleted: 1,
+            hunkIds: ['src/app.ts:unstaged:h1'],
+            hunks: [
+              {
+                added: 1,
+                anchor: {
+                  display: 'src/app.ts',
+                  sectionId: 'src/app.ts:unstaged',
+                  side: 'both',
+                },
+                deleted: 1,
+                id: 'src/app.ts:unstaged:h1',
+                path: 'src/app.ts',
+                status: 'modified',
+              },
+            ],
+            id: 's1',
+            importance: 'critical',
+            prose:
+              'Read [the docs](https://example.invalid/docs) and check `run()`. ![Flow](https://example.invalid/flow.png)',
+            title: 'Implementation path',
+          },
+        ],
+        title: 'Implementation',
+      },
+    ],
+    focus:
+      'Check **behavior** against [the spec](https://example.invalid/spec). <img src="https://example.invalid/spec.png" alt="Spec diagram">',
+    generatedAt: '2026-06-07T00:00:00.000Z',
+    kind: 'narrative',
+    repo: { branch: 'main', root: '/repo' },
+    source,
+    support: [],
+    title: 'Narrative',
+    version: 4,
+  } satisfies NarrativeWalkthrough;
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source,
+      walkthrough: true,
+      walkthroughFile: '/tmp/walkthrough.json',
+    })),
+    getNarrativeWalkthrough: vi.fn(async () => ({
+      status: 'ready' as const,
+      walkthrough: narrativeWalkthrough,
+    })),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [changedFile],
+      source,
+    })),
+  });
+
+  await using app = await renderReact(<App />);
+
+  await waitFor(() => {
+    expect(app.container.querySelector('.wt-stop-block')).not.toBeNull();
+    expect(app.container.textContent).toContain('Keep the PR context visible.');
+  });
+  expect(app.container.querySelectorAll('.codiff-source-description-header')).toHaveLength(1);
+  expect(app.container.querySelectorAll('.source-description-markdown')).toHaveLength(1);
+  expect(app.container.textContent).toContain('Keep context visible in walkthrough');
+  const focus = app.container.querySelector('.wt-focus p');
+  const narration = app.container.querySelector('.wt-narration-prose');
+  expect(focus?.querySelector('strong')?.textContent).toBe('behavior');
+  expect(focus?.textContent).toBe('Check behavior against the spec. Spec diagram');
+  expect(narration?.querySelector('code')?.textContent).toBe('run()');
+  expect(narration?.textContent).toBe('Read the docs and check run(). Flow');
+  expect(app.container.querySelector('.wt-focus a, .wt-focus img')).toBeNull();
+  expect(narration?.querySelector('a, img')).toBeNull();
+  expect(app.container.textContent).not.toContain('Share walkthrough');
+  expect(app.container.querySelector('[aria-label="Share walkthrough"]')).toBeNull();
+});
+
+test('narrative walkthrough stops do not repeat commit details', async () => {
+  const changedFile = createChangedFile('src/app.ts');
+  const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
+  const commitMetadata = {
+    author: {
+      date: '2026-01-01T12:00:00Z',
+      email: 'author@example.com',
+      name: 'Author',
+    },
+    body: 'Detailed commit body.',
+    committer: {
+      date: '2026-01-01T13:00:00Z',
+      email: 'committer@example.com',
+      name: 'Committer',
+    },
+    files: [
+      {
+        additions: 1,
+        binary: false,
+        deletions: 1,
+        path: 'src/app.ts',
+        status: 'modified' as const,
+      },
+    ],
+    parents: ['parent-sha'],
+    ref: 'abc1234',
+    refs: ['main'],
+    shortRef: 'abc1234',
+    signature: {
+      status: 'N',
+    },
+    stats: {
+      additions: 1,
+      binaryFiles: 0,
+      deletions: 1,
+      files: 1,
+      renamedFiles: 0,
+    },
+    subject: 'Commit subject',
+    trailers: [],
+  } satisfies CommitMetadata;
+  const narrativeWalkthrough = {
+    agent: 'codex',
+    chapters: [
+      {
+        blurb: 'Review the implementation.',
+        icon: 'gear',
+        id: 'impl',
+        stops: [
+          {
+            added: 1,
+            deleted: 1,
+            hunkIds: ['src/app.ts:unstaged:h1'],
+            hunks: [
+              {
+                added: 1,
+                anchor: {
+                  display: 'src/app.ts',
+                  sectionId: 'src/app.ts:unstaged',
+                  side: 'both',
+                },
+                deleted: 1,
+                id: 'src/app.ts:unstaged:h1',
+                path: 'src/app.ts',
+                status: 'modified',
+              },
+            ],
+            id: 's1',
+            importance: 'critical',
+            prose: 'Review this file without repeating the commit header.',
+            title: 'Implementation path',
+          },
+        ],
+        title: 'Implementation',
+      },
+    ],
+    focus: 'Focus.',
+    generatedAt: '2026-06-07T00:00:00.000Z',
+    kind: 'narrative',
+    repo: { branch: 'main', root: '/repo' },
+    source,
+    support: [],
+    title: 'Narrative',
+    version: 4,
+  } satisfies NarrativeWalkthrough;
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source,
+      walkthrough: true,
+      walkthroughFile: '/tmp/walkthrough.json',
+    })),
+    getNarrativeWalkthrough: vi.fn(async () => ({
+      status: 'ready' as const,
+      walkthrough: narrativeWalkthrough,
+    })),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      commitMetadata,
+      files: [changedFile],
+      source,
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(container.querySelector('.wt-stop-block')).not.toBeNull();
+  });
+  expect(container.querySelector('.codiff-source-description-header')).toBeNull();
+  expect(container.querySelector('.source-description-markdown')).toBeNull();
+  expect(container.querySelector('.wt-stage-title')?.textContent).toContain('Implementation path');
+});
+
+test('a walkthrough file loads even without the walkthrough launch flag', async () => {
+  const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
+  const narrativeWalkthrough = {
+    agent: 'claude',
+    chapters: [
+      {
+        blurb: 'Review the implementation.',
+        icon: 'gear',
+        id: 'impl',
+        stops: [
+          {
+            added: 1,
+            deleted: 1,
+            hunkIds: ['src/app.ts:unstaged:h1'],
+            hunks: [
+              {
+                added: 1,
+                anchor: {
+                  display: 'src/app.ts',
+                  sectionId: 'src/app.ts:unstaged',
+                  side: 'both',
+                },
+                deleted: 1,
+                id: 'src/app.ts:unstaged:h1',
+                path: 'src/app.ts',
+                status: 'modified',
+              },
+            ],
+            id: 'implementation-path',
+            importance: 'critical',
+            prose: 'Review this file.',
+            summary: 'The implementation path.',
+            title: 'Implementation path',
+          },
+        ],
+        title: 'Implementation',
+      },
+    ],
+    focus: 'Focus.',
+    generatedAt: '2026-06-07T00:00:00.000Z',
+    kind: 'narrative',
+    repo: { branch: 'main', root: '/repo' },
+    source,
+    support: [],
+    title: 'Narrative',
+    version: 4,
+  } satisfies NarrativeWalkthrough;
+
+  const getNarrativeWalkthrough = vi.fn(async () => ({
+    status: 'ready' as const,
+    walkthrough: narrativeWalkthrough,
+  }));
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source,
+      walkthrough: false,
+      walkthroughFile: '/tmp/walkthrough.json',
+    })),
+    getNarrativeWalkthrough,
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+      source,
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.wt-stop-block')).not.toBeNull();
+  });
+  expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
+  expect(container.querySelector('.walkthrough-error')).toBeNull();
+});
+
+test('plan mode opens the Markdown editor without loading repository state', async () => {
+  const getRepositoryState = vi.fn(async () => repositoryState);
+  const completePlan = vi.fn(async (_review: PlanReview, _status: 'closed' | 'done') => {});
+  const markPlanReady = vi.fn(async () => {});
+  const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+  const scrollIntoView = vi.fn();
+  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  const storedReview = {
+    document: {
+      id: 'stale-plan-id',
+      path: '/tmp/old-plan.md',
+      version: 'stale-version',
+    },
+    threads: [
+      {
+        anchor: {
+          block: {
+            fingerprint: 'heading-fingerprint',
+            path: [1],
+            text: 'Execute this plan',
+            type: 'heading',
+          },
+          kind: 'block',
+          version: 1,
+        },
+        createdAt: '2026-06-24T00:00:00.000Z',
+        createdBy: {
+          email: 'reviewer@example.com',
+          id: 'reviewer@example.com',
+          name: 'Reviewer',
+        },
+        id: 'thread-1',
+        messages: [
+          {
+            author: {
+              email: 'reviewer@example.com',
+              id: 'reviewer@example.com',
+              name: 'Reviewer',
+            },
+            body: 'Keep the rollout steps explicit.',
+            createdAt: '2026-06-24T00:00:00.000Z',
+            id: 'message-1',
+            updatedAt: '2026-06-24T00:00:00.000Z',
+          },
+        ],
+        status: 'open',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      },
+      {
+        anchor: {
+          block: {
+            fingerprint: 'list-item-fingerprint',
+            path: [2, 0],
+            text: 'First',
+            type: 'listitem',
+          },
+          kind: 'block',
+          version: 1,
+        },
+        createdAt: '2026-06-24T00:01:00.000Z',
+        createdBy: {
+          email: 'reviewer@example.com',
+          id: 'reviewer@example.com',
+          name: 'Reviewer',
+        },
+        id: 'empty-thread',
+        messages: [
+          {
+            author: {
+              email: 'reviewer@example.com',
+              id: 'reviewer@example.com',
+              name: 'Reviewer',
+            },
+            body: '   ',
+            createdAt: '2026-06-24T00:01:00.000Z',
+            id: 'empty-message',
+            updatedAt: '2026-06-24T00:01:00.000Z',
+          },
+        ],
+        status: 'open',
+        updatedAt: '2026-06-24T00:01:00.000Z',
+      },
+    ],
+    version: 1,
+  } satisfies PlanReview;
+  window.codiff = createCodiffMock({
+    completePlan,
+    getGitIdentity: vi.fn(async () => ({
+      email: 'current-user@example.com',
+      gravatarUrl: 'https://example.com/current-user.png',
+      name: 'Current User',
+    })),
+    getLaunchOptions: vi.fn(async () => ({
+      planFile: '/tmp/plan.md',
+      planResultFile: '/tmp/result.json',
+      repositoryPathProvided: true,
+      walkthrough: false,
+    })),
+    getMarkdownDocument: vi.fn(async () => ({
+      content:
+        '---\ntitle: Execute this plan\ndraft: true\n---\n\n# Execute this plan\n\n- First\n- Second\n\n```sh\nvp test\n```\n',
+      id: 'plan:/tmp/plan.md',
+      kind: 'plan' as const,
+      path: '/tmp/plan.md',
+      version: 'plan-version',
+    })),
+    getPlanReview: vi.fn(async () => storedReview),
+    getRepositoryState,
+    markPlanReady,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.plan-shell')).not.toBeNull();
+  });
+  expect(getRepositoryState).not.toHaveBeenCalled();
+  expect(markPlanReady).toHaveBeenCalledTimes(1);
+  expect(container.querySelector('.plan-title')?.textContent).toContain('plan.md');
+  await waitFor(() => {
+    expect(container.querySelector('[data-editor-type="frontmatter"]')).not.toBeNull();
+  });
+  expect(container.querySelector('.mdx-editor-content h2')).toBeNull();
+  expect(container.querySelectorAll('.mdx-editor-content ul > li')).toHaveLength(2);
+  await waitFor(() => {
+    expect(container.querySelector('.cm-content')).not.toBeNull();
+  });
+  expect(container.querySelector('.cm-gutters')).toBeNull();
+  expect(container.querySelector('.cm-content')?.textContent).toContain('vp test');
+  await waitFor(() => {
+    expect(container.querySelector('.plan-comment-thread')?.textContent).toContain(
+      'Keep the rollout steps explicit.',
+    );
+  });
+  const planCommentAvatar = container.querySelector('.plan-comment-thread .avatar.medium');
+  expect(planCommentAvatar?.tagName).toBe('SPAN');
+  expect(planCommentAvatar?.textContent).toBe('RE');
+  const commentTargetButton = container.querySelector<HTMLButtonElement>('.plan-comment-target');
+  expect(commentTargetButton?.textContent).toBe('Heading · Execute this plan');
+  expect(commentTargetButton?.disabled).toBe(false);
+  await act(async () => {
+    commentTargetButton?.click();
+  });
+  expect(scrollIntoView).toHaveBeenCalledWith({
+    behavior: 'smooth',
+    block: 'center',
+  });
+  scrollIntoView.mockClear();
+  expect(container.querySelector('[data-mdx-annotation-block~="thread-1"]')).not.toBeNull();
+  expect(container.querySelectorAll('li[data-mdx-comment-block-type="listitem"]')).toHaveLength(2);
+  const planWorkspace = container.querySelector<HTMLElement>('.plan-workspace');
+  const editorContent = container.querySelector<HTMLElement>('.mdx-editor-content');
+  const commentBlock = container.querySelectorAll<HTMLElement>(
+    'li[data-mdx-comment-block-type="listitem"]',
+  )[1];
+  expect(planWorkspace).not.toBeNull();
+  expect(editorContent).not.toBeNull();
+  expect(commentBlock).toBeDefined();
+  planWorkspace!.getBoundingClientRect = () => ({
+    bottom: 700,
+    height: 650,
+    left: 100,
+    right: 1100,
+    toJSON: () => {},
+    top: 50,
+    width: 1000,
+    x: 100,
+    y: 50,
+  });
+  editorContent!.style.paddingRight = '24px';
+  editorContent!.getBoundingClientRect = () => ({
+    bottom: 650,
+    height: 550,
+    left: 120,
+    right: 1020,
+    toJSON: () => {},
+    top: 100,
+    width: 900,
+    x: 120,
+    y: 100,
+  });
+  commentBlock!.getBoundingClientRect = () => ({
+    bottom: 224,
+    height: 24,
+    left: 144,
+    right: 996,
+    toJSON: () => {},
+    top: 200,
+    width: 852,
+    x: 144,
+    y: 200,
+  });
+  await act(async () => {
+    commentBlock!.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.plan-comment-affordance')).not.toBeNull();
+  });
+  const commentAffordance = container.querySelector<HTMLElement>('.plan-comment-affordance')!;
+  expect(commentAffordance.dataset.mdxCommentButton).toBe('');
+  expect(commentAffordance.style.getPropertyValue('--plan-comment-left')).toBe('896px');
+  expect(commentAffordance.style.getPropertyValue('--plan-comment-width')).toBe('48px');
+  expect(commentAffordance.querySelector(':scope > .plan-comment-add')).not.toBeNull();
+  await act(async () => {
+    editorContent!.dispatchEvent(
+      new MouseEvent('pointerleave', { relatedTarget: commentAffordance }),
+    );
+  });
+  expect(container.querySelector('.plan-comment-affordance')).not.toBeNull();
+  await act(async () => {
+    commentAffordance.dispatchEvent(
+      new MouseEvent('pointerout', {
+        bubbles: true,
+        relatedTarget: editorContent,
+      }),
+    );
+  });
+  expect(container.querySelector('.plan-comment-affordance')).not.toBeNull();
+  await act(async () => {
+    commentAffordance.dispatchEvent(
+      new MouseEvent('pointerout', {
+        bubbles: true,
+        relatedTarget: planWorkspace,
+      }),
+    );
+  });
+  expect(container.querySelector('.plan-comment-affordance')).toBeNull();
+  await act(async () => {
+    container
+      .querySelectorAll<HTMLElement>('li[data-mdx-comment-block-type="listitem"]')[0]!
+      .dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+    commentBlock!.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+  });
+  const addCommentButton = container.querySelector<HTMLButtonElement>('.plan-comment-add');
+  expect(addCommentButton).not.toBeNull();
+  await act(async () => {
+    addCommentButton!.click();
+  });
+  const activeComment = container.querySelector<HTMLElement>('.plan-comment-thread.active');
+  expect(activeComment).not.toBeNull();
+  expect(activeComment!.closest<HTMLElement>('.plan-comment-position')?.style.top).not.toBe('0px');
+  const activeCommentDelete =
+    activeComment!.querySelector<HTMLButtonElement>('.review-comment-delete');
+  expect(activeCommentDelete).not.toBeNull();
+  await act(async () => {
+    activeCommentDelete!.click();
+  });
+  const commentRail = container.querySelector<HTMLElement>('.plan-comment-rail-scroll');
+  const commentPosition = container.querySelector<HTMLElement>('.plan-comment-position');
+  const annotatedBlock = container.querySelector<HTMLElement>(
+    '[data-mdx-annotation-block~="thread-1"]',
+  );
+  expect(commentRail).not.toBeNull();
+  expect(commentPosition).not.toBeNull();
+  expect(annotatedBlock).not.toBeNull();
+  commentRail!.style.overflowY = 'auto';
+  commentRail!.getBoundingClientRect = () => ({
+    bottom: 300,
+    height: 200,
+    left: 0,
+    right: 400,
+    toJSON: () => {},
+    top: 100,
+    width: 400,
+    x: 0,
+    y: 100,
+  });
+  commentPosition!.getBoundingClientRect = () => ({
+    bottom: 360,
+    height: 100,
+    left: 0,
+    right: 400,
+    toJSON: () => {},
+    top: 260,
+    width: 400,
+    x: 0,
+    y: 260,
+  });
+  const scrollCommentRail = vi.fn();
+  commentRail!.scrollTo = scrollCommentRail;
+  await act(async () => {
+    annotatedBlock!.click();
+  });
+  await waitFor(() => {
+    expect(scrollCommentRail).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      top: 68,
+    });
+  });
+  expect(scrollIntoView).not.toHaveBeenCalled();
+  const deleteButtons = container.querySelectorAll<HTMLButtonElement>('.review-comment-delete');
+  expect(deleteButtons).toHaveLength(2);
+  await act(async () => {
+    deleteButtons[1]!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    deleteButtons[1]!.click();
+  });
+  expect(scrollIntoView).not.toHaveBeenCalled();
+  expect(container.querySelector('[title="Share plan"]')).toBeNull();
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.plan-done-button')?.click();
+  });
+  await waitFor(() => {
+    expect(completePlan).toHaveBeenCalledTimes(1);
+  });
+  expect(completePlan).toHaveBeenCalledWith(
+    expect.objectContaining({
+      document: {
+        id: 'plan:/tmp/plan.md',
+        path: '/tmp/plan.md',
+        version: 'plan-version',
+      },
+      threads: [
+        expect.objectContaining({
+          id: 'thread-1',
+          messages: [
+            expect.objectContaining({
+              body: 'Keep the rollout steps explicit.',
+            }),
+          ],
+        }),
+      ],
+      version: 1,
+    }),
+    'done',
+  );
+  expect(completePlan.mock.calls[0]?.[0].threads).toHaveLength(1);
+});
+
+test('plan mode resolves stored comments whose anchors were already removed', async () => {
+  const savePlanReview = vi.fn(async (review: PlanReview) => review);
+  const storedReview = {
+    document: {
+      id: 'plan:/tmp/plan.md',
+      path: '/tmp/plan.md',
+      version: 'old-plan-version',
+    },
+    threads: [
+      {
+        anchor: {
+          block: {
+            fingerprint: 'removed-heading-fingerprint',
+            path: [99],
+            text: 'Removed heading',
+            type: 'heading',
+          },
+          kind: 'block',
+          version: 1,
+        },
+        createdAt: '2026-06-24T00:00:00.000Z',
+        createdBy: {
+          email: 'reviewer@example.com',
+          id: 'reviewer@example.com',
+          name: 'Reviewer',
+        },
+        id: 'detached-thread',
+        messages: [
+          {
+            author: {
+              email: 'reviewer@example.com',
+              id: 'reviewer@example.com',
+              name: 'Reviewer',
+            },
+            body: 'Keep this comment as history.',
+            createdAt: '2026-06-24T00:00:00.000Z',
+            id: 'detached-message',
+            updatedAt: '2026-06-24T00:00:00.000Z',
+          },
+        ],
+        status: 'open',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      },
+    ],
+    version: 1,
+  } satisfies PlanReview;
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      planFile: '/tmp/plan.md',
+      planResultFile: '/tmp/result.json',
+      repositoryPathProvided: true,
+      walkthrough: false,
+    })),
+    getMarkdownDocument: vi.fn(async () => ({
+      content: '# Current plan\n',
+      id: 'plan:/tmp/plan.md',
+      kind: 'plan' as const,
+      path: '/tmp/plan.md',
+      version: 'plan-version',
+    })),
+    getPlanReview: vi.fn(async () => storedReview),
+    savePlanReview,
+  });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      await act(async () => root.unmount());
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(savePlanReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threads: [
+          expect.objectContaining({
+            id: 'detached-thread',
+            resolution: expect.objectContaining({
+              reason: 'anchor-removed',
+              resolvedAt: expect.any(String),
+            }),
+            status: 'resolved',
+          }),
+        ],
+      }),
+    );
+  });
+  const resolvedSection = container.querySelector<HTMLDetailsElement>('.plan-resolved-comments');
+  expect(resolvedSection?.open).toBe(false);
+  expect(resolvedSection?.querySelector('summary')?.textContent).toBe('Resolved comments (1)');
+  expect(container.querySelector('.plan-comment-thread.resolved')?.textContent).toContain(
+    'Resolved after target removal',
+  );
+  expect(container.querySelector('[data-mdx-annotation-block~="detached-thread"]')).toBeNull();
+  await act(async () => {
+    resolvedSection!.open = true;
+    resolvedSection!.dispatchEvent(new Event('toggle'));
+  });
+  await act(async () => {
+    resolvedSection?.querySelector<HTMLButtonElement>('.review-comment-delete')?.click();
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.plan-resolved-comments')).toBeNull();
+    expect(savePlanReview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        threads: [],
+      }),
+    );
+  });
+});
+
+test('plan mode keeps comments open when their anchors are removed during the current review', async () => {
+  let publishMarkdownChange:
+    | ((change: {
+        deleted: boolean;
+        document: {
+          content: string;
+          id: string;
+          kind: 'plan';
+          path: string;
+          version: string;
+        };
+        id: string;
+      }) => void)
+    | null = null;
+  const savePlanReview = vi.fn(async (review: PlanReview) => review);
+  const storedReview = {
+    document: {
+      id: 'plan:/tmp/plan.md',
+      path: '/tmp/plan.md',
+      version: 'plan-version',
+    },
+    threads: [
+      {
+        anchor: {
+          block: {
+            fingerprint: 'heading-fingerprint',
+            path: [0],
+            text: 'Current plan',
+            type: 'heading',
+          },
+          kind: 'block',
+          version: 1,
+        },
+        createdAt: '2026-06-24T00:00:00.000Z',
+        createdBy: {
+          email: 'reviewer@example.com',
+          id: 'reviewer@example.com',
+          name: 'Reviewer',
+        },
+        id: 'live-thread',
+        messages: [
+          {
+            author: {
+              email: 'reviewer@example.com',
+              id: 'reviewer@example.com',
+              name: 'Reviewer',
+            },
+            body: 'The agent still needs to process this.',
+            createdAt: '2026-06-24T00:00:00.000Z',
+            id: 'live-message',
+            updatedAt: '2026-06-24T00:00:00.000Z',
+          },
+        ],
+        status: 'open',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      },
+    ],
+    version: 1,
+  } satisfies PlanReview;
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      planFile: '/tmp/plan.md',
+      planResultFile: '/tmp/result.json',
+      repositoryPathProvided: true,
+      walkthrough: false,
+    })),
+    getMarkdownDocument: vi.fn(async () => ({
+      content: '# Current plan\n',
+      id: 'plan:/tmp/plan.md',
+      kind: 'plan' as const,
+      path: '/tmp/plan.md',
+      version: 'plan-version',
+    })),
+    getPlanReview: vi.fn(async () => storedReview),
+    onMarkdownDocumentChanged: vi.fn((callback) => {
+      publishMarkdownChange = callback;
+      return () => {
+        publishMarkdownChange = null;
+      };
+    }),
+    savePlanReview,
+  });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      await act(async () => root.unmount());
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('[data-mdx-annotation-block~="live-thread"]')).not.toBeNull();
+    expect(publishMarkdownChange).not.toBeNull();
+  });
+  savePlanReview.mockClear();
+  await act(async () => {
+    publishMarkdownChange?.({
+      deleted: false,
+      document: {
+        content: '# Replacement plan\n',
+        id: 'plan:/tmp/plan.md',
+        kind: 'plan',
+        path: '/tmp/plan.md',
+        version: 'next-plan-version',
+      },
+      id: 'plan:/tmp/plan.md',
+    });
+  });
+  await waitFor(() => {
+    expect(container.querySelector('[data-mdx-annotation-block~="live-thread"]')).toBeNull();
+  });
+  expect(container.querySelector('.plan-resolved-comments')).toBeNull();
+  expect(container.querySelector('.plan-comment-position .plan-comment-thread')).not.toBeNull();
+  expect(
+    savePlanReview.mock.calls.some(
+      ([review]) =>
+        review.threads.find((thread) => thread.id === 'live-thread')?.status === 'resolved',
+    ),
+  ).toBe(false);
+});
+
+test('closing plan mode flushes and returns a closed handoff', async () => {
+  const completePlan = vi.fn(async (_review: PlanReview, _status: 'closed' | 'done') => {});
+  let blockPlanReviewSave = false;
+  let resolvePlanReviewSave: (() => void) | null = null;
+  const savePlanReview = vi.fn((review: PlanReview) => {
+    if (!blockPlanReviewSave) {
+      return Promise.resolve(review);
+    }
+    return new Promise<PlanReview>((resolveSave) => {
+      resolvePlanReviewSave = () => resolveSave(review);
+    });
+  });
+  let requestClose: (() => void) | null = null;
+  window.codiff = createCodiffMock({
+    completePlan,
+    getLaunchOptions: vi.fn(async () => ({
+      planFile: '/tmp/plan.md',
+      planResultFile: '/tmp/result.json',
+      repositoryPathProvided: true,
+      walkthrough: false,
+    })),
+    getMarkdownDocument: vi.fn(async () => ({
+      content: '# Execute this plan\n',
+      id: 'plan:/tmp/plan.md',
+      kind: 'plan' as const,
+      path: '/tmp/plan.md',
+      version: 'plan-version',
+    })),
+    getPlanReview: vi.fn(async (): Promise<PlanReview> => ({
+      document: {
+        id: 'plan:/tmp/plan.md',
+        path: '/tmp/plan.md',
+        version: 'plan-version',
+      },
+      threads: [
+        {
+          anchor: {
+            block: {
+              fingerprint: 'heading-fingerprint',
+              path: [0],
+              text: 'Execute this plan',
+              type: 'heading',
+            },
+            kind: 'block',
+            version: 1,
+          },
+          createdAt: '2026-06-24T00:00:00.000Z',
+          createdBy: {
+            email: 'reviewer@example.com',
+            id: 'reviewer@example.com',
+            name: 'Reviewer',
+          },
+          id: 'thread-1',
+          messages: [
+            {
+              author: {
+                email: 'reviewer@example.com',
+                id: 'reviewer@example.com',
+                name: 'Reviewer',
+              },
+              body: 'Keep this requirement.',
+              createdAt: '2026-06-24T00:00:00.000Z',
+              id: 'message-1',
+              updatedAt: '2026-06-24T00:00:00.000Z',
+            },
+          ],
+          status: 'open',
+          updatedAt: '2026-06-24T00:00:00.000Z',
+        },
+      ],
+      version: 1,
+    })),
+    onPlanCloseRequested: vi.fn((callback) => {
+      requestClose = callback;
+      return () => {
+        requestClose = null;
+      };
+    }),
+    savePlanReview,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.plan-shell')).not.toBeNull();
+    expect(requestClose).not.toBeNull();
+    expect(container.querySelector('.plan-comment-thread')).not.toBeNull();
+  });
+  await act(async () => {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 75));
+  });
+  savePlanReview.mockClear();
+  blockPlanReviewSave = true;
+  await act(async () => {
+    requestClose?.();
+  });
+  await waitFor(() => {
+    expect(savePlanReview).toHaveBeenCalledTimes(1);
+  });
+  expect(completePlan).not.toHaveBeenCalled();
+  expect(
+    [...container.querySelectorAll<HTMLElement>('[contenteditable]')].map((element) =>
+      element.getAttribute('contenteditable'),
+    ),
+  ).toEqual(['false', 'false']);
+  expect(container.querySelector<HTMLButtonElement>('.review-comment-delete')?.disabled).toBe(true);
+  await act(async () => {
+    resolvePlanReviewSave?.();
+  });
+  await waitFor(() => {
+    expect(completePlan).toHaveBeenCalledTimes(1);
+  });
+  expect(completePlan).toHaveBeenCalledWith(
+    expect.objectContaining({
+      document: {
+        id: 'plan:/tmp/plan.md',
+        path: '/tmp/plan.md',
+        version: 'plan-version',
+      },
+      threads: [
+        expect.objectContaining({
+          id: 'thread-1',
+        }),
+      ],
+      version: 1,
+    }),
+    'closed',
+  );
+});
+
+test('plan mode recovers from an unreadable review sidecar', async () => {
+  const markPlanReady = vi.fn(async () => {});
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      planFile: '/tmp/plan.md',
+      planResultFile: '/tmp/result.json',
+      repositoryPathProvided: true,
+      walkthrough: false,
+    })),
+    getMarkdownDocument: vi.fn(async () => ({
+      content: '# Execute this plan\n',
+      id: 'plan:/tmp/plan.md',
+      kind: 'plan' as const,
+      path: '/tmp/plan.md',
+      version: 'plan-version',
+    })),
+    getPlanReview: vi.fn(async () => {
+      throw new Error('Invalid plan review.');
+    }),
+    markPlanReady,
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.plan-shell')).not.toBeNull();
+  });
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Invalid plan review.');
+  expect(container.querySelector('[contenteditable="true"]')).not.toBeNull();
+  expect(markPlanReady).toHaveBeenCalledTimes(1);
+});
+
+test('a walkthrough file that no longer anchors surfaces a dismissible banner', async () => {
+  const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source,
+      walkthrough: false,
+      walkthroughFile: '/tmp/broken-walkthrough.json',
+    })),
+    getNarrativeWalkthrough: vi.fn(async () => ({
+      reason: 'These changes were committed since the walkthrough was authored.',
+      status: 'unavailable' as const,
+    })),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+      source,
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.walkthrough-outdated-banner.visible')).not.toBeNull();
+  });
+  const banner = container.querySelector('.walkthrough-outdated-banner');
+  expect(banner?.textContent).toContain('committed since the walkthrough was authored');
+  expect(banner?.textContent).toContain('Showing history instead.');
+  await act(async () => {
+    banner?.querySelector<HTMLButtonElement>('.repository-change-dismiss')?.click();
+  });
+  expect(container.querySelector('.walkthrough-outdated-banner.visible')).toBeNull();
+});
+
+test('repository changes show the update banner without refreshing the working tree', async () => {
+  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
+  const getRepositoryState = vi.fn(async () => repositoryState);
+
+  window.codiff = createCodiffMock({
+    getRepositoryState,
+    onRepositoryChanged: vi.fn((callback) => {
+      onRepositoryChanged = callback;
+      return () => {
+        onRepositoryChanged = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(onRepositoryChanged).not.toBeNull();
+  });
+  expect(container.querySelector('.repository-change-banner.visible')).toBeNull();
+  expect(getRepositoryState).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(container.querySelector('.repository-change-banner.visible')).not.toBeNull();
+  expect(getRepositoryState).toHaveBeenCalledTimes(1);
+});
+
+test('Done accepts the edited diff without fetching the full working-tree section again', async () => {
+  const { Editor } = await import('@pierre/diffs/edit');
+  const attached = vi.spyOn(Editor.prototype, 'edit');
+  const getEditor = () => attached.mock.contexts[0] as InstanceType<typeof Editor> | undefined;
+  await using _attached = {
+    async [Symbol.asyncDispose]() {
+      attached.mockRestore();
+    },
+  };
+  const canvas = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    measureText: (text: string) => ({ width: text.length * 8 }),
+  } as unknown as CanvasRenderingContext2D);
+  await using _canvas = {
+    async [Symbol.asyncDispose]() {
+      canvas.mockRestore();
+    },
+  };
+  const file = createChangedFile('source.txt');
+  const originalSection = {
+    ...file.sections[0]!,
+    loadState: 'ready' as const,
+    newFile: { contents: 'new\n', name: file.path },
+    oldFile: { contents: 'old\n', name: file.path },
+  };
+  const refreshedSection = { ...file.sections[0]!, loadState: 'ready' as const };
+  const pending = Promise.withResolvers<RepositoryState>();
+  let savedContent = '';
+  window.codiff = createCodiffMock({
+    getDiffSectionContent: vi.fn(async () => ({
+      ...originalSection,
+      newFile: { contents: savedContent, name: file.path },
+    })),
+    getRepositoryState: vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...repositoryState,
+        files: [{ ...file, sections: [originalSection] }],
+      })
+      .mockImplementation(() => pending.promise),
+    saveRepositoryFile: vi.fn(async (request) => {
+      savedContent = request.content;
+      return { document: { ...request, version: 'saved' }, status: 'saved' as const };
+    }),
+  });
+  await using app = await renderReact(<App />);
+  const findEditableContent = () =>
+    [...app.container.querySelectorAll('*')].flatMap((element) => [
+      ...(element.shadowRoot?.querySelectorAll<HTMLElement>('[role="textbox"]') ?? []),
+    ])[0];
+  await waitFor(() =>
+    expect(app.container.querySelector(`[aria-label="Edit ${file.path}"]`)).not.toBeNull(),
+  );
+  await act(async () =>
+    app.container.querySelector<HTMLButtonElement>(`[aria-label="Edit ${file.path}"]`)!.click(),
+  );
+  await waitFor(() => expect(findEditableContent()).toBeDefined());
+  await waitFor(() => expect(getEditor()?.getFile()).toBeDefined());
+  await act(async () => {
+    getEditor()!.applyEdits([
+      {
+        newText: 'updated ',
+        range: { end: { character: 0, line: 0 }, start: { character: 0, line: 0 } },
+      },
+    ]);
+    app.container
+      .querySelector<HTMLButtonElement>(`[aria-label="Done editing ${file.path}"]`)!
+      .click();
+  });
+  await waitFor(() => expect(window.codiff.getRepositoryState).toHaveBeenCalledTimes(2));
+  expect(window.codiff.getDiffSectionContent).not.toHaveBeenCalled();
+  expect(savedContent).toContain('updated ');
+  await waitFor(() =>
+    expect(app.container.querySelector(`[aria-label="Edit ${file.path}"]`)).not.toBeNull(),
+  );
+  expect(app.container.querySelector(`[aria-label="Done editing ${file.path}"]`)).toBeNull();
+  await act(async () =>
+    pending.resolve({
+      ...repositoryState,
+      files: [{ ...file, fingerprint: 'saved', sections: [refreshedSection] }],
+    }),
+  );
+});
+
+test('clicking the change banner refreshes the repository in place', async () => {
+  const initialFile = {
+    fingerprint: 'src/app.ts:1',
+    path: 'src/app.ts',
+    sections: [
+      {
+        binary: false,
+        id: 'src/app.ts:unstaged',
+        kind: 'unstaged',
+        patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n',
+      },
+    ],
+    status: 'modified',
+  } satisfies ChangedFile;
+  const addedFile = {
+    fingerprint: 'src/added.ts:1',
+    path: 'src/added.ts',
+    sections: [
+      {
+        binary: false,
+        id: 'src/added.ts:unstaged',
+        kind: 'unstaged',
+        patch: 'diff --git a/src/added.ts b/src/added.ts\n@@ -0,0 +1 @@\n+created\n',
+      },
+    ],
+    status: 'added',
+  } satisfies ChangedFile;
+
+  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
+  let stateRequests = 0;
+  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
+    stateRequests += 1;
+    return stateRequests === 1
+      ? { ...repositoryState, files: [initialFile] }
+      : {
+          ...repositoryState,
+          files: [
+            addedFile,
+            {
+              ...initialFile,
+              fingerprint: 'src/app.ts:2',
+              sections: [
+                {
+                  binary: false,
+                  id: 'src/app.ts:unstaged',
+                  kind: 'unstaged',
+                  patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+newer\n',
+                },
+              ],
+            },
+          ],
+        };
+  });
+
+  window.codiff = createCodiffMock({
+    getRepositoryState,
+    onRepositoryChanged: vi.fn((callback) => {
+      onRepositoryChanged = callback;
+      return () => {
+        onRepositoryChanged = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(onRepositoryChanged).not.toBeNull();
+  });
+  expect(container.textContent).not.toContain('added.ts');
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  const refreshButton = container.querySelector<HTMLButtonElement>('.repository-change-reload');
+  expect(refreshButton).not.toBeNull();
+  await act(async () => {
+    refreshButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  // New file appears without a window reload, and the banner clears.
+  expect(getRepositoryState).toHaveBeenCalledTimes(2);
+  expect(container.textContent).toContain('added.ts');
+  expect(container.querySelector('.repository-change-banner.visible')).toBeNull();
+  // The changed file must not appear twice (old + new version).
+  const appOccurrences = container.textContent?.split('app.ts').length ?? 1;
+  expect(appOccurrences - 1).toBeLessThanOrEqual(2);
+  expect(container.textContent).not.toContain('-old\n+new\n');
+});
+
+test('PR refresh fetches the latest snapshot before history and preserves review UI state', async () => {
+  const source = {
+    baseSha: 'old-base',
+    headSha: 'old-head',
+    number: 12,
+    provider: 'azure-devops',
+    type: 'pull-request',
+    url: 'https://dev.azure.com/example/project/_git/repo/pullrequest/12',
+  } satisfies ReviewSource;
+  const initialState = {
+    ...repositoryState,
+    files: [createChangedFile('src/initial.ts')],
+    source,
+  } satisfies RepositoryState;
+  const refreshedState = {
+    ...initialState,
+    files: [...initialState.files, createChangedFile('src/added.ts')],
+    source: { ...source, baseSha: 'new-base', headSha: 'new-head' },
+  } satisfies RepositoryState;
+  const pending = Promise.withResolvers<RepositoryState>();
+  const getRepositoryState = vi
+    .fn<Window['codiff']['getRepositoryState']>()
+    .mockResolvedValueOnce(initialState)
+    .mockImplementation(() => pending.promise);
+  const getRepositoryHistory = vi.fn<Window['codiff']['getRepositoryHistory']>(async () => ({
+    entries: [],
+    root: '/repo',
+  }));
+  let refresh: (() => void) | undefined;
+  window.codiff = createCodiffMock({
+    getRepositoryHistory,
+    getRepositoryState,
+    onRefreshRequest: (callback) => {
+      refresh = callback;
+      return () => {};
+    },
+  });
+  await using app = await renderReact(<App />);
+  const button = () =>
+    app.container.querySelector<HTMLButtonElement>('[aria-label="Refresh pull request"]');
+  await waitFor(() => expect(button()).not.toBeNull());
+  const filter = app.container.querySelector<HTMLInputElement>(
+    '[aria-label="Filter changed files"]',
+  )!;
+  await act(async () => setInputValue(filter, 'src/'));
+  const historyRequests = getRepositoryHistory.mock.calls.length;
+  await act(async () => {
+    button()!.click();
+    button()!.click();
+    refresh?.();
+  });
+  expect(button()!.disabled).toBe(true);
+  expect(button()!.getAttribute('aria-busy')).toBe('true');
+  expect(button()!.textContent).toContain('Refreshing');
+  expect(getRepositoryState).toHaveBeenCalledTimes(2);
+  expect(getRepositoryHistory).toHaveBeenCalledTimes(historyRequests);
+  await act(async () => pending.resolve(refreshedState));
+  await waitFor(() => expect(app.container.textContent).toContain('added.ts'));
+  expect(getRepositoryHistory).toHaveBeenLastCalledWith(expect.any(Number), refreshedState.source);
+  expect(filter.value).toBe('src/');
+  expect(button()!.disabled).toBe(false);
+  expect(button()!.getAttribute('aria-busy')).toBe('false');
+});
+
+test.each(['state', 'history'] as const)(
+  'PR refresh shows %s failures, keeps the current review, and can retry',
+  async (failure) => {
+    const source = {
+      baseSha: 'old-base',
+      headSha: 'old-head',
+      number: 12,
+      provider: 'azure-devops',
+      type: 'pull-request',
+      url: 'https://dev.azure.com/example/project/_git/repo/pullrequest/12',
+    } satisfies ReviewSource;
+    const initialState = {
+      ...repositoryState,
+      files: [createChangedFile('src/initial.ts')],
+      source,
+    } satisfies RepositoryState;
+    const refreshedState = {
+      ...initialState,
+      files: [createChangedFile('src/updated.ts')],
+      source: { ...source, headSha: 'new-head' },
+    } satisfies RepositoryState;
+    const getRepositoryState = vi
+      .fn<Window['codiff']['getRepositoryState']>()
+      .mockResolvedValue(initialState);
+    const getRepositoryHistory = vi.fn<Window['codiff']['getRepositoryHistory']>(async () => ({
+      entries: [],
+      root: '/repo',
+    }));
+    window.codiff = createCodiffMock({ getRepositoryHistory, getRepositoryState });
+    await using app = await renderReact(<App />);
+    const button = () =>
+      app.container.querySelector<HTMLButtonElement>('[aria-label="Refresh pull request"]');
+    await waitFor(() => expect(button()).not.toBeNull());
+    getRepositoryState.mockResolvedValue(refreshedState);
+    const failingRequest = failure === 'state' ? getRepositoryState : getRepositoryHistory;
+    failingRequest.mockRejectedValueOnce(new Error('Remote PR is unavailable.'));
+    await act(async () => button()!.click());
+    await waitFor(() =>
+      expect(app.container.querySelector('[role="alert"]')?.textContent).toContain(
+        'Refresh failed: Remote PR is unavailable.',
+      ),
+    );
+    expect(app.container.textContent).toContain('initial.ts');
+    expect(app.container.textContent).not.toContain('updated.ts');
+    expect(button()!.disabled).toBe(false);
+    await act(async () =>
+      app.container.querySelector<HTMLButtonElement>('.repository-change-reload')!.click(),
+    );
+    await waitFor(() => expect(app.container.textContent).toContain('updated.ts'));
+    expect(app.container.querySelector('[role="alert"]')).toBeNull();
+    expect(button()!.disabled).toBe(false);
+  },
+);
+
+test('refreshing all changes re-resolves the branch snapshot', async () => {
+  const initialSource = {
+    baseRef: 'base123',
+    headRef: 'head123',
+    ref: 'main',
+    type: 'branch-working-tree',
+  } satisfies ReviewSource;
+  const refreshedSource = {
+    baseRef: 'base123',
+    headRef: 'head456',
+    ref: 'main',
+    type: 'branch-working-tree',
+  } satisfies ReviewSource;
+  const initialFile = createChangedFile('src/initial.ts', { kind: 'commit' });
+  const addedFile = createChangedFile('src/added.ts', { kind: 'commit' });
+  const initialState = {
+    ...repositoryState,
+    branch: 'feature',
+    files: [initialFile],
+    source: initialSource,
+  } satisfies RepositoryState;
+  const refreshedState = {
+    ...initialState,
+    files: [initialFile, addedFile],
+    source: refreshedSource,
+  } satisfies RepositoryState;
+  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
+  let branchWorkingTreeRequests = 0;
+  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(
+    async (requestedSource) => {
+      if (requestedSource?.type === 'branch-diff') {
+        return {
+          ...refreshedState,
+          source: requestedSource,
+        };
+      }
+      branchWorkingTreeRequests += 1;
+      return branchWorkingTreeRequests === 1 ? initialState : refreshedState;
+    },
+  );
+  const getRepositoryHistory = vi.fn(async () => ({
+    entries: [],
+    root: '/repo',
+  }));
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source: { ref: 'main', type: 'branch-working-tree' as const },
+      walkthrough: false,
+    })),
+    getRepositoryHistory,
+    getRepositoryState,
+    onRepositoryChanged: vi.fn((callback) => {
+      onRepositoryChanged = callback;
+      return () => {
+        onRepositoryChanged = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+  const findButton = (label: string) =>
+    Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes(label),
+    );
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+    expect(onRepositoryChanged).not.toBeNull();
+  });
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.repository-change-reload')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('added.ts');
+  });
+  expect(getRepositoryState).toHaveBeenNthCalledWith(2, {
+    ref: 'main',
+    type: 'branch-working-tree',
+  });
+  expect(getRepositoryHistory).toHaveBeenLastCalledWith(expect.any(Number), {
+    ref: 'main',
+    type: 'branch-working-tree',
+  });
+  await act(async () => {
+    findButton('History')?.click();
+  });
+  await waitFor(() => {
+    expect(findButton('Committed only vs main')).toBeTruthy();
+  });
+  await act(async () => {
+    findButton('Committed only vs main')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(getRepositoryState).toHaveBeenLastCalledWith({
+    baseRef: refreshedSource.baseRef,
+    headRef: refreshedSource.headRef,
+    ref: refreshedSource.ref,
+    type: 'branch-diff',
+  });
+});
+
+test('refreshing changed viewed files expands them in place', async () => {
+  const initialFile = createChangedFile('src/viewed.ts', {
+    fingerprint: 'viewed:1',
+  });
+  const refreshedFile = createChangedFile('src/viewed.ts', {
+    fingerprint: 'viewed:2',
+    patch: 'diff --git a/src/viewed.ts b/src/viewed.ts\n@@ -1 +1 @@\n-old\n+newer\n',
+  });
+  window.localStorage.setItem(
+    'codiff:viewed:/repo',
+    JSON.stringify({ [initialFile.path]: initialFile.fingerprint }),
+  );
+
+  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
+  let stateRequests = 0;
+  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
+    stateRequests += 1;
+    return {
+      ...repositoryState,
+      files: [stateRequests === 1 ? initialFile : refreshedFile],
+    };
+  });
+
+  window.codiff = createCodiffMock({
+    getRepositoryState,
+    onRepositoryChanged: vi.fn((callback) => {
+      onRepositoryChanged = callback;
+      return () => {
+        onRepositoryChanged = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    const header = container.querySelector('.codiff-file-header');
+    expect(header).not.toBeNull();
+    expect(header?.classList.contains('collapsed')).toBe(true);
+  });
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  const refreshButton = container.querySelector<HTMLButtonElement>('.repository-change-reload');
+  expect(refreshButton).not.toBeNull();
+  await act(async () => {
+    refreshButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    const header = container.querySelector('.codiff-file-header');
+    expect(header).not.toBeNull();
+    expect(header?.classList.contains('collapsed')).toBe(false);
+    expect(header?.querySelector('.codiff-viewed-button')?.getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+  });
+});
+
+test('refreshing changed files automatically regenerates the walkthrough', async () => {
+  const appFile = createChangedFile('src/app.ts');
+  const addedFile = createChangedFile('src/added.ts', {
+    fingerprint: 'src/added.ts:1',
+    patch: 'diff --git a/src/added.ts b/src/added.ts\n@@ -0,0 +1 @@\n+created\n',
+    status: 'added',
+  });
+  const laterFile = createChangedFile('src/later.ts', {
+    fingerprint: 'src/later.ts:1',
+    patch: 'diff --git a/src/later.ts b/src/later.ts\n@@ -0,0 +1 @@\n+later\n',
+    status: 'added',
+  });
+  const initialWalkthrough = createNarrativeWalkthroughFixture([
+    { added: 1, path: appFile.path, status: 'modified' },
+  ]);
+  const addedWalkthrough = {
+    ...createNarrativeWalkthroughFixture([
+      { added: 1, path: appFile.path, status: 'modified' },
+      { added: 1, path: addedFile.path, status: 'added' },
+    ]),
+    focus: 'Review the added file.',
+  };
+  const laterWalkthrough = {
+    ...createNarrativeWalkthroughFixture([
+      { added: 1, path: appFile.path, status: 'modified' },
+      { added: 1, path: addedFile.path, status: 'added' },
+      { added: 1, path: laterFile.path, status: 'added' },
+    ]),
+    focus: 'Review the later file.',
+  };
+
+  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
+  let stateRequests = 0;
+  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
+    stateRequests += 1;
+    return {
+      ...repositoryState,
+      files:
+        stateRequests === 1
+          ? [appFile]
+          : stateRequests === 2
+            ? [appFile, addedFile]
+            : [appFile, addedFile, laterFile],
+    };
+  });
+  let walkthroughRequests = 0;
+  const getNarrativeWalkthrough = vi.fn(async () => {
+    walkthroughRequests += 1;
+    return {
+      status: 'ready' as const,
+      walkthrough:
+        walkthroughRequests === 1
+          ? initialWalkthrough
+          : walkthroughRequests === 2
+            ? addedWalkthrough
+            : laterWalkthrough,
+    };
+  });
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough,
+    getRepositoryState,
+    onRepositoryChanged: vi.fn((callback) => {
+      onRepositoryChanged = callback;
+      return () => {
+        onRepositoryChanged = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.wt-stop-block')).not.toBeNull();
+    expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
+  });
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.repository-change-reload')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('Review the added file.');
+    expect(container.textContent).toContain('added.ts');
+    expect(container.textContent).not.toContain('Regenerate walkthrough');
+    expect(container.textContent).not.toContain('Changed after the walkthrough was generated.');
+  });
+  expect(getNarrativeWalkthrough).toHaveBeenLastCalledWith(repositoryState.source, {
+    force: true,
+    previousWalkthrough: initialWalkthrough,
+  });
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.repository-change-reload')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(3);
+    expect(container.textContent).toContain('Review the later file.');
+    expect(container.textContent).toContain('added.ts');
+    expect(container.textContent).toContain('later.ts');
+  });
+  expect(getNarrativeWalkthrough).toHaveBeenLastCalledWith(repositoryState.source, {
+    force: true,
+    previousWalkthrough: addedWalkthrough,
+  });
+});
+
+test('drops automatic walkthrough regeneration when the same source refreshes again', async () => {
+  const appFile = createChangedFile('src/app.ts', {
+    fingerprint: 'src/app.ts:1',
+    patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n',
+  });
+  const addedFile = createChangedFile('src/added.ts', {
+    fingerprint: 'src/added.ts:1',
+    patch: 'diff --git a/src/added.ts b/src/added.ts\n@@ -0,0 +1 @@\n+added\n',
+    status: 'added',
+  });
+  const laterFile = createChangedFile('src/later.ts', {
+    fingerprint: 'src/later.ts:1',
+    patch: 'diff --git a/src/later.ts b/src/later.ts\n@@ -0,0 +1 @@\n+later\n',
+    status: 'added',
+  });
+  const initialWalkthrough = createNarrativeWalkthroughFixture([
+    { added: 1, path: appFile.path, status: 'modified' },
+  ]);
+  const staleRegeneration = {
+    ...createNarrativeWalkthroughFixture([
+      { added: 1, path: appFile.path, status: 'modified' },
+      { added: 1, path: addedFile.path, status: 'added' },
+    ]),
+    focus: 'Stale regeneration.',
+  };
+  const latestRegeneration = {
+    ...createNarrativeWalkthroughFixture([
+      { added: 1, path: appFile.path, status: 'modified' },
+      { added: 1, path: addedFile.path, status: 'added' },
+      { added: 1, path: laterFile.path, status: 'added' },
+    ]),
+    focus: 'Latest regeneration.',
+  };
+
+  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
+  let stateRequests = 0;
+  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
+    stateRequests += 1;
+    return {
+      ...repositoryState,
+      files:
+        stateRequests === 1
+          ? [appFile]
+          : stateRequests === 2
+            ? [appFile, addedFile]
+            : [appFile, addedFile, laterFile],
+    };
+  });
+  let walkthroughRequests = 0;
+  let resolveFirstRegeneration:
+    | ((result: { status: 'ready'; walkthrough: NarrativeWalkthrough }) => void)
+    | null = null;
+  let resolveSecondRegeneration:
+    | ((result: { status: 'ready'; walkthrough: NarrativeWalkthrough }) => void)
+    | null = null;
+  const getNarrativeWalkthrough = vi.fn(() => {
+    walkthroughRequests += 1;
+    if (walkthroughRequests === 1) {
+      return Promise.resolve({
+        status: 'ready' as const,
+        walkthrough: initialWalkthrough,
+      });
+    }
+    return new Promise<{ status: 'ready'; walkthrough: NarrativeWalkthrough }>((resolve) => {
+      if (walkthroughRequests === 2) {
+        resolveFirstRegeneration = resolve;
+      } else {
+        resolveSecondRegeneration = resolve;
+      }
+    });
+  });
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough,
+    getRepositoryState,
+    onRepositoryChanged: vi.fn((callback) => {
+      onRepositoryChanged = callback;
+      return () => {
+        onRepositoryChanged = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  const refresh = async () => {
+    await act(async () => {
+      onRepositoryChanged?.({ root: '/repo' });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('.repository-change-reload')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  };
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
+  });
+  await refresh();
+  await waitFor(() => {
+    expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.wt-stop-block')).toBeNull();
+    expect(container.textContent).toContain('Generating walkthrough');
+    expect(container.textContent).not.toContain('Regenerate walkthrough');
+  });
+  await refresh();
+  await waitFor(() => {
+    expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(3);
+  });
+  await act(async () => {
+    resolveFirstRegeneration?.({
+      status: 'ready',
+      walkthrough: staleRegeneration,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(container.querySelector('.wt-stop-block')).toBeNull();
+  expect(container.textContent).not.toContain('Stale regeneration.');
+  await act(async () => {
+    resolveSecondRegeneration?.({
+      status: 'ready',
+      walkthrough: latestRegeneration,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('Latest regeneration.');
+    expect(container.textContent).toContain('later.ts');
+  });
+});
+
+test('committing and then editing again clears and regenerates the walkthrough', async () => {
+  const appFile = createChangedFile('src/app.ts');
+  const nextFile = createChangedFile('src/next.ts', {
+    fingerprint: 'src/next.ts:1',
+    patch: 'diff --git a/src/next.ts b/src/next.ts\n@@ -0,0 +1 @@\n+next\n',
+    status: 'added',
+  });
+  const initialWalkthrough = {
+    ...createNarrativeWalkthroughFixture([{ added: 1, path: appFile.path, status: 'modified' }]),
+    focus: 'Initial walkthrough.',
+  };
+  const nextWalkthrough = {
+    ...createNarrativeWalkthroughFixture([{ added: 1, path: nextFile.path, status: 'added' }]),
+    focus: 'Fresh walkthrough.',
+  };
+  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
+  let stateRequests = 0;
+  let walkthroughRequests = 0;
+  let resolveNextWalkthrough:
+    | ((result: { status: 'ready'; walkthrough: NarrativeWalkthrough }) => void)
+    | null = null;
+  const getNarrativeWalkthrough = vi.fn(() => {
+    walkthroughRequests += 1;
+    if (walkthroughRequests === 1) {
+      return Promise.resolve({
+        status: 'ready' as const,
+        walkthrough: initialWalkthrough,
+      });
+    }
+    return new Promise<{ status: 'ready'; walkthrough: NarrativeWalkthrough }>((resolve) => {
+      resolveNextWalkthrough = resolve;
+    });
+  });
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough,
+    getRepositoryState: vi.fn(async () => {
+      stateRequests += 1;
+      return {
+        ...repositoryState,
+        files: stateRequests === 1 ? [appFile] : stateRequests === 2 ? [] : [nextFile],
+      };
+    }),
+    onRepositoryChanged: vi.fn((callback) => {
+      onRepositoryChanged = callback;
+      return () => {
+        onRepositoryChanged = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.wt-stop-block')).not.toBeNull();
+  });
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.repository-change-reload')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('No local changes');
+    expect(container.querySelector('.wt-stop-block')).toBeNull();
+  });
+  expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    onRepositoryChanged?.({ root: '/repo' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('.repository-change-reload')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('Generating walkthrough');
+    expect(container.textContent).not.toContain('Initial walkthrough.');
+    expect(container.querySelector('.wt-stop-block')).toBeNull();
+  });
+  expect(getNarrativeWalkthrough).toHaveBeenLastCalledWith(repositoryState.source, {
+    force: true,
+    previousWalkthrough: undefined,
+  });
+  await act(async () => {
+    resolveNextWalkthrough?.({ status: 'ready', walkthrough: nextWalkthrough });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('Fresh walkthrough.');
+    expect(container.textContent).toContain('next.ts');
+    expect(container.textContent).not.toContain('Regenerate walkthrough');
+    expect(container.textContent).not.toContain('Changed after the walkthrough was generated.');
+  });
+});
+
+test('walkthrough launch errors stay on the walkthrough tab without automatic retries', async () => {
+  const changedFile = {
+    fingerprint: 'src/app.ts:1',
+    path: 'src/app.ts',
+    sections: [
+      {
+        binary: false,
+        id: 'src/app.ts:unstaged',
+        kind: 'unstaged',
+        patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n',
+      },
+    ],
+    status: 'modified',
+  } satisfies ChangedFile;
+  const getNarrativeWalkthrough = vi.fn(async () => ({
+    reason: 'Codex walkthrough timed out.',
+    status: 'unavailable' as const,
+  }));
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough,
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [changedFile],
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  const getTab = (label: string) =>
+    Array.from(container.querySelectorAll('button[role="tab"]')).find((button) =>
+      button.textContent?.includes(label),
+    ) as HTMLButtonElement | undefined;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('Walkthrough unavailable');
+  });
+  expect(getTab('Walkthrough')?.getAttribute('aria-selected')).toBe('true');
+  expect(container.querySelector('.sidebar-walkthrough-status')).not.toBeNull();
+  expect(container.querySelector('.sidebar .file-tree-shell')).toBeNull();
+  expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    getTab('Tree')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => {
+    getTab('Walkthrough')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(container.textContent).toContain('Walkthrough unavailable');
+  expect(container.querySelector('.sidebar .file-tree-shell')).toBeNull();
+  expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
+});
+
+test('walkthrough progress events replace the loading line without exposing agent output', async () => {
+  const changedFile = {
+    fingerprint: 'src/app.ts:1',
+    path: 'src/app.ts',
+    sections: [
+      {
+        binary: false,
+        id: 'src/app.ts:unstaged',
+        kind: 'unstaged',
+        patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n',
+      },
+    ],
+    status: 'modified',
+  } satisfies ChangedFile;
+  let onProgress: ((progress: WalkthroughProgressEvent) => void) | null = null;
+  let resolveWalkthrough: ((result: { reason: string; status: 'unavailable' }) => void) | null =
+    null;
+  const getNarrativeWalkthrough = vi.fn(
+    () =>
+      new Promise<{ reason: string; status: 'unavailable' }>((resolve) => {
+        resolveWalkthrough = resolve;
+      }),
+  );
+
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough,
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [changedFile],
+    })),
+    onWalkthroughProgress: vi.fn((callback) => {
+      onProgress = callback;
+      return () => {
+        onProgress = null;
+      };
+    }),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('Generating walkthrough…');
+  });
+  await act(async () => {
+    onProgress?.({ phase: 'agent-generation' });
+  });
+  expect(container.textContent).toContain('Analyzing changes…');
+  expect(container.textContent).not.toContain('Generating walkthrough…');
+  await act(async () => {
+    onProgress?.({ phase: 'response-received' });
+  });
+  expect(container.textContent).toContain('Building walkthrough…');
+  expect(container.querySelector('.wt-generation')).toBeNull();
+  await act(async () => {
+    resolveWalkthrough?.({
+      reason: 'Stopped for test.',
+      status: 'unavailable',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+});
+
+test('history filter matches commits by author name', async () => {
+  window.codiff = createCodiffMock({
+    getRepositoryHistory: vi.fn(async () => ({
+      entries: [
+        {
+          author: 'Ada Lovelace',
+          committedAt: Date.now(),
+          parents: [],
+          ref: 'aaa1111',
+          subject: 'Fix parser',
+        },
+        {
+          author: 'Grace Hopper',
+          committedAt: Date.now(),
+          parents: [],
+          ref: 'bbb2222',
+          subject: 'Update docs',
+        },
+      ],
+      root: '/repo',
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  const findButton = (label: string) =>
+    Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes(label),
+    );
+  const historySubjects = () =>
+    Array.from(container.querySelectorAll('.history-entry-subject')).map(
+      (element) => element.textContent,
+    );
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+  });
+  await act(async () => {
+    findButton('History')?.click();
+  });
+  await waitFor(() => {
+    expect(historySubjects()).toContain('Fix parser');
+    expect(historySubjects()).toContain('Update docs');
+  });
+  const searchInput = container.querySelector<HTMLInputElement>('.sidebar-search');
+  expect(searchInput).toBeTruthy();
+  const setInputValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  await act(async () => {
+    setInputValue?.call(searchInput, 'grace');
+    searchInput?.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await waitFor(() => {
+    expect(historySubjects()).toContain('Update docs');
+    expect(historySubjects()).not.toContain('Fix parser');
+  });
+});
+
+test('Pi not-found walkthrough errors show the agent recovery panel', async () => {
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      agentBackend: 'pi' as const,
+      repositoryPathProvided: true,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough: vi.fn(async () => ({
+      code: 'PI_NOT_FOUND' as const,
+      reason: 'Pi CLI was not found.',
+      status: 'unavailable' as const,
+    })),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [createChangedFile('src/app.ts')],
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.textContent).toContain('Pi CLI not found');
+  });
+  expect(container.textContent).toContain('Pi CLI was not found.');
+  expect(container.textContent).toContain('Review Files');
+});
+
+test('the design overview explains the implementation and links to its diff even in Support', async () => {
+  const entryFile = createChangedFile('src/app.ts');
+  const implementation = createChangedFile('src/claim-job.ts');
+  const source = {
+    number: 42,
+    provider: 'azure-devops',
+    type: 'pull-request',
+    url: 'https://dev.azure.com/org/project/_git/repo/pullrequest/42',
+  } satisfies ReviewSource;
+  const fixture = createNarrativeWalkthroughFixture([
+    { added: 1, path: entryFile.path, status: entryFile.status },
+  ]);
+  const hunkId = `${implementation.sections[0].id}:h1`;
+  const walkthrough = {
+    ...fixture,
+    designOverview: {
+      after: 'Only one worker claims a job.',
+      before: 'Workers could claim the same job.',
+      goal: 'Avoid duplicate work.',
+      goalSource: 'inferred' as const,
+      implementation: [
+        {
+          description: 'The database updates the claim only if the job has no owner.',
+          hunkId,
+          title: 'Claim the job atomically',
+        },
+      ],
+      partialEvidence: true,
+    },
+    source,
+    support: [
+      {
+        added: 1,
+        deleted: 1,
+        hunkIds: [hunkId],
+        hunks: [
+          {
+            added: 1,
+            additionStart: 1,
+            anchor: { display: implementation.path, sectionId: implementation.sections[0].id },
+            deleted: 1,
+            id: hunkId,
+            path: implementation.path,
+            status: implementation.status,
+          },
+        ],
+        id: 'implementation',
+        reason: 'Other changes',
+      },
+    ],
+  };
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough: vi.fn(async () => ({ status: 'ready' as const, walkthrough })),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      files: [entryFile, implementation],
+      source,
+    })),
+  });
+  using scrollTo = vi.spyOn(CodeView.prototype, 'scrollTo');
+  await using view = await renderReact(<App />);
+  const overview = () => view.container.querySelector('.wt-design-overview');
+  await waitFor(() => expect(overview()?.textContent).toContain('Inferred goal'));
+  expect(overview()?.textContent).toContain('Workers could claim the same job.');
+  expect(overview()?.textContent).toContain('This overview is based on the available portions');
+  expect(overview()?.textContent).toContain('How it works');
+  expect(overview()?.textContent).toContain('Claim the job atomically');
+  expect(overview()?.textContent).not.toMatch(/Gap to verify|Decisions worth reviewing/);
+  const button = [...(overview()?.querySelectorAll('button') ?? [])].find(
+    (candidate) => candidate.textContent === 'View implementation',
+  );
+  expect(button).toBeDefined();
+  await act(async () => button?.click());
+  await waitFor(() =>
+    expect(scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: `walkthrough:support:implementation:0:diff:${implementation.sections[0].id}`,
+        lineNumber: 1,
+        side: 'additions',
+        type: 'line',
+      }),
+    ),
+  );
+  const overviewButton = view.container.querySelector<HTMLButtonElement>('.wt-focus button');
+  expect(overviewButton?.textContent).toBe('Design overview');
+  await act(async () => overviewButton?.click());
+  await waitFor(() =>
+    expect(scrollTo).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        id: 'walkthrough:design-overview:walkthrough-header',
+        type: 'item',
+      }),
+    ),
+  );
+});
+
+test('commit viewed progress synchronizes tree, walkthrough, and uncovered support without persistence', async () => {
+  const file = createChangedFile('src/app.ts', {
+    patch:
+      'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n@@ -10 +10 @@\n-before\n+after\n',
+  });
+  const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
+  const walkthrough = {
+    ...createNarrativeWalkthroughFixture([{ added: 1, path: file.path, status: file.status }]),
+    source,
+  };
+  window.codiff = createCodiffMock({
+    getLaunchOptions: vi.fn(async () => ({
+      repositoryPathProvided: true,
+      source,
+      walkthrough: true,
+    })),
+    getNarrativeWalkthrough: vi.fn(async () => ({ status: 'ready' as const, walkthrough })),
+    getRepositoryState: vi.fn(async () => ({ ...repositoryState, files: [file], source })),
+  });
+  await using app = await renderReact(<App />);
+  const buttons = () => [
+    ...app.container.querySelectorAll<HTMLButtonElement>('.codiff-viewed-button'),
+  ];
+  const collapsedCount = () => app.container.querySelectorAll('[aria-label="Expand file"]').length;
+  const switchMode = async (label: string) => {
+    const tab = [...app.container.querySelectorAll<HTMLButtonElement>('button[role="tab"]')].find(
+      (button) => button.textContent === label,
+    );
+    expect(tab).toBeDefined();
+    await act(async () => tab!.click());
+  };
+  await waitFor(() => expect(buttons()).toHaveLength(2));
+  expect(app.container.textContent).toContain('Not included in the generated walkthrough.');
+  await act(async () => buttons()[0].click());
+  await switchMode('Tree');
+  await waitFor(() => expect(buttons()).toHaveLength(1));
+  expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
+  expect(collapsedCount()).toBe(0);
+  await switchMode('Walkthrough');
+  await waitFor(() => expect(buttons()).toHaveLength(2));
+  expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+  await act(async () => buttons()[1].click());
+  await switchMode('Tree');
+  await waitFor(() => expect(buttons()).toHaveLength(1));
+  expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
+  expect(collapsedCount()).toBe(1);
+  const tree = app.container.querySelector('file-tree-container')?.shadowRoot;
+  expect(tree?.querySelector('style[data-codiff-viewed-rows]')?.textContent).toContain(
+    'src/app.ts',
+  );
+  await act(async () => buttons()[0].click());
+  await switchMode('Walkthrough');
+  await waitFor(() => expect(buttons()).toHaveLength(2));
+  expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual([
+    'false',
+    'false',
+  ]);
+  expect(collapsedCount()).toBe(0);
+  await switchMode('Tree');
+  await act(async () => buttons()[0].click());
+  await switchMode('Walkthrough');
+  await waitFor(() => expect(buttons()).toHaveLength(2));
+  expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual(['true', 'true']);
+  expect(collapsedCount()).toBe(2);
+  expect(window.localStorage.getItem('codiff:viewed:/repo')).toBeNull();
+  await app.rerender(<App key="new-session" />);
+  await waitFor(() => {
+    expect(buttons()).toHaveLength(2);
+    expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual([
+      'false',
+      'false',
+    ]);
+  });
+});

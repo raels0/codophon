@@ -1,0 +1,227 @@
+name: build-app
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to attach builds to
+        required: true
+        type: string
+      platform:
+        description: Platform to rebuild
+        required: true
+        default: windows
+        type: choice
+        options:
+          - windows
+          - linux
+          - all
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TAG_NAME: ${{ inputs.release_tag || github.ref_name }}
+
+jobs:
+  create-release:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Release Version
+        run: |
+          [[ "${TAG_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "${TAG_NAME}" = "v$(node -p "require('./package.json').version")"
+
+      - name: Create Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${TAG_NAME}" >/dev/null 2>&1 \
+            || gh release create "${TAG_NAME}" --draft --generate-notes --title "${TAG_NAME}" --verify-tag
+
+      - name: Verify Existing Release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "${TAG_NAME}"
+
+  build-linux:
+    needs: create-release
+    if: github.event_name == 'push' || inputs.platform == 'linux' || inputs.platform == 'all'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 24.21.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y fakeroot rpm libx11-dev libxkbfile-dev
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        id: pnpm-install
+        with:
+          run_install: false
+
+      - name: Cache Electron Downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/electron-cache
+          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-
+
+      - name: Install Node Dependencies
+        run: pnpm install
+
+      - name: Build Renderer
+        run: pnpm exec vp build
+
+      - name: Build Linux App
+        timeout-minutes: 45
+        env:
+          DEBUG: electron-forge:*,electron-packager,@electron/get:*
+          ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
+        run: |
+          rm -rf ./out
+
+          pnpm exec electron-forge make --platform=linux --arch=x64
+          test -d ./out
+
+      - name: Attach Linux App to Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+
+          assets=(
+            out/make/deb/x64/*.deb
+            out/make/rpm/x64/*.rpm
+          )
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No Linux release assets found."
+            find out -type f
+            exit 1
+          fi
+
+          gh release upload "${TAG_NAME}" "${assets[@]}" --clobber
+
+  build-windows:
+    needs: create-release
+    if: github.event_name == 'push' || inputs.platform == 'windows' || inputs.platform == 'all'
+    name: Windows (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+          - arch: arm64
+            runner: windows-11-arm
+    timeout-minutes: 60
+    env:
+      CODIFF_SKIP_SQUIRREL: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 24.21.0
+        uses: actions/setup-node@v4
+        with:
+          architecture: ${{ matrix.arch }}
+          node-version: 24.21.0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        id: pnpm-install
+        with:
+          run_install: false
+
+      - name: Cache Electron Downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/electron-cache
+          key: ${{ runner.os }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-electron-
+
+      - name: Install Node Dependencies
+        run: pnpm install
+
+      - name: Build Renderer
+        run: pnpm exec vp build
+
+      - name: Build Windows App
+        shell: bash
+        timeout-minutes: 45
+        env:
+          DEBUG: electron-forge:*,electron-packager,@electron/get:*
+          ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
+        run: |
+          rm -rf ./out
+
+          pnpm exec electron-forge make --platform=win32 --arch=${{ matrix.arch }}
+          test -d ./out
+
+      - name: Verify Windows Runtime and Native Modules
+        shell: pwsh
+        run: |
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $process = Start-Process -Wait -PassThru -NoNewWindow `
+            -FilePath ".\out\Codiff-win32-${{ matrix.arch }}\codiff.exe" `
+            -ArgumentList '.\.github\scripts\verify-windows-package.cjs', `
+              ".\out\Codiff-win32-${{ matrix.arch }}", '${{ matrix.arch }}'
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+
+      - name: Attach Windows App to Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+
+          assets=(
+            out/make/zip/win32/${{ matrix.arch }}/*.zip
+          )
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No Windows release assets found."
+            find out -type f
+            exit 1
+          fi
+
+          gh release upload "${TAG_NAME}" "${assets[@]}" --clobber
+
+  publish-release:
+    needs: [build-linux, build-windows]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false --latest

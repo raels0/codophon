@@ -1,0 +1,229 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "commit": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "chapters": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "blurb": {
+            "type": "string"
+          },
+          "icon": {
+            "enum": ["bug", "wrench", "path", "flask", "beaker", "doc", "gear"],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "stops": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "changeType": {
+                  "enum": [
+                    "fix",
+                    "feature",
+                    "refactor",
+                    "test",
+                    "generated",
+                    "lockfile",
+                    "snapshot",
+                    "i18n",
+                    "docs"
+                  ],
+                  "type": "string"
+                },
+                "commitNote": {
+                  "type": "string"
+                },
+                "hunkIds": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 14,
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "notes": {
+                  "description": "Optional short header notes for selected hunk ids. Codiff renders each note under that focused diff header.",
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "body": {
+                        "type": "string"
+                      },
+                      "hunkId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["hunkId", "body"],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "importance": {
+                  "enum": ["critical", "normal", "context"],
+                  "type": "string"
+                },
+                "prose": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "hunkIds", "importance", "prose"],
+              "type": "object"
+            },
+            "maxItems": 14,
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 16,
+            "type": "string"
+          }
+        },
+        "required": ["id", "title", "icon", "blurb", "stops"],
+        "type": "object"
+      },
+      "maxItems": 6,
+      "type": "array"
+    },
+    "designOverview": {
+      "additionalProperties": false,
+      "properties": {
+        "after": { "type": "string" },
+        "before": { "type": "string" },
+        "diagram": {
+          "additionalProperties": false,
+          "properties": {
+            "mermaid": { "type": "string" },
+            "title": { "type": "string" }
+          },
+          "required": ["mermaid", "title"],
+          "type": "object"
+        },
+        "goal": { "type": "string" },
+        "goalSource": { "enum": ["stated", "inferred"], "type": "string" },
+        "implementation": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "description": { "type": "string" },
+              "hunkId": { "type": "string" },
+              "title": { "type": "string" }
+            },
+            "required": ["description", "hunkId", "title"],
+            "type": "object"
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "unchanged": { "type": "string" }
+      },
+      "required": ["after", "before", "goal", "goalSource", "implementation"],
+      "type": "object"
+    },
+    "focus": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "narrative",
+      "type": "string"
+    },
+    "support": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "changeType": {
+            "enum": [
+              "fix",
+              "feature",
+              "refactor",
+              "test",
+              "generated",
+              "lockfile",
+              "snapshot",
+              "i18n",
+              "docs"
+            ],
+            "type": "string"
+          },
+          "commitNote": {
+            "type": "string"
+          },
+          "hunkIds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 14,
+            "minItems": 1,
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "notes": {
+            "description": "Optional short header notes for selected hunk ids. Codiff renders each note under that focused diff header.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "hunkId": {
+                  "type": "string"
+                }
+              },
+              "required": ["hunkId", "body"],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "hunkIds", "reason"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "title": {
+      "type": "string"
+    },
+    "version": {
+      "const": 4,
+      "type": "number"
+    }
+  },
+  "required": ["version", "kind", "title", "focus", "chapters"],
+  "type": "object"
+}

@@ -1,0 +1,5280 @@
+import type { MarkdownEditorHandle } from '@nkzw/mdx-editor';
+import { ArrowSquareOutIcon as ArrowSquareOut } from '@phosphor-icons/react/ArrowSquareOut';
+import { CaretDownIcon as CaretDown } from '@phosphor-icons/react/CaretDown';
+import { ChatCircleIcon as ChatCircle } from '@phosphor-icons/react/ChatCircle';
+import { CheckIcon as Check } from '@phosphor-icons/react/Check';
+import { ColumnsIcon as Columns } from '@phosphor-icons/react/Columns';
+import { ImageBrokenIcon as ImageBroken } from '@phosphor-icons/react/ImageBroken';
+import { PencilSimpleIcon as PencilSimple } from '@phosphor-icons/react/PencilSimple';
+import { SquareSplitVerticalIcon as SquareSplitVertical } from '@phosphor-icons/react/SquareSplitVertical';
+import { WarningOctagonIcon as WarningOctagon } from '@phosphor-icons/react/WarningOctagon';
+import { XIcon as X } from '@phosphor-icons/react/X';
+import {
+  type CodeViewLineSelection,
+  type CodeViewItem,
+  type CodeViewOptions,
+  type CodeViewScrollTarget,
+  type DiffLineAnnotation,
+  type FileDiffLoadedFiles,
+  type FileDiffMetadata,
+  type LineAnnotation,
+  type SelectedLineRange,
+} from '@pierre/diffs';
+import {
+  CodeView,
+  type CodeViewHandle,
+  EditProvider,
+  WorkerPoolContextProvider,
+} from '@pierre/diffs/react';
+import { Copy as LucideCopy } from 'lucide-react';
+import {
+  Fragment,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent as ReactChangeEvent,
+  type ComponentProps,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type SyntheticEvent,
+} from 'react';
+import claudeIconUrl from '../../assets/claude.svg';
+import codexIconUrl from '../../assets/codex.svg';
+import opencodeIconUrl from '../../assets/opencode.svg';
+import piIconUrl from '../../assets/pi.svg';
+import { getShortcutLabel, matchesShortcut } from '../../config/keymap.ts';
+import type { CodiffDiffStyle, CodiffKeymap } from '../../config/types.ts';
+import type {
+  CodeViewInstance,
+  CodeViewItemMetadata,
+  CodeQualityAnnotationMetadata,
+  DiffSearchMatch,
+  ReviewAnnotationMetadata,
+  ReviewComment,
+  ReviewCommentAnnotationMetadata,
+  ReviewIdentity,
+  ReviewScrollBehavior,
+  ReviewScrollTarget,
+  WalkthroughNote,
+} from '../../lib/app-types.ts';
+import {
+  codeViewItemMetrics,
+  codeViewLayout,
+  codeViewUnsafeCSS,
+  DEFAULT_PADDING,
+  DIFF_LINE_HEIGHT,
+  diffCollapsedContextThreshold,
+  diffContextExpansionLineCount,
+  getCodeViewWorkerPoolOptions,
+  sectionLabel,
+  workerHighlighterOptions,
+} from '../../lib/code-view-options.ts';
+import {
+  canRenderImagePreview,
+  getDiffLineCountFromVisibleSections,
+  getDiffParseOptions,
+  getItemId,
+  getMarkdownPreviewContents,
+  getSectionForFileDiff,
+  getVisibleDiffSections,
+  isMarkdownFilePath,
+  isPatchOnlyDiffSection,
+  loadSectionContents,
+  shouldLoadDiffSectionContents,
+} from '../../lib/diff.ts';
+import {
+  applyIdentifierNavigationState,
+  getIdentifierFromPointerEvent,
+} from '../../lib/identifier-navigation.ts';
+import { getItemVersion } from '../../lib/item-version.ts';
+import { isNativeInputTarget, isPrimaryModifier } from '../../lib/keyboard.ts';
+import { sanitizeMarkdownImages } from '../../lib/markdown.tsx';
+import { isGeneratedWalkthroughFile } from '../../lib/narrative-walkthrough-diff.js';
+import {
+  getCommentKey,
+  getReviewCommentLineLabel,
+  getReviewCommentsDigest,
+  hasActiveTextSelection,
+  isFileReviewComment,
+  isInteractiveReviewEvent,
+  isLineReviewComment,
+  shouldDiscardReviewCommentOnEscape,
+  updateStickyHeaderState,
+} from '../../lib/review-comments.ts';
+import { getReviewIdentity, isReviewIdentityViewed } from '../../lib/review-identity.ts';
+import { applySearchHighlights } from '../../lib/search-highlights.ts';
+import { getSourceKey } from '../../lib/source.ts';
+import type {
+  ChangedFile,
+  CodiffPreferences,
+  CommitMetadata,
+  DefinitionCandidate,
+  DefinitionSearchRequest,
+  DefinitionSearchResult,
+  DiffImageContentRequest,
+  DiffImageContentResult,
+  DiffSection,
+  GitIdentity,
+  PullRequestCodeQualityFinding,
+  PullRequestExistingReviewComment,
+  ReviewAuthor,
+  ReviewSource,
+} from '../../types.ts';
+import {
+  createCodeEditor,
+  useCodeEditing,
+  type CodeEditingStore,
+} from '../hooks/useCodeEditing.ts';
+import { useCodeViewAnnotations } from '../hooks/useCodeViewAnnotations.ts';
+import { useCodeViewPlaceholderFile } from '../hooks/useCodeViewPlaceholderFile.ts';
+import { Avatar } from './Avatar.tsx';
+import { Button } from './Button.tsx';
+import { DefinitionPopover } from './DefinitionPopover.tsx';
+import { DiffLineCountBadge } from './DiffLineCountBadge.tsx';
+import { MarkdownEditor, preloadMarkdownEditor } from './LazyMarkdownEditor.tsx';
+import { MarkdownDiffView } from './MarkdownDiffView.tsx';
+import type { MarkdownDocumentEditorHandle } from './MarkdownDocumentEditor.tsx';
+import { ReadOnlyMarkdownView } from './ReadOnlyMarkdownView.tsx';
+import { ResolvedThreadDisclosure } from './ResolvedThreadDisclosure.tsx';
+import { useCopiedState } from './useCopiedState.ts';
+
+const emptyMarkdownPreviewSectionIds = new Set<string>();
+const emptyExpandedReviewKeys = new Set<string>();
+let markdownPreviewModule: Promise<typeof import('./MarkdownPreviewDocument.tsx')> | undefined;
+const loadMarkdownPreview = () =>
+  (markdownPreviewModule ??= import('./MarkdownPreviewDocument.tsx'));
+export const preloadReviewMarkdown = () =>
+  Promise.all([loadMarkdownPreview(), preloadMarkdownEditor()]);
+const PreviewDocument = lazy(loadMarkdownPreview);
+function ReadOnlyMarkdown(props: ComponentProps<typeof PreviewDocument>) {
+  return (
+    <Suspense fallback={<div className="codiff-readonly-markdown-loading">Loading…</div>}>
+      <PreviewDocument {...props} />
+    </Suspense>
+  );
+}
+const SourceDescriptionEditor = lazy(() => import('./SourceDescriptionEditor.tsx'));
+const RepositoryMarkdownEditor = lazy(async () => ({
+  default: (await import('./MarkdownDocumentEditor.tsx')).RepositoryMarkdownEditor,
+}));
+
+const isEditableWorkingTreeSection = (
+  sourceType: ReviewSource['type'],
+  file: ChangedFile,
+  section: DiffSection,
+) =>
+  (sourceType === 'working-tree' || sourceType === 'branch-working-tree') &&
+  file.status !== 'deleted' &&
+  file.sections.at(-1)?.id === section.id &&
+  (section.kind === 'staged' || section.kind === 'unstaged');
+
+function CopyFilePathButton({ path }: { path: string }) {
+  const [copied, markCopied] = useCopiedState(1600);
+
+  const handleClick = useCallback(
+    async (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(path);
+      } catch {
+        return;
+      }
+      markCopied();
+    },
+    [markCopied, path],
+  );
+
+  return (
+    <button
+      aria-label={copied ? 'Path copied' : 'Copy file path'}
+      className={`codiff-copy-path-button${copied ? ' copied' : ''}`}
+      onClick={(event) => void handleClick(event)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.stopPropagation();
+        }
+      }}
+      title={copied ? 'Path copied' : 'Copy file path'}
+      type="button"
+    >
+      {copied ? (
+        <Check aria-hidden className="codiff-copy-path-icon check" size={16} weight="bold" />
+      ) : (
+        <LucideCopy aria-hidden className="codiff-copy-path-icon" size={16} strokeWidth={2.25} />
+      )}
+    </button>
+  );
+}
+
+function FileEditButton({
+  disabled,
+  isBusy,
+  item,
+  meta,
+  onEdit,
+  onPrepare,
+}: {
+  disabled: boolean;
+  isBusy: boolean;
+  item: CodeViewItem<ReviewAnnotationMetadata>;
+  meta: CodeViewItemMetadata;
+  onEdit: () => void;
+  onPrepare?: ReturnType<typeof useCodeEditing>['prepareEdit'];
+}) {
+  useEffect(() => {
+    // Headers only mount for rendered items. Warm visible files without loading
+    // every file in the review, and surface any preparation failure on click.
+    void onPrepare?.(item, meta).catch(() => {});
+  }, [item, meta, onPrepare]);
+
+  return (
+    <Button
+      aria-label={`Edit ${meta.file.path}`}
+      disabled={disabled || isBusy}
+      onClick={onEdit}
+      title="Edit working-tree file"
+      type="button"
+    >
+      <PencilSimple aria-hidden size={14} weight="bold" />
+      Edit
+    </Button>
+  );
+}
+
+function CodeViewHeader({
+  allowViewedToggle,
+  canCreateFileComment,
+  editActions,
+  isEditing = false,
+  isSectionLoading,
+  meta,
+  onCreateFileComment,
+  onLoadSection,
+  onOpenFile,
+  onToggleCollapsed,
+  onToggleMarkdownPreview,
+  onToggleViewed,
+  readOnly,
+}: {
+  allowViewedToggle: boolean;
+  canCreateFileComment: boolean;
+  editActions?: ReactNode;
+  isEditing?: boolean;
+  isSectionLoading: boolean;
+  meta: CodeViewItemMetadata;
+  onCreateFileComment: () => void;
+  onLoadSection: (file: ChangedFile, section: DiffSection) => void;
+  onOpenFile?: (file: ChangedFile) => void;
+  onToggleCollapsed: (file: ChangedFile, isCollapsed: boolean, reviewKey: string) => void;
+  onToggleMarkdownPreview: (file: ChangedFile, section: DiffSection) => void;
+  onToggleViewed: (file: ChangedFile, isViewed: boolean, reviewIdentity: ReviewIdentity) => void;
+  readOnly: boolean;
+}) {
+  const {
+    canRenderMarkdown,
+    file,
+    isCollapsed,
+    isMarkdownPreview,
+    isSelected,
+    isViewed,
+    lineCount,
+    reviewIdentity,
+    section,
+    sectionCount,
+    walkthroughNote,
+  } = meta;
+  const canOpenFile = file.status !== 'deleted';
+  const canLoadSection = shouldLoadDiffSectionContents(section);
+  const directoryEnd = file.path.lastIndexOf('/') + 1;
+
+  return (
+    <div
+      className={`codiff-file-header${walkthroughNote ? ' with-note' : ''}${
+        isCollapsed ? ' collapsed' : ''
+      }${isSelected ? ' selected' : ''}${isViewed ? ' viewed' : ''}`}
+    >
+      <div
+        aria-expanded={!isCollapsed}
+        aria-label={isCollapsed ? 'Expand file' : 'Collapse file'}
+        className="codiff-header-toggle"
+        onClick={() => onToggleCollapsed(file, isCollapsed, reviewIdentity.key)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onToggleCollapsed(file, isCollapsed, reviewIdentity.key);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        title={isCollapsed ? 'Expand' : 'Collapse'}
+      >
+        <span className="codiff-chevron-box">
+          <CaretDown
+            aria-hidden
+            className={isCollapsed ? 'codiff-chevron collapsed' : 'codiff-chevron'}
+            size={16}
+            weight="bold"
+          />
+        </span>
+        <span className="codiff-file-heading">
+          <span className="codiff-file-path-row">
+            <span className="codiff-file-path" title={file.path}>
+              {directoryEnd > 0 ? (
+                <span className="codiff-file-directory">{file.path.slice(0, directoryEnd)}</span>
+              ) : null}
+              <span className="codiff-file-name">{file.path.slice(directoryEnd)}</span>
+            </span>
+            <CopyFilePathButton path={file.path} />
+            {!readOnly && onOpenFile ? (
+              <button
+                aria-label={`Open ${file.path} in editor`}
+                className="codiff-open-file-button"
+                disabled={!canOpenFile}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenFile(file);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.stopPropagation();
+                  }
+                }}
+                title={canOpenFile ? 'Open file in editor' : 'Deleted files cannot be opened'}
+                type="button"
+              >
+                <ArrowSquareOut aria-hidden size={16} weight="bold" />
+              </button>
+            ) : null}
+          </span>
+          {file.oldPath ? <span className="codiff-file-old-path">{file.oldPath}</span> : null}
+          {walkthroughNote ? (
+            <span className="codiff-file-note">{walkthroughNote.reason}</span>
+          ) : null}
+        </span>
+      </div>
+      <div className="codiff-file-details">
+        <DiffLineCountBadge lineCount={lineCount} />
+        {sectionCount > 1 ? (
+          <span className={`codiff-section-badge ${section.kind}`}>
+            {sectionLabel[section.kind]}
+          </span>
+        ) : null}
+        {isGeneratedWalkthroughFile(file) ? (
+          <span className="codiff-generated-badge" title="Generated file">
+            Generated
+          </span>
+        ) : null}
+        {canCreateFileComment ? (
+          <Button
+            className="codiff-file-comment-button"
+            onClick={onCreateFileComment}
+            title="Comment on file"
+            type="button"
+          >
+            <ChatCircle aria-hidden className="codiff-file-comment-icon" size={14} weight="bold" />
+            Comment
+          </Button>
+        ) : null}
+        {canRenderMarkdown ? (
+          <Button
+            aria-pressed={isMarkdownPreview}
+            className={`codiff-markdown-button${isMarkdownPreview ? ' active' : ''}`}
+            disabled={isEditing && !isMarkdownPreview}
+            onClick={() => onToggleMarkdownPreview(file, section)}
+            title={isMarkdownPreview ? 'View as Diff' : 'View as Markdown'}
+            type="button"
+          >
+            {isMarkdownPreview ? 'View as Diff' : 'View as Markdown'}
+          </Button>
+        ) : null}
+        {editActions}
+        {canLoadSection && !readOnly ? (
+          <button
+            className="codiff-load-button"
+            disabled={isSectionLoading}
+            onClick={() => onLoadSection(file, section)}
+            title={isSectionLoading ? 'Loading file contents' : 'Load file contents'}
+            type="button"
+          >
+            {isSectionLoading ? 'Loading...' : 'Load'}
+          </button>
+        ) : null}
+        {!readOnly || allowViewedToggle ? (
+          <button
+            aria-pressed={isViewed}
+            className={`codiff-viewed-button${isViewed ? ' active' : ''}`}
+            onClick={() => onToggleViewed(file, isViewed, reviewIdentity)}
+            type="button"
+          >
+            <span aria-hidden className="codiff-viewed-checkbox">
+              {isViewed ? <Check className="codiff-viewed-check" size={10} weight="bold" /> : null}
+            </span>
+            Viewed
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const getReviewAuthorDisplayName = (author: PullRequestExistingReviewComment['author']) =>
+  author.name || author.login || 'Git user';
+
+const getGitIdentityDisplayName = (identity: GitIdentity | null) =>
+  identity?.name || identity?.email || 'Git user';
+
+function ReviewAvatar({ author }: { author: PullRequestExistingReviewComment['author'] }) {
+  return <Avatar name={getReviewAuthorDisplayName(author)} size="medium" url={author.avatarUrl} />;
+}
+
+function IdentityReviewAvatar({ identity }: { identity: GitIdentity | null }) {
+  return (
+    <ReviewAvatar
+      author={{
+        avatarUrl: identity?.gravatarUrl,
+        login: getGitIdentityDisplayName(identity),
+      }}
+    />
+  );
+}
+
+function AgentAvatar({ agentId }: { agentId: 'codex' | 'claude' | 'opencode' | 'pi' }) {
+  return (
+    <img
+      alt=""
+      className="review-comment-avatar-codex"
+      draggable={false}
+      src={agentIconUrl(agentId)}
+    />
+  );
+}
+
+const agentIconUrl = (agentId: 'codex' | 'claude' | 'opencode' | 'pi') => {
+  return agentId === 'pi'
+    ? piIconUrl
+    : agentId === 'opencode'
+      ? opencodeIconUrl
+      : agentId === 'claude'
+        ? claudeIconUrl
+        : codexIconUrl;
+};
+
+const canAskCodexForComment = (comment: ReviewComment) =>
+  !comment.isReadOnly && comment.body.trim().length > 0 && comment.codexReply?.status !== 'loading';
+
+const canSubmitComment = (comment: ReviewComment) =>
+  !comment.isReadOnly &&
+  comment.body.trim().length > 0 &&
+  comment.remoteSubmit?.status !== 'submitting';
+
+const withCommentBody = (comment: ReviewComment, body: string): ReviewComment =>
+  comment.body === body ? comment : { ...comment, body };
+
+const formatBytes = (size: number) => {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  const units = ['KiB', 'MiB', 'GiB'];
+  let value = size / 1024;
+  for (const unit of units) {
+    if (value < 1024 || unit === units.at(-1)) {
+      return `${value.toFixed(value < 10 ? 1 : 0)} ${unit}`;
+    }
+    value /= 1024;
+  }
+
+  return `${size} B`;
+};
+
+function MarkdownPreview({
+  cacheKey,
+  contents,
+  editing,
+  heightCache,
+  itemId,
+  oldContents,
+  onEditorRef,
+  onLayoutReady,
+  onViewSource,
+  path,
+  sectionId,
+}: {
+  cacheKey: string;
+  contents: string;
+  editing: boolean;
+  heightCache: Map<string, number>;
+  itemId: string;
+  oldContents?: string;
+  onEditorRef: (sectionId: string, editor: MarkdownDocumentEditorHandle | null) => void;
+  onLayoutReady: (sectionId: string) => void;
+  onViewSource: (lineNumber: number, side: 'additions' | 'deletions') => void;
+  path: string;
+  sectionId: string;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const measure = useCallback(
+    (reportedHeight?: number) => {
+      const content = contentRef.current;
+      if (
+        !content?.isConnected ||
+        content.querySelector(
+          '.codiff-markdown-editor-message:not(.error), .codiff-readonly-markdown-loading',
+        )
+      ) {
+        return;
+      }
+      // Measure the unconstrained content, so edits and width changes can shrink
+      // the document as well as grow it. Child reports also cover lazy editors.
+      const height = content.getBoundingClientRect().height || reportedHeight;
+      if (height == null || height <= 0) {
+        return;
+      }
+      setReady(true);
+      if (heightCache.get(cacheKey) !== height) {
+        heightCache.set(cacheKey, height);
+        onLayoutReady(sectionId);
+      }
+    },
+    [cacheKey, heightCache, onLayoutReady, sectionId],
+  );
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) {
+      return;
+    }
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(content);
+    measure();
+    return () => observer.disconnect();
+  }, [measure]);
+
+  return (
+    // Keep the last document height while a recycled editor reloads. Measuring
+    // its small loading placeholder would move every following item upward.
+    <div
+      data-codiff-markdown-item={itemId}
+      style={{ minHeight: ready ? undefined : heightCache.get(cacheKey) }}
+    >
+      <div className={`codiff-markdown-preview${editing ? ' editable' : ''}`} ref={contentRef}>
+        <Suspense fallback={<div className="codiff-markdown-editor-message">Loading…</div>}>
+          {editing ? (
+            <RepositoryMarkdownEditor
+              onHeightChange={measure}
+              path={path}
+              ref={(editor) => onEditorRef(sectionId, editor)}
+            />
+          ) : oldContents != null ? (
+            <MarkdownDiffView
+              newContents={contents}
+              oldContents={oldContents}
+              onViewSource={onViewSource}
+              path={path}
+            />
+          ) : (
+            <ReadOnlyMarkdown
+              ariaLabel={`Preview ${path}`}
+              className="codiff-markdown-preview-editor"
+              onHeightChange={measure}
+              value={contents}
+            />
+          )}
+        </Suspense>
+      </div>
+    </div>
+  );
+}
+
+const getPullRequestDescriptionLabel = (source: Extract<ReviewSource, { type: 'pull-request' }>) =>
+  source.provider === 'github' || source.provider === 'azure-devops'
+    ? 'PR description'
+    : source.provider === 'gitlab'
+      ? 'MR description'
+      : 'Description';
+type SourceDescriptionAuthor = {
+  avatarUrl?: string;
+  displayName: string;
+  title?: string;
+};
+const getPullRequestDescriptionAuthor = (author: ReviewAuthor): SourceDescriptionAuthor => ({
+  avatarUrl: author.avatarUrl,
+  displayName: author.name || `@${author.login}`,
+  title: `@${author.login}`,
+});
+const getCommitDescriptionAuthor = (author: CommitMetadata['author']): SourceDescriptionAuthor => ({
+  avatarUrl: author.gravatarUrl,
+  displayName: author.name || author.email || 'Unknown author',
+  title: author.email || undefined,
+});
+const htmlCommentPattern = /<!--[\s\S]*?-->/g;
+const stripHtmlComments = (value: string) => value.replaceAll(htmlCommentPattern, '');
+type PullRequestSource = Extract<ReviewSource, { type: 'pull-request' }>;
+const sourceTitleUpdateDebounceMs = 800;
+
+function SourceDescriptionTitle({
+  canEdit,
+  label,
+  onUpdateTitle,
+  title,
+}: {
+  canEdit: boolean;
+  label: string;
+  onUpdateTitle?: (title: string) => Promise<void> | void;
+  title: string;
+}) {
+  const [draft, setDraft] = useState(title);
+  const [error, setError] = useState<string | null>(null);
+  const submittedTitleRef = useRef(title.trim());
+  const titleSavePromiseRef = useRef<Promise<void>>(Promise.resolve());
+  const trimmedDraft = draft.trim();
+
+  useEffect(() => {
+    if (!canEdit || !onUpdateTitle || !trimmedDraft || trimmedDraft === submittedTitleRef.current) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const titleToSave = trimmedDraft;
+      const save = titleSavePromiseRef.current.then(() => onUpdateTitle(titleToSave));
+      titleSavePromiseRef.current = save.catch(() => {});
+      void save
+        .then(() => {
+          submittedTitleRef.current = titleToSave;
+        })
+        .catch((updateError: unknown) => {
+          setError(updateError instanceof Error ? updateError.message : String(updateError));
+        });
+    }, sourceTitleUpdateDebounceMs);
+    return () => window.clearTimeout(timeout);
+  }, [canEdit, onUpdateTitle, trimmedDraft]);
+
+  if (!canEdit || !onUpdateTitle) {
+    return (
+      <span className={`codiff-file-path${title ? ' source-description-title' : ''}`}>
+        {title || label}
+      </span>
+    );
+  }
+
+  return (
+    <textarea
+      aria-label="Edit title"
+      className={`codiff-file-path source-description-title source-description-title-editor${
+        error ? ' has-error' : ''
+      }`}
+      onBlur={() => {
+        if (!trimmedDraft) {
+          setDraft(title);
+          setError(null);
+        }
+      }}
+      onChange={(event: ReactChangeEvent<HTMLTextAreaElement>) => {
+        setDraft(event.target.value);
+        setError(null);
+      }}
+      onKeyDown={(event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setDraft(title);
+          setError(null);
+          event.currentTarget.blur();
+          return;
+        }
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+      rows={1}
+      spellCheck
+      title={error ?? undefined}
+      value={draft}
+      wrap="off"
+    />
+  );
+}
+
+// The PR/MR description is a file-style card matching commit details: the title lives in the
+// card header and the description is the collapsible body.
+function SourceDescriptionHeader({
+  actions,
+  canCollapse,
+  canEditTitle,
+  isCollapsed,
+  label,
+  onToggleCollapsed,
+  onUpdateTitle,
+  title,
+}: {
+  actions?: ReactNode;
+  canCollapse: boolean;
+  canEditTitle?: boolean;
+  isCollapsed: boolean;
+  label: string;
+  onToggleCollapsed: () => void;
+  onUpdateTitle?: (title: string) => Promise<void> | void;
+  title: string;
+}) {
+  const editableTitle = canEditTitle === true && onUpdateTitle != null && title.length > 0;
+  const heading = (
+    <span className="codiff-file-heading">
+      <span className="codiff-file-path-row">
+        <SourceDescriptionTitle
+          canEdit={editableTitle}
+          label={label}
+          onUpdateTitle={onUpdateTitle}
+          title={title}
+        />
+      </span>
+    </span>
+  );
+
+  return (
+    <div
+      className={`codiff-file-header codiff-source-description-header${
+        isCollapsed ? ' collapsed' : ''
+      }${editableTitle ? ' editable-title' : ''}`}
+    >
+      {canCollapse && editableTitle ? (
+        <>
+          <button
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? 'Expand description' : 'Collapse description'}
+            className="codiff-source-description-collapse-button"
+            onClick={onToggleCollapsed}
+            title={isCollapsed ? 'Expand' : 'Collapse'}
+            type="button"
+          >
+            <span className="codiff-chevron-box">
+              <CaretDown
+                aria-hidden
+                className={isCollapsed ? 'codiff-chevron collapsed' : 'codiff-chevron'}
+                size={16}
+                weight="bold"
+              />
+            </span>
+          </button>
+          <div className="codiff-source-description-title-cell">{heading}</div>
+        </>
+      ) : canCollapse ? (
+        <button
+          aria-expanded={!isCollapsed}
+          aria-label={isCollapsed ? 'Expand description' : 'Collapse description'}
+          className="codiff-header-toggle"
+          onClick={onToggleCollapsed}
+          title={isCollapsed ? 'Expand' : 'Collapse'}
+          type="button"
+        >
+          <span className="codiff-chevron-box">
+            <CaretDown
+              aria-hidden
+              className={isCollapsed ? 'codiff-chevron collapsed' : 'codiff-chevron'}
+              size={16}
+              weight="bold"
+            />
+          </span>
+          {heading}
+        </button>
+      ) : editableTitle ? (
+        <div className="codiff-source-description-title-cell">{heading}</div>
+      ) : (
+        <div className="codiff-header-toggle codiff-header-toggle-static">{heading}</div>
+      )}
+      {actions}
+    </div>
+  );
+}
+
+function SourceDescriptionBody({
+  ariaLabel = 'Preview source description',
+  author,
+  canEdit,
+  description,
+  keymap,
+  layoutKey,
+  onLayoutReady,
+  onUpdateDescription,
+  onUploadDescriptionAsset,
+}: {
+  ariaLabel?: string;
+  author?: SourceDescriptionAuthor;
+  canEdit?: boolean;
+  description: string;
+  keymap?: CodiffKeymap;
+  layoutKey: string;
+  onLayoutReady: (layoutKey: string) => void;
+  onUpdateDescription?: (body: string) => Promise<void> | void;
+  onUploadDescriptionAsset?: (file: File) => Promise<string> | string;
+}) {
+  useLayoutEffect(() => {
+    onLayoutReady(layoutKey);
+  }, [layoutKey, onLayoutReady]);
+  const canEditDescription = canEdit === true && onUpdateDescription != null;
+  const [editDraft, setEditDraft] = useState(description);
+  const [editEditorReady, setEditEditorReady] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savedDescription, setSavedDescription] = useState<{
+    body: string;
+    previousDescription: string;
+  } | null>(null);
+  const displayedDescription =
+    savedDescription != null && description === savedDescription.previousDescription
+      ? savedDescription.body
+      : description;
+  const sanitizedDescription = useMemo(
+    () => sanitizeMarkdownImages(stripHtmlComments(displayedDescription)),
+    [displayedDescription],
+  );
+  const editorRef = useRef<MarkdownEditorHandle | null>(null);
+  const canSaveEdit =
+    editing && !editSubmitting && editDraft.trim() !== displayedDescription.trim();
+
+  const setEditorRef = useCallback(
+    (editor: MarkdownEditorHandle | null) => {
+      editorRef.current = editor;
+      if (editor && editing) {
+        requestAnimationFrame(() => {
+          setEditEditorReady(true);
+          editor.focus({ defaultSelection: 'rootEnd', preventScroll: true });
+        });
+      }
+    },
+    [editing],
+  );
+
+  useEffect(() => {
+    if (!editing) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      editorRef.current?.focus({ defaultSelection: 'rootEnd', preventScroll: true });
+    });
+  }, [editing]);
+
+  const startEdit = useCallback(() => {
+    if (!canEditDescription || editSubmitting) {
+      return;
+    }
+
+    setEditDraft(displayedDescription);
+    setEditEditorReady(false);
+    setEditError(null);
+    setEditing(true);
+    preloadMarkdownEditor();
+  }, [canEditDescription, displayedDescription, editSubmitting]);
+
+  const cancelEdit = useCallback(() => {
+    if (editSubmitting) {
+      return;
+    }
+
+    setEditDraft(displayedDescription);
+    setEditEditorReady(false);
+    setEditError(null);
+    setEditing(false);
+  }, [displayedDescription, editSubmitting]);
+
+  const saveEdit = useCallback(() => {
+    const body = editDraft.trim();
+    if (!canEditDescription || editSubmitting || body === displayedDescription.trim()) {
+      return;
+    }
+
+    setEditError(null);
+    setEditSubmitting(true);
+    void Promise.resolve(onUpdateDescription(body))
+      .then(() => {
+        setSavedDescription({ body, previousDescription: displayedDescription });
+        setEditDraft(body);
+        setEditEditorReady(false);
+        setEditing(false);
+      })
+      .catch((error: unknown) => {
+        setEditError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => setEditSubmitting(false));
+  }, [canEditDescription, displayedDescription, editDraft, editSubmitting, onUpdateDescription]);
+
+  const handleEditKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (!keymap || !matchesShortcut(event, keymap, 'submitComment') || !canSaveEdit) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      saveEdit();
+    },
+    [canSaveEdit, keymap, saveEdit],
+  );
+
+  return (
+    <div
+      className={`source-description-comment review-comment${
+        author ? '' : ' source-description-comment-anonymous'
+      }`}
+    >
+      {author ? <Avatar name={author.displayName} size="medium" url={author.avatarUrl} /> : null}
+      <div className="review-comment-body source-description-body">
+        {author || canEditDescription || editing ? (
+          <div
+            className={`review-comment-header read-only source-description-author-header${
+              canEditDescription || editing ? ' with-comment-action' : ''
+            }${!sanitizedDescription && !editing ? ' without-description' : ''}`}
+          >
+            <strong title={author?.title}>{author ? author.displayName : 'Description'}</strong>
+            {editing ? (
+              <span className="general-comment-edit-actions">
+                <button
+                  className="review-comment-action"
+                  disabled={editSubmitting}
+                  onClick={cancelEdit}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="review-comment-action"
+                  disabled={!canSaveEdit}
+                  onClick={saveEdit}
+                  type="button"
+                >
+                  {editSubmitting ? 'Saving' : 'Save'}
+                </button>
+              </span>
+            ) : canEditDescription ? (
+              <button
+                className="review-comment-action"
+                onClick={startEdit}
+                onFocus={preloadMarkdownEditor}
+                onPointerEnter={preloadMarkdownEditor}
+                type="button"
+              >
+                Edit
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {editing ? (
+          <>
+            <div>
+              <Suspense
+                fallback={
+                  <ReadOnlyMarkdown
+                    ariaLabel={ariaLabel}
+                    className="codiff-markdown-preview-editor source-description-markdown-editor source-description-edit-preview"
+                    density="compact"
+                    onHeightChange={() => onLayoutReady(layoutKey)}
+                    value={sanitizedDescription}
+                    variant="embedded"
+                  />
+                }
+              >
+                <div
+                  className={`review-comment-edit-shell source-description-edit-shell${
+                    editEditorReady ? ' ready' : ' loading'
+                  }`}
+                >
+                  {!editEditorReady ? (
+                    <ReadOnlyMarkdown
+                      ariaLabel={ariaLabel}
+                      className="codiff-markdown-preview-editor source-description-markdown-editor source-description-edit-preview"
+                      density="compact"
+                      onHeightChange={() => onLayoutReady(layoutKey)}
+                      value={sanitizedDescription}
+                      variant="embedded"
+                    />
+                  ) : null}
+                  <div className="review-comment-edit-editor">
+                    <SourceDescriptionEditor
+                      ariaLabel="Edit source description"
+                      className="review-comment-markdown-editor general-comment-markdown-editor source-description-markdown-editor"
+                      colorScheme="inherit"
+                      contentClassName="review-comment-input general-comment-input"
+                      density="compact"
+                      onChange={setEditDraft}
+                      onHeightChange={() => onLayoutReady(layoutKey)}
+                      onKeyDown={handleEditKeyDown}
+                      onUploadAsset={onUploadDescriptionAsset}
+                      readOnly={editSubmitting}
+                      ref={setEditorRef}
+                      spellCheck
+                      value={editDraft}
+                      variant="embedded"
+                    />
+                  </div>
+                </div>
+              </Suspense>
+            </div>
+            {editError ? <div className="review-comment-error">{editError}</div> : null}
+          </>
+        ) : sanitizedDescription ? (
+          <div className="codiff-markdown-preview source-description-markdown">
+            <ReadOnlyMarkdown
+              ariaLabel={ariaLabel}
+              className="codiff-markdown-preview-editor source-description-markdown-editor"
+              density="compact"
+              onHeightChange={() => onLayoutReady(layoutKey)}
+              value={sanitizedDescription}
+              variant="embedded"
+            />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function PullRequestSourceDescription({
+  actions,
+  footer,
+  keymap,
+  onUpdateDescription,
+  onUpdateTitle,
+  onUploadDescriptionAsset,
+  source,
+}: {
+  actions?: ReactNode;
+  footer?: ReactNode;
+  keymap?: CodiffKeymap;
+  onUpdateDescription?: (body: string) => Promise<void> | void;
+  onUpdateTitle?: (title: string) => Promise<void> | void;
+  onUploadDescriptionAsset?: (file: File) => Promise<string> | string;
+  source: PullRequestSource;
+}) {
+  const sourceDescription = source.description?.trim() ?? '';
+  const sourceTitle = source.title?.trim() ?? '';
+  const sourceDescriptionHasBody = sourceDescription.length > 0;
+  const sourceAuthor = source.author ? getPullRequestDescriptionAuthor(source.author) : undefined;
+  const canEditDescription = source.canEditDescription === true && onUpdateDescription != null;
+  const canEditTitle =
+    (source.canEditTitle === true || source.canEditDescription === true) && onUpdateTitle != null;
+  const [collapsed, setCollapsed] = useState(false);
+
+  if (!sourceDescription && !sourceTitle) {
+    return null;
+  }
+
+  const isCollapsed = (!sourceDescriptionHasBody && !canEditDescription) || collapsed;
+  const layoutKey = `source-description-panel:${source.provider ?? ''}:${source.url}:${sourceTitle}:${sourceDescription}:${source.author?.login ?? ''}:${source.author?.avatarUrl ?? ''}:${isCollapsed ? 'collapsed' : 'open'}`;
+
+  return (
+    <div className="codiff-source-description-panel">
+      <SourceDescriptionHeader
+        actions={actions}
+        canCollapse={sourceDescriptionHasBody || canEditDescription}
+        canEditTitle={canEditTitle}
+        isCollapsed={isCollapsed}
+        label={getPullRequestDescriptionLabel(source)}
+        onToggleCollapsed={() => setCollapsed((current) => !current)}
+        onUpdateTitle={onUpdateTitle}
+        title={sourceTitle}
+      />
+      {!isCollapsed ? (
+        <div className="codiff-source-description-panel-body">
+          <SourceDescriptionBody
+            author={sourceAuthor}
+            canEdit={canEditDescription}
+            description={sourceDescription}
+            keymap={keymap}
+            layoutKey={layoutKey}
+            onLayoutReady={() => {}}
+            onUpdateDescription={onUpdateDescription}
+            onUploadDescriptionAsset={onUploadDescriptionAsset}
+          />
+          {footer ? <div className="codiff-source-description-footer">{footer}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type ImagePreviewMode = 'side-by-side' | 'slider';
+
+function ImageDiffPreview({
+  file,
+  loadImageContent,
+  onLayoutReady,
+  section,
+  source,
+}: {
+  file: ChangedFile;
+  loadImageContent: (request: DiffImageContentRequest) => Promise<DiffImageContentResult>;
+  onLayoutReady: (sectionId: string) => void;
+  section: DiffSection;
+  source: ReviewSource;
+}) {
+  const loadingResult: DiffImageContentResult = {
+    reason: 'Loading image...',
+    status: 'unavailable',
+  };
+  const requestKey = `${file.fingerprint}:${section.id}:${JSON.stringify(source)}`;
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [mode, setMode] = useState<ImagePreviewMode>('slider');
+  const sliderStageRef = useRef<HTMLDivElement>(null);
+  const [loadState, setLoadState] = useState<{
+    requestKey: string | null;
+    result: DiffImageContentResult;
+  }>({
+    requestKey: null,
+    result: loadingResult,
+  });
+  const [split, setSplit] = useState(50);
+  const result = loadState.requestKey === requestKey ? loadState.result : loadingResult;
+
+  const updateSplitFromClientX = useCallback((clientX: number) => {
+    const stage = sliderStageRef.current;
+    if (!stage) {
+      return;
+    }
+
+    const rect = stage.getBoundingClientRect();
+    if (rect.width <= 0) {
+      return;
+    }
+
+    setSplit(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)));
+  }, []);
+
+  const handleDividerPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      updateSplitFromClientX(event.clientX);
+    },
+    [updateSplitFromClientX],
+  );
+
+  const handleDividerPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        updateSplitFromClientX(event.clientX);
+      }
+    },
+    [updateSplitFromClientX],
+  );
+
+  const handleDividerPointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handleDividerKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSplit((current) => Math.max(0, current - (event.shiftKey ? 10 : 2)));
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSplit((current) => Math.min(100, current + (event.shiftKey ? 10 : 2)));
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setSplit(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setSplit(100);
+    }
+  }, []);
+
+  useEffect(() => {
+    let canceled = false;
+    const activeRequestKey = requestKey;
+
+    loadImageContent({
+      kind: section.kind,
+      path: file.path,
+      source,
+    })
+      .then((nextResult) => {
+        if (!canceled) {
+          setLoadState({
+            requestKey: activeRequestKey,
+            result: nextResult,
+          });
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setLoadState({
+            requestKey: activeRequestKey,
+            result: {
+              reason: 'Codiff could not load this image.',
+              status: 'unavailable',
+            },
+          });
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [file.path, loadImageContent, requestKey, section.kind, source]);
+
+  useEffect(() => {
+    onLayoutReady(section.id);
+  }, [mode, onLayoutReady, result.status, section.id]);
+
+  const handleImageLoad = useCallback(
+    (event: SyntheticEvent<HTMLImageElement>) => {
+      const { naturalHeight, naturalWidth } = event.currentTarget;
+      if (naturalHeight > 0 && naturalWidth > 0) {
+        setAspectRatio(naturalWidth / naturalHeight);
+      }
+      onLayoutReady(section.id);
+    },
+    [onLayoutReady, section.id],
+  );
+
+  if (result.status === 'unavailable') {
+    return (
+      <div className="codiff-image-preview codiff-image-preview-message">
+        <ImageBroken aria-hidden size={22} weight="duotone" />
+        <span>{result.reason}</span>
+      </div>
+    );
+  }
+
+  const { newImage, oldImage } = result;
+  const canCompare = Boolean(oldImage && newImage);
+  const effectiveMode = canCompare ? mode : 'side-by-side';
+  const stageStyle =
+    effectiveMode === 'slider'
+      ? ({
+          '--codiff-image-split': `${split}%`,
+          ...(aspectRatio ? { aspectRatio } : {}),
+        } as CSSProperties)
+      : undefined;
+
+  return (
+    <div className="codiff-image-preview">
+      <div className="codiff-image-preview-toolbar">
+        <span className="codiff-image-preview-title">Image</span>
+        {canCompare ? (
+          <div className="codiff-image-preview-mode" role="group">
+            <button
+              aria-label="Slider image comparison"
+              aria-pressed={effectiveMode === 'slider'}
+              className={effectiveMode === 'slider' ? 'active' : ''}
+              onClick={() => setMode('slider')}
+              title="Slider"
+              type="button"
+            >
+              <SquareSplitVertical aria-hidden size={16} weight="bold" />
+            </button>
+            <button
+              aria-label="Side-by-side image view"
+              aria-pressed={effectiveMode === 'side-by-side'}
+              className={effectiveMode === 'side-by-side' ? 'active' : ''}
+              onClick={() => setMode('side-by-side')}
+              title="Side-by-side"
+              type="button"
+            >
+              <Columns aria-hidden size={16} weight="bold" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {effectiveMode === 'slider' && oldImage && newImage ? (
+        <div className="codiff-image-slider">
+          <div className="codiff-image-slider-stage" ref={sliderStageRef} style={stageStyle}>
+            <img
+              alt={`Old ${file.path}`}
+              draggable={false}
+              onLoad={handleImageLoad}
+              src={oldImage.dataUrl}
+            />
+            <img
+              alt={`New ${file.path}`}
+              className="codiff-image-slider-new"
+              draggable={false}
+              onLoad={handleImageLoad}
+              src={newImage.dataUrl}
+            />
+            <div
+              aria-label="Image comparison split"
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={Math.round(split)}
+              className="codiff-image-slider-divider"
+              onKeyDown={handleDividerKeyDown}
+              onPointerCancel={handleDividerPointerUp}
+              onPointerDown={handleDividerPointerDown}
+              onPointerMove={handleDividerPointerMove}
+              onPointerUp={handleDividerPointerUp}
+              role="slider"
+              tabIndex={0}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="codiff-image-grid">
+          {oldImage ? (
+            <figure>
+              <div className="codiff-image-frame">
+                <img
+                  alt={`Old ${file.path}`}
+                  draggable={false}
+                  onLoad={handleImageLoad}
+                  src={oldImage.dataUrl}
+                />
+              </div>
+              <figcaption>
+                <span>Old</span>
+                <span>{formatBytes(oldImage.size)}</span>
+              </figcaption>
+            </figure>
+          ) : null}
+          {newImage ? (
+            <figure>
+              <div className="codiff-image-frame">
+                <img
+                  alt={`New ${file.path}`}
+                  draggable={false}
+                  onLoad={handleImageLoad}
+                  src={newImage.dataUrl}
+                />
+              </div>
+              <figcaption>
+                <span>New</span>
+                <span>{formatBytes(newImage.size)}</span>
+              </figcaption>
+            </figure>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewAssistantFollowUp({
+  disabled,
+  initialQuestion,
+  inputId,
+  keymap,
+  onDraftChange,
+  onSend,
+}: {
+  disabled: boolean;
+  initialQuestion: string;
+  inputId: string;
+  keymap: CodiffKeymap;
+  onDraftChange?: (body: string) => void;
+  onSend: (question: string) => void;
+}) {
+  const [question, setQuestion] = useState(initialQuestion);
+  const send = () => {
+    if (!disabled && question.trim()) {
+      onSend(question.trim());
+    }
+  };
+  return (
+    <form
+      className="review-comment-assistant-follow-up"
+      onSubmit={(event) => {
+        event.preventDefault();
+        send();
+      }}
+    >
+      <label htmlFor={inputId}>Ask a follow-up</label>
+      <textarea
+        disabled={disabled}
+        id={inputId}
+        maxLength={16_000}
+        onChange={(event) => {
+          const body = event.currentTarget.value;
+          setQuestion(body);
+          onDraftChange?.(body);
+        }}
+        onKeyDown={(event) => {
+          const sendShortcut =
+            event.key === 'Enter' && isPrimaryModifier(event) && !event.altKey && !event.shiftKey;
+          if (
+            !event.nativeEvent.isComposing &&
+            (sendShortcut || matchesShortcut(event, keymap, 'askAgent'))
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!event.repeat) {
+              send();
+            }
+          }
+        }}
+        placeholder="Ask about the answer…"
+        rows={2}
+        value={question}
+      />
+      <div>
+        <span>Ctrl/Cmd+Enter or {getShortcutLabel(keymap, 'askAgent')} to send</span>
+        <button
+          className="review-comment-action"
+          disabled={disabled || !question.trim()}
+          type="submit"
+        >
+          Send
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ReviewAssistantConversation({
+  agentLabel,
+  commentId,
+  keymap,
+  onDraftChange,
+  onFollowUp,
+  reply,
+}: {
+  agentLabel: string;
+  commentId: string;
+  keymap: CodiffKeymap;
+  onDraftChange?: (body: string) => void;
+  onFollowUp?: (question: string) => void;
+  reply: NonNullable<ReviewComment['codexReply']>;
+}) {
+  const turns =
+    reply.turns ||
+    (reply.body
+      ? [
+          {
+            context: reply.context,
+            question: '',
+            reply: reply.body,
+          },
+        ]
+      : []);
+  return (
+    <>
+      {turns.map((turn, index) => (
+        <div className="review-comment-assistant-turn" key={index}>
+          {index > 0 ? (
+            <div className="review-comment-codex-reply review-comment-assistant-question">
+              <strong>You asked</strong>
+              <ReadOnlyMarkdown
+                ariaLabel={`Follow-up question ${index}`}
+                className="review-comment-codex-reply-markdown"
+                density="compact"
+                value={turn.question}
+                variant="embedded"
+              />
+            </div>
+          ) : null}
+          {turn.context ? (
+            <details className="review-comment-assistant-context">
+              <summary>
+                {turn.context.label} · {turn.context.fileCount} changed files
+                {turn.context.warnings.length ? ' · Limited context' : ''}
+              </summary>
+              <div>
+                Changes from {turn.context.filesRead} files were provided.
+                {turn.context.version ? ` Saved version: ${turn.context.version}.` : ''}
+              </div>
+              {turn.context.warnings.map((warning) => (
+                <div key={warning}>{warning}</div>
+              ))}
+            </details>
+          ) : null}
+          <div className="review-comment-codex-reply">
+            <ReadOnlyMarkdown
+              ariaLabel={index === 0 ? `${agentLabel} reply` : `${agentLabel} reply ${index + 1}`}
+              className="review-comment-codex-reply-markdown"
+              density="compact"
+              value={turn.reply}
+              variant="embedded"
+            />
+          </div>
+        </div>
+      ))}
+      {reply.status === 'loading' ? (
+        <div className="review-comment-codex-reply is-loading" role="status">
+          <span className="review-comment-codex-loading">
+            Reading review context with {agentLabel}…
+          </span>
+        </div>
+      ) : reply.status === 'error' ? (
+        <div className="review-comment-codex-reply error" role="alert">
+          <ReadOnlyMarkdown
+            ariaLabel={`${agentLabel} error`}
+            className="review-comment-codex-reply-markdown"
+            density="compact"
+            value={reply.error || 'The assistant could not answer. Ask again.'}
+            variant="embedded"
+          />
+        </div>
+      ) : null}
+      {onFollowUp && turns.length > 0 ? (
+        <ReviewAssistantFollowUp
+          disabled={reply.status === 'loading'}
+          initialQuestion={
+            reply.followUpDraft ??
+            (reply.status !== 'ready' && reply.isFollowUp !== false ? reply.question || '' : '')
+          }
+          inputId={`ask-follow-up-${commentId}`}
+          key={turns.length}
+          keymap={keymap}
+          onDraftChange={onDraftChange}
+          onSend={onFollowUp}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function ReviewCommentEditor({
+  agentId,
+  agentLabel,
+  comment,
+  displayName,
+  focusCommentId,
+  focusEditorRef,
+  identity,
+  keymap,
+  onAskCodex,
+  onAskFollowUpDraftChange,
+  onCommentBlur,
+  onCommentDraftChange,
+  onCommentFocus,
+  onDeleteComment,
+  onSaveCommentEdit,
+  onSubmitComment,
+  onUpdateComment,
+  supportsReviewCommentActions,
+}: {
+  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentLabel: string;
+  comment: ReviewComment;
+  displayName: string;
+  focusCommentId: string | null;
+  focusEditorRef: (node: MarkdownEditorHandle | null) => void;
+  identity: GitIdentity | null;
+  keymap: CodiffKeymap;
+  onAskCodex?: (commentId: string, followUp?: string) => void;
+  onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
+  onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
+  onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
+  onCommentFocus: (comment: ReviewComment) => void;
+  onDeleteComment: (commentId: string) => void;
+  onSaveCommentEdit: (commentId: string, body: string) => Promise<void> | void;
+  onSubmitComment: (commentId: string) => void;
+  onUpdateComment: (commentId: string, body: string) => void;
+  supportsReviewCommentActions: boolean;
+}) {
+  const [editState, setEditState] = useState(() => ({
+    commentId: comment.id,
+    draft: comment.body,
+    editing: false,
+    error: null as string | null,
+    submitting: false,
+  }));
+  const [editEditorReadyState, setEditEditorReadyState] = useState(() => ({
+    commentId: comment.id,
+    ready: false,
+  }));
+  const [savedBody, setSavedBody] = useState<{ body: string; commentId: string } | null>(null);
+  const [draftState, setDraftState] = useState(() => ({
+    commentBody: comment.body,
+    commentId: comment.id,
+    dirty: false,
+    draft: comment.body,
+  }));
+  const effectiveDraftState =
+    draftState.commentId === comment.id
+      ? draftState
+      : {
+          commentBody: comment.body,
+          commentId: comment.id,
+          dirty: false,
+          draft: comment.body,
+        };
+  const draft =
+    !effectiveDraftState.dirty && effectiveDraftState.commentBody !== comment.body
+      ? comment.body
+      : effectiveDraftState.draft;
+  const displayedBody =
+    savedBody?.commentId === comment.id && comment.body !== savedBody.body
+      ? savedBody.body
+      : comment.body;
+  const effectiveEditState =
+    editState.commentId === comment.id
+      ? editState
+      : {
+          commentId: comment.id,
+          draft: displayedBody,
+          editing: false,
+          error: null,
+          submitting: false,
+        };
+  const editingExistingComment = effectiveEditState.editing;
+  const editDraft = effectiveEditState.draft;
+  const editError = effectiveEditState.error;
+  const editSubmitting = effectiveEditState.submitting;
+  const editEditorReady =
+    editEditorReadyState.commentId === comment.id && editEditorReadyState.ready;
+
+  const draftComment = withCommentBody(comment, draft);
+  const canAskCodex = onAskCodex != null && canAskCodexForComment(draftComment);
+  const commentCanSubmit = canSubmitComment(draftComment);
+  const canEditExistingComment =
+    supportsReviewCommentActions && comment.isReadOnly && comment.canEdit === true;
+  const canSaveEdit =
+    canEditExistingComment &&
+    !editSubmitting &&
+    Boolean(editDraft.trim()) &&
+    editDraft.trim() !== displayedBody.trim();
+  const editEditorRef = useRef<MarkdownEditorHandle | null>(null);
+
+  const setEditEditorRef = useCallback(
+    (editor: MarkdownEditorHandle | null) => {
+      editEditorRef.current = editor;
+      if (editor && editingExistingComment) {
+        requestAnimationFrame(() => {
+          setEditEditorReadyState({ commentId: comment.id, ready: true });
+          editor.focus({ defaultSelection: 'rootEnd', preventScroll: true });
+        });
+      }
+    },
+    [comment.id, editingExistingComment],
+  );
+  const handleEditDraftChange = useCallback(
+    (draft: string) => {
+      setEditState((current) =>
+        current.commentId === comment.id
+          ? { ...current, draft }
+          : {
+              commentId: comment.id,
+              draft,
+              editing: true,
+              error: null,
+              submitting: false,
+            },
+      );
+    },
+    [comment.id],
+  );
+  const flushDraft = useCallback(() => {
+    setDraftState((current) =>
+      current.commentId === comment.id
+        ? {
+            ...current,
+            commentBody: comment.body,
+            dirty: false,
+            draft,
+          }
+        : {
+            commentBody: comment.body,
+            commentId: comment.id,
+            dirty: false,
+            draft,
+          },
+    );
+    if (!comment.isReadOnly && draft !== comment.body) {
+      onUpdateComment(comment.id, draft);
+    }
+    return withCommentBody(comment, draft);
+  }, [comment, draft, onUpdateComment]);
+  const handleChange = useCallback(
+    (draft: string) => {
+      setDraftState((current) => ({
+        commentBody: comment.body,
+        commentId: comment.id,
+        dirty: true,
+        draft,
+      }));
+      onCommentDraftChange?.({ body: draft, id: comment.id });
+    },
+    [comment.body, comment.id, onCommentDraftChange],
+  );
+
+  const handleAskCodex = useCallback(() => {
+    const flushed = flushDraft();
+    if (onAskCodex && canAskCodexForComment(flushed)) {
+      onAskCodex(comment.id);
+    }
+  }, [comment.id, flushDraft, onAskCodex]);
+
+  const handleSubmitComment = useCallback(() => {
+    const flushed = flushDraft();
+    if (canSubmitComment(flushed)) {
+      onSubmitComment(comment.id);
+    }
+  }, [comment.id, flushDraft, onSubmitComment]);
+
+  const handleStartEdit = useCallback(() => {
+    if (!canEditExistingComment || editSubmitting) {
+      return;
+    }
+
+    setEditState({
+      commentId: comment.id,
+      draft: displayedBody,
+      editing: true,
+      error: null,
+      submitting: false,
+    });
+    setEditEditorReadyState({ commentId: comment.id, ready: false });
+  }, [canEditExistingComment, comment.id, displayedBody, editSubmitting]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (editSubmitting) {
+      return;
+    }
+
+    setEditState({
+      commentId: comment.id,
+      draft: displayedBody,
+      editing: false,
+      error: null,
+      submitting: false,
+    });
+    setEditEditorReadyState({ commentId: comment.id, ready: false });
+  }, [comment.id, displayedBody, editSubmitting]);
+
+  const handleSaveEdit = useCallback(() => {
+    const body = editDraft.trim();
+    if (!canEditExistingComment || !body || editSubmitting || body === displayedBody.trim()) {
+      return;
+    }
+
+    setEditState({
+      commentId: comment.id,
+      draft: editDraft,
+      editing: true,
+      error: null,
+      submitting: true,
+    });
+    void Promise.resolve(onSaveCommentEdit(comment.id, body))
+      .then(() => {
+        setSavedBody({ body, commentId: comment.id });
+        setEditState({
+          commentId: comment.id,
+          draft: body,
+          editing: false,
+          error: null,
+          submitting: false,
+        });
+      })
+      .catch((error: unknown) => {
+        setEditState({
+          commentId: comment.id,
+          draft: editDraft,
+          editing: true,
+          error: error instanceof Error ? error.message : String(error),
+          submitting: false,
+        });
+      })
+      .finally(() => {
+        setEditState((current) =>
+          current.commentId === comment.id && current.submitting
+            ? { ...current, submitting: false }
+            : current,
+        );
+      });
+  }, [
+    canEditExistingComment,
+    comment.id,
+    displayedBody,
+    editDraft,
+    editSubmitting,
+    onSaveCommentEdit,
+  ]);
+
+  const handleBlur = useCallback(() => {
+    onCommentBlur(comment, draft, flushDraft);
+  }, [comment, draft, flushDraft, onCommentBlur]);
+
+  // Local reviews have nothing to submit a comment to, so adding one means
+  // finishing it the way clicking away does. `MarkdownEditorHandle` exposes no
+  // blur, so focus leaves through the focused element and the editor's own blur
+  // handler flushes the draft and closes the comment.
+  const handleAddComment = useCallback(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    onCommentFocus(draftComment);
+  }, [draftComment, onCommentFocus]);
+
+  const handleEditKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (!matchesShortcut(event, keymap, 'submitComment') || !canSaveEdit) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      handleSaveEdit();
+    },
+    [canSaveEdit, handleSaveEdit, keymap],
+  );
+
+  const handleKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (matchesShortcut(event, keymap, 'submitComment')) {
+        if (supportsReviewCommentActions) {
+          if (commentCanSubmit) {
+            event.preventDefault();
+            event.stopPropagation();
+            handleSubmitComment();
+          }
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        handleAddComment();
+        return;
+      }
+
+      if (matchesShortcut(event, keymap, 'askAgent')) {
+        if (canAskCodex) {
+          event.preventDefault();
+          event.stopPropagation();
+          handleAskCodex();
+        }
+        return;
+      }
+
+      if (!matchesShortcut(event, keymap, 'discardComment')) {
+        return;
+      }
+
+      if (comment.isReadOnly) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (shouldDiscardReviewCommentOnEscape(draft)) {
+        onDeleteComment(comment.id);
+      }
+    },
+    [
+      canAskCodex,
+      commentCanSubmit,
+      comment.id,
+      comment.isReadOnly,
+      draft,
+      handleAddComment,
+      handleAskCodex,
+      handleSubmitComment,
+      keymap,
+      onDeleteComment,
+      supportsReviewCommentActions,
+    ],
+  );
+  return (
+    <Fragment>
+      <div className="review-comment">
+        {comment.author ? (
+          <ReviewAvatar author={comment.author} />
+        ) : (
+          <IdentityReviewAvatar identity={identity} />
+        )}
+        <div className="review-comment-body">
+          <div
+            className={`review-comment-header${
+              (supportsReviewCommentActions && !comment.isReadOnly) ||
+              canEditExistingComment ||
+              comment.canDelete ||
+              editingExistingComment
+                ? ' with-comment-action'
+                : ''
+            }${comment.isReadOnly ? ' read-only' : ''}`}
+          >
+            <strong>{displayName}</strong>
+            {editingExistingComment ? (
+              <span className="general-comment-edit-actions">
+                <button
+                  className="review-comment-action"
+                  disabled={editSubmitting}
+                  onClick={handleCancelEdit}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="review-comment-action"
+                  disabled={!canSaveEdit}
+                  onClick={handleSaveEdit}
+                  type="button"
+                >
+                  {editSubmitting ? 'Saving' : 'Save'}
+                </button>
+              </span>
+            ) : canEditExistingComment ? (
+              <button
+                className="review-comment-action"
+                onClick={handleStartEdit}
+                onFocus={preloadMarkdownEditor}
+                onPointerEnter={preloadMarkdownEditor}
+                type="button"
+              >
+                Edit
+              </button>
+            ) : null}
+            {comment.isReadOnly && comment.canDelete ? (
+              <button
+                aria-label="Delete comment"
+                className="review-comment-delete"
+                onClick={() => onDeleteComment(comment.id)}
+                title="Delete comment"
+                type="button"
+              >
+                <X aria-hidden className="review-comment-delete-icon" size={14} weight="bold" />
+              </button>
+            ) : null}
+            {!comment.isReadOnly && onAskCodex ? (
+              <button
+                className="review-comment-action"
+                disabled={!canAskCodex}
+                onClick={handleAskCodex}
+                title={
+                  canAskCodex
+                    ? `Ask ${agentLabel} (${getShortcutLabel(keymap, 'askAgent')})`
+                    : `Write a note before asking ${agentLabel}`
+                }
+                type="button"
+              >
+                <img
+                  alt=""
+                  aria-hidden
+                  className="review-comment-action-icon"
+                  draggable={false}
+                  src={agentIconUrl(agentId)}
+                />
+                Ask
+              </button>
+            ) : null}
+            {supportsReviewCommentActions && !comment.isReadOnly ? (
+              <button
+                className="review-comment-action review-comment-action-primary"
+                disabled={!commentCanSubmit}
+                onClick={handleSubmitComment}
+                title={
+                  commentCanSubmit
+                    ? `Post comment (${getShortcutLabel(keymap, 'submitComment')})`
+                    : 'Write a note before commenting'
+                }
+                type="button"
+              >
+                <ChatCircle
+                  aria-hidden
+                  className="review-comment-action-icon"
+                  size={14}
+                  weight="bold"
+                />
+                {comment.remoteSubmit?.status === 'submitting' ? 'Posting...' : 'Post comment'}
+              </button>
+            ) : null}
+            {!comment.isReadOnly ? (
+              <button
+                aria-label="Delete comment"
+                className="review-comment-delete"
+                onClick={() => onDeleteComment(comment.id)}
+                title="Delete comment"
+                type="button"
+              >
+                <X aria-hidden className="review-comment-delete-icon" size={14} weight="bold" />
+              </button>
+            ) : null}
+          </div>
+          {editingExistingComment ? (
+            <>
+              <Suspense
+                fallback={
+                  <ReadOnlyMarkdownView
+                    ariaLabel={`Comment on ${comment.filePath} ${getReviewCommentLineLabel(
+                      comment,
+                    )}`}
+                    className="review-comment-markdown-editor"
+                    contentClassName="review-comment-input read-only"
+                    fallback={<div className="review-comment-input read-only" />}
+                    value={displayedBody}
+                    variant="embedded"
+                  />
+                }
+              >
+                <div
+                  className={`review-comment-edit-shell${editEditorReady ? ' ready' : ' loading'}`}
+                >
+                  {!editEditorReady ? (
+                    <ReadOnlyMarkdownView
+                      ariaLabel={`Comment on ${comment.filePath} ${getReviewCommentLineLabel(
+                        comment,
+                      )}`}
+                      className="review-comment-markdown-editor review-comment-edit-preview"
+                      contentClassName="review-comment-input read-only"
+                      fallback={<div className="review-comment-input read-only" />}
+                      value={displayedBody}
+                      variant="embedded"
+                    />
+                  ) : null}
+                  <div className="review-comment-edit-editor">
+                    <MarkdownEditor
+                      ariaLabel={`Edit comment on ${comment.filePath} ${getReviewCommentLineLabel(
+                        comment,
+                      )}`}
+                      className="review-comment-markdown-editor"
+                      colorScheme="inherit"
+                      contentClassName="review-comment-input"
+                      density="compact"
+                      onChange={handleEditDraftChange}
+                      onKeyDown={handleEditKeyDown}
+                      readOnly={editSubmitting}
+                      ref={setEditEditorRef}
+                      spellCheck
+                      value={editDraft}
+                      variant="embedded"
+                    />
+                  </div>
+                </div>
+              </Suspense>
+              {editError ? <div className="review-comment-error">{editError}</div> : null}
+            </>
+          ) : comment.isReadOnly ? (
+            <ReadOnlyMarkdownView
+              ariaLabel={`Comment on ${comment.filePath} ${getReviewCommentLineLabel(comment)}`}
+              className="review-comment-markdown-editor"
+              contentClassName="review-comment-input read-only"
+              fallback={<div className="review-comment-input read-only" />}
+              value={displayedBody}
+              variant="embedded"
+            />
+          ) : (
+            <Suspense fallback={<div className="review-comment-input" />}>
+              <MarkdownEditor
+                ariaLabel={`Comment on ${comment.filePath} ${getReviewCommentLineLabel(comment)}`}
+                className="review-comment-markdown-editor"
+                colorScheme="inherit"
+                contentClassName="review-comment-input"
+                density="compact"
+                onBlur={handleBlur}
+                onChange={handleChange}
+                onFocus={handleFocus}
+                onKeyDown={handleKeyDown}
+                placeholder="Write a review comment…"
+                ref={comment.id === focusCommentId ? focusEditorRef : undefined}
+                spellCheck
+                value={draft}
+                variant="embedded"
+              />
+            </Suspense>
+          )}
+          {comment.remoteSubmit?.status === 'error' ? (
+            <div className="review-comment-error">{comment.remoteSubmit.error}</div>
+          ) : null}
+        </div>
+      </div>
+      {comment.codexReply ? (
+        <div className="review-comment codex">
+          <AgentAvatar agentId={agentId} />
+          <div className="review-comment-body codex">
+            <div className="review-comment-header codex">
+              <strong>{agentLabel}</strong>
+            </div>
+            <ReviewAssistantConversation
+              agentLabel={agentLabel}
+              commentId={comment.id}
+              keymap={keymap}
+              onDraftChange={(body) => onAskFollowUpDraftChange?.(comment.id, body)}
+              onFollowUp={onAskCodex ? (question) => onAskCodex(comment.id, question) : undefined}
+              reply={comment.codexReply}
+            />
+          </div>
+        </div>
+      ) : null}
+    </Fragment>
+  );
+}
+
+const groupReviewCommentsByThread = (comments: ReadonlyArray<ReviewComment>) => {
+  const groups: Array<{ comments: Array<ReviewComment>; key: string }> = [];
+  const groupByThreadId = new Map<string, { comments: Array<ReviewComment>; key: string }>();
+
+  for (const comment of comments) {
+    if (!comment.threadId) {
+      groups.push({ comments: [comment], key: comment.id });
+      continue;
+    }
+
+    let group = groupByThreadId.get(comment.threadId);
+    if (!group) {
+      group = { comments: [], key: `thread:${comment.threadId}` };
+      groupByThreadId.set(comment.threadId, group);
+      groups.push(group);
+    }
+    group.comments.push(comment);
+  }
+
+  return groups;
+};
+
+const noopResolveThread = () => {};
+
+// The CodeView header host is measured by a ResizeObserver, so no manual
+// layout pass is needed when the description body settles.
+const noopLayoutReady = () => {};
+
+function ReviewCommentThreadGroup({
+  agentId,
+  agentLabel,
+  comments,
+  focusCommentId,
+  focusCommentRequest,
+  focusEditorRef,
+  identity,
+  keymap,
+  onAskCodex,
+  onAskFollowUpDraftChange,
+  onCommentBlur,
+  onCommentDraftChange,
+  onCommentFocus,
+  onDeleteComment,
+  onReplyToThread,
+  onResolveThread = noopResolveThread,
+  onSaveCommentEdit,
+  onSubmitComment,
+  onUpdateComment,
+  supportsReviewCommentActions,
+}: {
+  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentLabel: string;
+  comments: ReadonlyArray<ReviewComment>;
+  focusCommentId: string | null;
+  focusCommentRequest: number;
+  focusEditorRef: (node: MarkdownEditorHandle | null) => void;
+  identity: GitIdentity | null;
+  keymap: CodiffKeymap;
+  onAskCodex?: (commentId: string, followUp?: string) => void;
+  onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
+  onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
+  onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
+  onCommentFocus: (comment: ReviewComment) => void;
+  onDeleteComment: (commentId: string) => void;
+  onReplyToThread: (threadId: string, comment: ReviewComment) => void;
+  onResolveThread?: (threadId: string, resolved: boolean) => Promise<void> | void;
+  onSaveCommentEdit: (commentId: string, body: string) => Promise<void> | void;
+  onSubmitComment: (commentId: string) => void;
+  onUpdateComment: (commentId: string, body: string) => void;
+  supportsReviewCommentActions: boolean;
+}) {
+  const [resolveState, setResolveState] = useState<{
+    error: string | null;
+    submitting: boolean;
+    threadId: string | null;
+  }>({ error: null, submitting: false, threadId: null });
+  const lastComment = comments.at(-1);
+  const threadId = lastComment?.threadId;
+  const threadResolved = comments.some((comment) => comment.isThreadResolved === true);
+  const hasFocusedComment =
+    focusCommentId != null && comments.some((comment) => comment.id === focusCommentId);
+  const [resolutionOverride, setResolutionOverride] = useState<{
+    base: boolean;
+    value: boolean;
+  } | null>(null);
+  const effectiveThreadResolved =
+    resolutionOverride?.base === threadResolved ? resolutionOverride.value : threadResolved;
+  const resolving = resolveState.threadId === threadId && resolveState.submitting;
+  const canResolveThread =
+    supportsReviewCommentActions &&
+    threadId != null &&
+    comments.some((comment) => comment.canResolveThread === true);
+  const canReplyToThread =
+    supportsReviewCommentActions &&
+    threadId != null &&
+    comments.some((comment) => comment.isReadOnly) &&
+    !comments.some((comment) => !comment.isReadOnly) &&
+    !comments.some((comment) => comment.canReplyThread === false) &&
+    !effectiveThreadResolved &&
+    !resolving;
+  const hasThreadActions = canReplyToThread || canResolveThread;
+  const resolveError = resolveState.threadId === threadId ? resolveState.error : null;
+
+  const handleReply = useCallback(() => {
+    if (!threadId || !lastComment) {
+      return;
+    }
+    onReplyToThread(threadId, lastComment);
+  }, [lastComment, onReplyToThread, threadId]);
+
+  const handleResolve = useCallback(() => {
+    if (!threadId || resolving) {
+      return;
+    }
+    const nextResolved = !effectiveThreadResolved;
+    setResolutionOverride({ base: threadResolved, value: nextResolved });
+    setResolveState({ error: null, submitting: true, threadId });
+    void Promise.resolve(onResolveThread(threadId, nextResolved))
+      .then(() => setResolveState({ error: null, submitting: false, threadId }))
+      .catch((error: unknown) => {
+        setResolutionOverride(null);
+        setResolveState({
+          error: error instanceof Error ? error.message : String(error),
+          submitting: false,
+          threadId,
+        });
+      });
+  }, [effectiveThreadResolved, onResolveThread, resolving, threadId, threadResolved]);
+
+  const threadContent = (
+    <>
+      {comments.map((comment) => {
+        const displayName = comment.author
+          ? getReviewAuthorDisplayName(comment.author)
+          : getGitIdentityDisplayName(identity);
+
+        return (
+          <ReviewCommentEditor
+            agentId={agentId}
+            agentLabel={agentLabel}
+            comment={comment}
+            displayName={displayName}
+            focusCommentId={focusCommentId}
+            focusEditorRef={focusEditorRef}
+            identity={identity}
+            key={comment.id}
+            keymap={keymap}
+            onAskCodex={onAskCodex}
+            onAskFollowUpDraftChange={onAskFollowUpDraftChange}
+            onCommentBlur={onCommentBlur}
+            onCommentDraftChange={onCommentDraftChange}
+            onCommentFocus={onCommentFocus}
+            onDeleteComment={onDeleteComment}
+            onSaveCommentEdit={onSaveCommentEdit}
+            onSubmitComment={onSubmitComment}
+            onUpdateComment={onUpdateComment}
+            supportsReviewCommentActions={supportsReviewCommentActions}
+          />
+        );
+      })}
+      {hasThreadActions ? (
+        <div className="review-comment-thread-footer">
+          {resolveError ? (
+            <span className="review-comment-thread-error">{resolveError}</span>
+          ) : null}
+          <div className="review-comment-thread-actions">
+            {canReplyToThread ? (
+              <button className="review-comment-action" onClick={handleReply} type="button">
+                Reply
+              </button>
+            ) : null}
+            {canResolveThread ? (
+              <button
+                className="review-comment-action"
+                disabled={resolving}
+                onClick={handleResolve}
+                type="button"
+              >
+                {resolving ? 'Saving' : effectiveThreadResolved ? 'Reopen' : 'Resolve'}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+
+  return effectiveThreadResolved ? (
+    <ResolvedThreadDisclosure
+      commentCount={comments.length}
+      focused={hasFocusedComment}
+      focusRequest={focusCommentRequest}
+      initialExpanded={Boolean(resolveError)}
+      saving={resolving}
+    >
+      {threadContent}
+    </ResolvedThreadDisclosure>
+  ) : (
+    <div className="review-comment-thread-group">{threadContent}</div>
+  );
+}
+
+function ReviewAnnotation({
+  agentId,
+  agentLabel,
+  annotation,
+  comments,
+  focusCommentId,
+  focusCommentRequest,
+  identity,
+  keymap,
+  onAskCodex,
+  onAskFollowUpDraftChange,
+  onCommentBlur,
+  onCommentDraftChange,
+  onCommentFocus,
+  onDeleteComment,
+  onHeightChange,
+  onReplyToThread,
+  onResolveThread = noopResolveThread,
+  onSaveCommentEdit,
+  onSubmitComment,
+  onUpdateComment,
+  supportsReviewCommentActions,
+}: {
+  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentLabel: string;
+  annotation: DiffLineAnnotation<ReviewCommentAnnotationMetadata>;
+  comments: ReadonlyArray<ReviewComment>;
+  focusCommentId: string | null;
+  focusCommentRequest: number;
+  identity: GitIdentity | null;
+  keymap: CodiffKeymap;
+  onAskCodex?: (commentId: string, followUp?: string) => void;
+  onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
+  onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
+  onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
+  onCommentFocus: (comment: ReviewComment) => void;
+  onDeleteComment: (commentId: string) => void;
+  onHeightChange: () => void;
+  onReplyToThread: (threadId: string, comment: ReviewComment) => void;
+  onResolveThread?: (threadId: string, resolved: boolean) => Promise<void> | void;
+  onSaveCommentEdit: (commentId: string, body: string) => Promise<void> | void;
+  onSubmitComment: (commentId: string) => void;
+  onUpdateComment: (commentId: string, body: string) => void;
+  supportsReviewCommentActions: boolean;
+}) {
+  const focusEditorRef = useRef<MarkdownEditorHandle>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const setFocusEditorRef = useCallback((node: MarkdownEditorHandle | null) => {
+    focusEditorRef.current = node;
+  }, []);
+  const annotationComments = annotation.metadata.commentIds
+    .map((commentId) => comments.find((comment) => comment.id === commentId))
+    .filter((comment): comment is ReviewComment => comment != null);
+  const hasFocusedComment =
+    focusCommentId != null && annotationComments.some((comment) => comment.id === focusCommentId);
+
+  useEffect(() => {
+    if (hasFocusedComment) {
+      focusEditorRef.current?.focus();
+    }
+  }, [focusCommentId, focusCommentRequest, hasFocusedComment]);
+
+  // Observe the whole thread so independent markdown blocks cannot invalidate each other.
+  useLayoutEffect(() => {
+    const thread = threadRef.current;
+    if (!thread) {
+      return;
+    }
+
+    let height = thread.getBoundingClientRect().height;
+    const observer = new ResizeObserver(() => {
+      const nextHeight = thread.getBoundingClientRect().height;
+      if (height !== nextHeight) {
+        height = nextHeight;
+        onHeightChange();
+      }
+    });
+    observer.observe(thread);
+    return () => observer.disconnect();
+  }, [annotationComments.length, onHeightChange]);
+
+  if (annotationComments.length === 0) {
+    return null;
+  }
+  const commentGroups = groupReviewCommentsByThread(annotationComments);
+
+  return (
+    <div className="review-comment-thread" ref={threadRef}>
+      {commentGroups.map((group) => (
+        <ReviewCommentThreadGroup
+          agentId={agentId}
+          agentLabel={agentLabel}
+          comments={group.comments}
+          focusCommentId={focusCommentId}
+          focusCommentRequest={focusCommentRequest}
+          focusEditorRef={setFocusEditorRef}
+          identity={identity}
+          key={group.key}
+          keymap={keymap}
+          onAskCodex={onAskCodex}
+          onAskFollowUpDraftChange={onAskFollowUpDraftChange}
+          onCommentBlur={onCommentBlur}
+          onCommentDraftChange={onCommentDraftChange}
+          onCommentFocus={onCommentFocus}
+          onDeleteComment={onDeleteComment}
+          onReplyToThread={onReplyToThread}
+          onResolveThread={onResolveThread}
+          onSaveCommentEdit={onSaveCommentEdit}
+          onSubmitComment={onSubmitComment}
+          onUpdateComment={onUpdateComment}
+          supportsReviewCommentActions={supportsReviewCommentActions}
+        />
+      ))}
+    </div>
+  );
+}
+
+const codeQualitySeverityLabel: Record<PullRequestCodeQualityFinding['severity'], string> = {
+  blocker: 'Blocker',
+  critical: 'Critical',
+  info: 'Info',
+  major: 'Major',
+  minor: 'Minor',
+  unknown: 'Unknown',
+};
+
+function CodeQualityAnnotation({
+  annotation,
+}: {
+  annotation: DiffLineAnnotation<CodeQualityAnnotationMetadata>;
+}) {
+  const { finding } = annotation.metadata;
+  return (
+    <div className="review-comment-thread code-quality-finding-thread">
+      <div
+        className="review-comment-body code-quality-finding"
+        data-severity={finding.severity}
+        data-status={finding.status}
+      >
+        <div className="review-comment-header code-quality-finding-header">
+          <WarningOctagon aria-hidden size={16} weight="fill" />
+          <strong>Code Quality</strong>
+          <span className="code-quality-finding-severity">
+            {codeQualitySeverityLabel[finding.severity]}
+          </span>
+          {finding.status === 'new' ? <span className="code-quality-finding-new">New</span> : null}
+        </div>
+        <div className="code-quality-finding-content">
+          <p>{finding.description}</p>
+          {finding.engineName ? <span>{finding.engineName}</span> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const scrollTargetRetryFrameLimit = 90;
+
+const getEffectiveScrollBehavior = (behavior: ReviewScrollBehavior) =>
+  behavior === 'smooth' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ? 'instant'
+    : behavior;
+
+type HunkNavigationRequest = {
+  direction: 1 | -1;
+  request: number;
+};
+
+// A jumpable, selectable position (a hunk or a review comment) with its
+// estimated absolute Y. The dominant term is the item's real top from
+// getTopForItem; only the within-item line offset is estimated, so cross-item
+// ordering stays exact. `selection` is the line range highlighted while the
+// anchor is the active nav target (null for collapsed/preview header anchors).
+type NavAnchor = {
+  itemId: string;
+  key: string;
+  scrollTarget: CodeViewScrollTarget;
+  selection: SelectedLineRange | null;
+  top: number;
+};
+
+type FileReviewDiffBlock = {
+  comments?: ReadonlyArray<ReviewComment>;
+  file: ChangedFile;
+  fileSelected?: boolean;
+  header?: ReactNode;
+  headerSelected?: boolean;
+  id: string;
+  itemIdPrefix?: string;
+  note?: string;
+  reviewIdentity?: ReviewIdentity;
+  selected?: boolean;
+};
+
+type HeaderReviewDiffBlock = {
+  file?: undefined;
+  header: ReactNode;
+  headerSelected?: boolean;
+  id: string;
+  selected?: boolean;
+};
+
+export type ReviewDiffBlock = FileReviewDiffBlock | HeaderReviewDiffBlock;
+
+const createFileReviewBlocks = (
+  files: ReadonlyArray<ChangedFile>,
+): ReadonlyArray<ReviewDiffBlock> =>
+  files.map((file) => ({
+    file,
+    id: `file:${file.path}`,
+  }));
+
+const getBlockItemId = (block: FileReviewDiffBlock, section: DiffSection) =>
+  block.itemIdPrefix ? `${block.itemIdPrefix}:${getItemId(section)}` : getItemId(section);
+
+const getBlockHeaderItemId = (block: ReviewDiffBlock) => `${block.id}:walkthrough-header`;
+
+const createInlineWalkthroughNote = (reason: string): WalkthroughNote => ({
+  action: 'review',
+  context: reason,
+  groupReason: 'Walkthrough',
+  groupTitle: 'Walkthrough',
+  impact: 'contained',
+  order: 0,
+  reason,
+});
+
+const getBlockWalkthroughNote = (
+  block: FileReviewDiffBlock,
+  fallbackByPath: ReadonlyMap<string, WalkthroughNote>,
+) => (block.note ? createInlineWalkthroughNote(block.note) : fallbackByPath.get(block.file.path));
+
+const lineIsVisibleInFileDiff = (
+  fileDiff: FileDiffMetadata,
+  side: ReviewComment['side'],
+  lineNumber: number,
+) =>
+  fileDiff.hunks.some((hunk) => {
+    const hunkStart = side === 'deletions' ? hunk.deletionStart : hunk.additionStart;
+    const hunkLineCount = side === 'deletions' ? hunk.deletionCount : hunk.additionCount;
+    return lineNumber >= hunkStart && lineNumber < hunkStart + hunkLineCount;
+  });
+
+const reviewCommentAnchorIsVisibleInFileDiff = (
+  comment: ReviewComment,
+  fileDiff: FileDiffMetadata,
+) =>
+  !isLineReviewComment(comment) ||
+  lineIsVisibleInFileDiff(fileDiff, comment.side, comment.lineNumber);
+
+const diffSearchMatchIsVisibleInFileDiff = (match: DiffSearchMatch, fileDiff: FileDiffMetadata) => {
+  if (match.lineNumber == null) {
+    return true;
+  }
+
+  return match.side
+    ? lineIsVisibleInFileDiff(fileDiff, match.side, match.lineNumber)
+    : lineIsVisibleInFileDiff(fileDiff, 'additions', match.lineNumber) ||
+        lineIsVisibleInFileDiff(fileDiff, 'deletions', match.lineNumber);
+};
+
+const dedupeReviewComments = (
+  comments: ReadonlyArray<ReviewComment>,
+): ReadonlyArray<ReviewComment> => {
+  const deduped: Array<ReviewComment> = [];
+  const seen = new Set<string>();
+  for (const comment of comments) {
+    if (seen.has(comment.id)) {
+      continue;
+    }
+    seen.add(comment.id);
+    deduped.push(comment);
+  }
+  return deduped;
+};
+
+const groupReviewCommentsBySection = (comments: ReadonlyArray<ReviewComment>) => {
+  const map = new Map<string, Array<ReviewComment>>();
+  for (const comment of comments) {
+    const list = map.get(comment.sectionId);
+    if (list) {
+      list.push(comment);
+    } else {
+      map.set(comment.sectionId, [comment]);
+    }
+  }
+  return map;
+};
+
+type RenderedSearchTarget = {
+  fileDiff: FileDiffMetadata;
+  itemId: string;
+  path: string;
+};
+
+const resolveRenderedSearchMatch = (
+  match: DiffSearchMatch | null,
+  itemMetadata: ReadonlyMap<string, CodeViewItemMetadata>,
+  searchTargetsByBaseItemId: ReadonlyMap<string, ReadonlyArray<RenderedSearchTarget>>,
+): DiffSearchMatch | null => {
+  if (!match) {
+    return null;
+  }
+
+  if (itemMetadata.has(match.itemId)) {
+    return match;
+  }
+
+  const candidates = searchTargetsByBaseItemId.get(match.itemId) ?? [];
+  const candidate =
+    candidates.find(
+      (candidate) =>
+        candidate.path === match.filePath &&
+        diffSearchMatchIsVisibleInFileDiff(match, candidate.fileDiff),
+    ) ??
+    candidates.find((candidate) => candidate.path === match.filePath) ??
+    candidates.find((candidate) => diffSearchMatchIsVisibleInFileDiff(match, candidate.fileDiff)) ??
+    candidates[0];
+
+  return candidate ? { ...match, itemId: candidate.itemId } : null;
+};
+
+// Estimate the rendered row index of a file line inside a diff item so comment
+// anchors sort against hunk anchors within the same item.
+const estimateRenderedLineIndex = (
+  fileDiff: FileDiffMetadata,
+  lineNumber: number,
+  side: 'additions' | 'deletions',
+  diffStyle: CodiffDiffStyle,
+): number => {
+  for (const hunk of fileDiff.hunks) {
+    const start = side === 'deletions' ? hunk.deletionStart : hunk.additionStart;
+    const count = side === 'deletions' ? hunk.deletionCount : hunk.additionCount;
+    if (lineNumber < start || lineNumber >= start + count) {
+      continue;
+    }
+
+    let deletionLineNumber = hunk.deletionStart;
+    let additionLineNumber = hunk.additionStart;
+    let splitLineIndex = hunk.splitLineStart;
+    let unifiedLineIndex = hunk.unifiedLineStart;
+
+    for (const content of hunk.hunkContent) {
+      if (content.type === 'context') {
+        const currentLineNumber = side === 'deletions' ? deletionLineNumber : additionLineNumber;
+        if (lineNumber < currentLineNumber + content.lines) {
+          const difference = lineNumber - currentLineNumber;
+          return (diffStyle === 'split' ? splitLineIndex : unifiedLineIndex) + difference;
+        }
+
+        deletionLineNumber += content.lines;
+        additionLineNumber += content.lines;
+        splitLineIndex += content.lines;
+        unifiedLineIndex += content.lines;
+        continue;
+      }
+
+      const sideCount = side === 'deletions' ? content.deletions : content.additions;
+      const currentLineNumber = side === 'deletions' ? deletionLineNumber : additionLineNumber;
+      if (lineNumber < currentLineNumber + sideCount) {
+        const difference = lineNumber - currentLineNumber;
+        return (
+          (diffStyle === 'split'
+            ? splitLineIndex
+            : unifiedLineIndex + (side === 'additions' ? content.deletions : 0)) + difference
+        );
+      }
+
+      deletionLineNumber += content.deletions;
+      additionLineNumber += content.additions;
+      splitLineIndex += Math.max(content.deletions, content.additions);
+      unifiedLineIndex += content.deletions + content.additions;
+    }
+  }
+  return 0;
+};
+
+const isInteractiveKeyboardTarget = (target: EventTarget | null) => {
+  const candidate = target as
+    | (EventTarget & {
+        closest?: (selector: string) => Element | null;
+        isContentEditable?: boolean;
+      })
+    | null;
+
+  return (
+    isNativeInputTarget(target) ||
+    candidate?.closest?.(
+      [
+        'a[href]',
+        'area[href]',
+        'button',
+        'summary',
+        '[role="button"]',
+        '[role="checkbox"]',
+        '[role="link"]',
+        '[role="menuitem"]',
+        '[role="menuitemcheckbox"]',
+        '[role="menuitemradio"]',
+        '[role="option"]',
+        '[role="radio"]',
+        '[role="slider"]',
+        '[role="switch"]',
+        '[role="tab"]',
+      ].join(', '),
+    ) != null ||
+    candidate?.isContentEditable === true
+  );
+};
+
+// The span of changed lines in a hunk — the green/red bit, excluding the
+// surrounding context — so navigating highlights just the change. Prefers the
+// additions side; falls back to deletions for pure-deletion hunks.
+const getHunkSelectionRange = (
+  hunk: FileDiffMetadata['hunks'][number],
+): SelectedLineRange | null => {
+  const side: 'additions' | 'deletions' | null =
+    hunk.additionLines > 0 ? 'additions' : hunk.deletionLines > 0 ? 'deletions' : null;
+  if (!side) {
+    return null;
+  }
+
+  let additionLine = hunk.additionStart;
+  let deletionLine = hunk.deletionStart;
+  let start: number | null = null;
+  let end: number | null = null;
+
+  for (const content of hunk.hunkContent) {
+    if (content.type === 'context') {
+      additionLine += content.lines;
+      deletionLine += content.lines;
+      continue;
+    }
+
+    const changed = side === 'additions' ? content.additions : content.deletions;
+    if (changed > 0) {
+      const blockStart = side === 'additions' ? additionLine : deletionLine;
+      start = start ?? blockStart;
+      end = blockStart + changed - 1;
+    }
+    additionLine += content.additions;
+    deletionLine += content.deletions;
+  }
+
+  return start != null && end != null ? { end, endSide: side, side, start } : null;
+};
+
+const isSameSelection = (a: SelectedLineRange, b: SelectedLineRange) =>
+  a.start === b.start && a.end === b.end && a.side === b.side;
+
+export function ReviewCodeView({
+  activeSearchMatch,
+  agentId,
+  agentLabel,
+  allowViewedToggle = false,
+  blocks,
+  bottomInset = codeViewLayout.paddingBottom,
+  codeEditingStore,
+  codeQualityFindings = [],
+  collapsed,
+  comments,
+  commitMetadata,
+  diffLineHeight = DIFF_LINE_HEIGHT,
+  diffStyle,
+  disableWorkerPool = false,
+  expandedReviewKeys = emptyExpandedReviewKeys,
+  expandUnchanged = false,
+  files,
+  focusCommentId,
+  focusCommentRequest,
+  forceExpandedPaths,
+  gitIdentity,
+  hunkNavigation,
+  initialMarkdownPreviewSectionIds = emptyMarkdownPreviewSectionIds,
+  isReadOnly = false,
+  itemVersionByKey,
+  keymap,
+  loadingSectionIds,
+  onActiveBlockChange,
+  onAskCodex,
+  onAskFollowUpDraftChange,
+  onCommentDraftChange,
+  onCreateComment,
+  onDeleteComment,
+  onFindDefinitions,
+  onLoadImageContent,
+  onLoadSection,
+  onLoadSectionContents,
+  onOpenDefinition,
+  onOpenFile,
+  onReady,
+  onRefreshMarkdown,
+  onResolveThread = noopResolveThread,
+  onSaveCommentEdit,
+  onSelectPathFromScroll,
+  onSubmitComment,
+  onToggleCollapsed,
+  onToggleViewed,
+  onUpdateComment,
+  onUpdateSourceDescription,
+  onUpdateSourceTitle,
+  onUploadSourceDescriptionAsset,
+  renderMarkdownAs = 'preview',
+  reviewIdentityByPath,
+  scrollTarget,
+  searchQuery,
+  selectedPath,
+  showSourceDescription = true,
+  showWhitespace,
+  source,
+  sourceDescriptionActions,
+  sourceDescriptionFooter,
+  supportsReviewCommentActions,
+  theme = 'system',
+  viewed,
+  walkthroughNotes,
+  wordWrap,
+}: {
+  activeSearchMatch: DiffSearchMatch | null;
+  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentLabel: string;
+  allowViewedToggle?: boolean;
+  blocks?: ReadonlyArray<ReviewDiffBlock>;
+  bottomInset?: number;
+  codeEditingStore?: CodeEditingStore;
+  codeQualityFindings?: ReadonlyArray<PullRequestCodeQualityFinding>;
+  collapsed: ReadonlySet<string>;
+  comments: ReadonlyArray<ReviewComment>;
+  commitMetadata: CommitMetadata | null;
+  diffLineHeight?: number;
+  diffStyle: CodiffDiffStyle;
+  disableWorkerPool?: boolean;
+  expandedReviewKeys?: ReadonlySet<string>;
+  expandUnchanged?: boolean;
+  files: ReadonlyArray<ChangedFile>;
+  focusCommentId: string | null;
+  focusCommentRequest: number;
+  forceExpandedPaths: ReadonlySet<string>;
+  gitIdentity: GitIdentity | null;
+  hunkNavigation: HunkNavigationRequest | null;
+  initialMarkdownPreviewSectionIds?: ReadonlySet<string>;
+  isReadOnly?: boolean;
+  itemVersionByKey: Readonly<Record<string, number>>;
+  keymap: CodiffKeymap;
+  loadingSectionIds: ReadonlySet<string>;
+  onActiveBlockChange?: (blockId: string) => void;
+  onAskCodex?: (commentId: string, followUp?: string) => void;
+  onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
+  onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
+  onCreateComment: (comment: Omit<ReviewComment, 'body' | 'id'>) => void;
+  onDeleteComment: (commentId: string) => void;
+  onFindDefinitions?: (request: DefinitionSearchRequest) => Promise<DefinitionSearchResult>;
+  onLoadImageContent?: (request: DiffImageContentRequest) => Promise<DiffImageContentResult>;
+  onLoadSection: (file: ChangedFile, section: DiffSection) => void;
+  onLoadSectionContents?: (file: ChangedFile, section: DiffSection) => Promise<FileDiffLoadedFiles>;
+  onOpenDefinition?: (candidate: DefinitionCandidate) => void;
+  onOpenFile?: (file: ChangedFile) => void;
+  onReady?: () => void;
+  onRefreshMarkdown?: (file: ChangedFile, section: DiffSection) => Promise<boolean>;
+  onResolveThread?: (threadId: string, resolved: boolean) => Promise<void> | void;
+  onSaveCommentEdit: (commentId: string, body: string) => Promise<void> | void;
+  onSelectPathFromScroll: (viewer: CodeViewInstance) => void;
+  onSubmitComment: (commentId: string) => void;
+  onToggleCollapsed: (file: ChangedFile, isCollapsed: boolean, reviewKey: string) => void;
+  onToggleViewed: (file: ChangedFile, isViewed: boolean, reviewIdentity: ReviewIdentity) => void;
+  onUpdateComment: (commentId: string, body: string) => void;
+  onUpdateSourceDescription?: (body: string) => Promise<void> | void;
+  onUpdateSourceTitle?: (title: string) => Promise<void> | void;
+  onUploadSourceDescriptionAsset?: (file: File) => Promise<string> | string;
+  renderMarkdownAs?: CodiffPreferences['renderMarkdownAs'];
+  reviewIdentityByPath?: ReadonlyMap<string, ReviewIdentity>;
+  scrollTarget: ReviewScrollTarget | null;
+  searchQuery: string;
+  selectedPath: string | null;
+  showSourceDescription?: boolean;
+  showWhitespace: boolean;
+  source: ReviewSource;
+  sourceDescriptionActions?: ReactNode;
+  sourceDescriptionFooter?: ReactNode;
+  supportsReviewCommentActions: boolean;
+  theme?: CodiffPreferences['theme'];
+  viewed: Record<string, string>;
+  walkthroughNotes: ReadonlyMap<string, WalkthroughNote>;
+  wordWrap: boolean;
+}) {
+  const codeViewRef = useRef<CodeViewHandle<ReviewAnnotationMetadata, undefined>>(null);
+  const [codeViewElement, setCodeViewElement] = useState<HTMLDivElement | null>(null);
+  const [compactHeaders, setCompactHeaders] = useState(false);
+  useLayoutEffect(() => {
+    if (!codeViewElement) {
+      return;
+    }
+    const measure = () => {
+      const width = codeViewElement.getBoundingClientRect().width;
+      if (width > 0) {
+        setCompactHeaders(width <= 760);
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(codeViewElement);
+    return () => observer.disconnect();
+  }, [codeViewElement]);
+  const headerHeight = compactHeaders ? 90 : codeViewItemMetrics.diffHeaderHeight;
+  const itemMetrics = useMemo(
+    () => ({ ...codeViewItemMetrics, diffHeaderHeight: headerHeight }),
+    [headerHeight],
+  );
+  const codeViewStyle = { '--codiff-file-header-height': `${headerHeight}px` } as CSSProperties;
+
+  const getPlaceholderFile = useCodeViewPlaceholderFile();
+  const getAnnotations = useCodeViewAnnotations();
+  const [markdownPreviewHeights] = useState(() => new Map<string, number>());
+  const markdownEditorRefs = useRef(new Map<string, MarkdownDocumentEditorHandle>());
+  const refreshingMarkdownSectionsRef = useRef(new Set<string>());
+  const deferredTimersRef = useRef<Set<number>>(new Set());
+  const handledScrollRequestRef = useRef<number | null>(null);
+  const handledHunkNavRef = useRef<number | null>(hunkNavigation?.request ?? null);
+  const emptyCommentDeleteTimersRef = useRef<Map<string, number>>(new Map());
+  const activePointerIdsRef = useRef(new Set<number>());
+  const pendingCommentBlursRef = useRef(new Map<string, () => void>());
+  const pendingCommentBlurTimerRef = useRef<number | null>(null);
+  const focusedCommentEditorIdRef = useRef<string | null>(null);
+  const definitionHighlightFrameRef = useRef<number | null>(null);
+  const highlightFrameRef = useRef<number | null>(null);
+  const lastScrolledSearchMatchRef = useRef<{ itemId: string; match: DiffSearchMatch } | null>(
+    null,
+  );
+  const ignoreNextLineSelectionEndRef = useRef(false);
+  const navigatedSelectionRef = useRef<CodeViewLineSelection | null>(null);
+  const [markdownPreviewSections, setMarkdownPreviewSections] = useState<
+    ReadonlyMap<string, boolean>
+  >(() => new Map([...initialMarkdownPreviewSectionIds].map((id) => [id, true])));
+  const [editingMarkdownSections, setEditingMarkdownSections] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [finishingMarkdownSections, setFinishingMarkdownSections] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [markdownEditErrors, setMarkdownEditErrors] = useState<
+    Readonly<Record<string, string | undefined>>
+  >({});
+  const [markdownContentsVersion, setMarkdownContentsVersion] = useState(0);
+  const loadingMarkdownPreviews = useRef(new WeakSet<FileDiffMetadata>());
+  const pendingMarkdownSourceRef = useRef<{
+    lineNumber: number;
+    sectionId: string;
+    side: 'additions' | 'deletions';
+    sourceKey: string;
+  } | null>(null);
+  // Remeasure only after the preview's actual content height changes. Mounting
+  // a loading placeholder must not invalidate a recycled document's layout.
+  const [markdownPreviewLayoutPassBySection, setMarkdownPreviewLayoutPassBySection] = useState<
+    Readonly<Record<string, number>>
+  >({});
+  const [imagePreviewLayoutPassBySection, setImagePreviewLayoutPassBySection] = useState<
+    Readonly<Record<string, number>>
+  >({});
+  const [commentLayoutPassByItem, setCommentLayoutPassByItem] = useState<
+    Readonly<Record<string, number>>
+  >({});
+  const [selectedLines, setSelectedLines] = useState<CodeViewLineSelection | null>(null);
+  const [definitionLookup, setDefinitionLookup] = useState<{
+    anchor: { x: number; y: number };
+    identifier: string;
+    result: DefinitionSearchResult | null;
+    sourceKey: string;
+  } | null>(null);
+  const definitionLookupRequestRef = useRef(0);
+  const definitionModifierActiveRef = useRef(false);
+  const sourceKey = getSourceKey(source);
+  const [definitionLookupSourceKey, setDefinitionLookupSourceKey] = useState(sourceKey);
+  if (definitionLookupSourceKey !== sourceKey) {
+    setDefinitionLookupSourceKey(sourceKey);
+    setDefinitionLookup(null);
+  }
+  const selectedLinesRef = useRef<CodeViewLineSelection | null>(null);
+  const commitMessageMetadata = source.type === 'commit' ? commitMetadata : null;
+  const shouldShowCommitMessage = commitMessageMetadata != null;
+  const shouldShowSourceDescription = showSourceDescription && source.type === 'pull-request';
+  const sourceDescription = shouldShowCommitMessage
+    ? commitMessageMetadata.body.trim()
+    : shouldShowSourceDescription
+      ? (source.description?.trim() ?? '')
+      : '';
+  const sourceDescriptionHasBody = sourceDescription.length > 0;
+  const sourceDescriptionHasContent = sourceDescriptionHasBody || shouldShowCommitMessage;
+  const canEditSourceDescription =
+    shouldShowSourceDescription &&
+    source.canEditDescription === true &&
+    onUpdateSourceDescription != null;
+  const canEditSourceTitle =
+    shouldShowSourceDescription &&
+    (source.canEditTitle === true || source.canEditDescription === true) &&
+    onUpdateSourceTitle != null;
+  const sourceAuthor = shouldShowCommitMessage
+    ? getCommitDescriptionAuthor(commitMessageMetadata.author)
+    : shouldShowSourceDescription && source.author
+      ? getPullRequestDescriptionAuthor(source.author)
+      : undefined;
+  const sourceTitle = shouldShowCommitMessage
+    ? commitMessageMetadata.subject.trim() || commitMessageMetadata.shortRef
+    : shouldShowSourceDescription
+      ? (source.title?.trim() ?? '')
+      : '';
+  const sourceDescriptionItemId =
+    shouldShowCommitMessage && source.type === 'commit'
+      ? `commit-message:${source.ref}`
+      : shouldShowSourceDescription && (sourceDescription || sourceTitle)
+        ? `source-description:${source.provider ?? ''}:${source.url}`
+        : null;
+  const sourceDescriptionLabel = shouldShowCommitMessage
+    ? 'Commit'
+    : source.type === 'pull-request'
+      ? getPullRequestDescriptionLabel(source)
+      : '';
+  const sourceDescriptionAriaLabel = shouldShowCommitMessage
+    ? 'Preview commit message'
+    : 'Preview source description';
+  const [collapsedSourceDescriptionItemId, setCollapsedSourceDescriptionItemId] = useState<
+    string | null
+  >(null);
+  const sourceDescriptionCollapsed =
+    (!sourceDescriptionHasContent && !canEditSourceDescription) ||
+    collapsedSourceDescriptionItemId === sourceDescriptionItemId;
+  const toggleSourceDescriptionCollapsed = useCallback(() => {
+    setCollapsedSourceDescriptionItemId((current) =>
+      current === sourceDescriptionItemId ? null : sourceDescriptionItemId,
+    );
+  }, [sourceDescriptionItemId]);
+  const stickyHeaderFrameRef = useRef<number | null>(null);
+
+  const reviewBlocks = useMemo(() => blocks ?? createFileReviewBlocks(files), [blocks, files]);
+  const commentLookup = useMemo(() => {
+    const map = new Map<string, ReviewComment>();
+    for (const comment of comments) {
+      map.set(comment.id, comment);
+    }
+    for (const block of reviewBlocks) {
+      if (!block.file) {
+        continue;
+      }
+      for (const comment of block.comments ?? []) {
+        map.set(comment.id, comment);
+      }
+    }
+    return map;
+  }, [comments, reviewBlocks]);
+  const renderComments = useMemo(() => [...commentLookup.values()], [commentLookup]);
+  const commentsBySection = useMemo(() => groupReviewCommentsBySection(comments), [comments]);
+
+  const markMarkdownPreviewLayoutReady = useCallback((sectionId: string) => {
+    setMarkdownPreviewLayoutPassBySection((current) => ({
+      ...current,
+      [sectionId]: (current[sectionId] ?? 0) + 1,
+    }));
+  }, []);
+
+  const markImagePreviewLayoutReady = useCallback((sectionId: string) => {
+    setImagePreviewLayoutPassBySection((current) => ({
+      ...current,
+      [sectionId]: (current[sectionId] ?? 0) + 1,
+    }));
+  }, []);
+
+  const markCommentLayoutChanged = useCallback((itemId: string) => {
+    setCommentLayoutPassByItem((current) => ({
+      ...current,
+      [itemId]: (current[itemId] ?? 0) + 1,
+    }));
+  }, []);
+
+  const {
+    commentTargetById,
+    firstItemByBlockId,
+    firstItemByPath,
+    itemBlockId,
+    itemMetadata,
+    items,
+    searchTargetsByBaseItemId,
+    selectedHeaderItemIds,
+  } = useMemo(() => {
+    const nextItems: Array<CodeViewItem<ReviewAnnotationMetadata>> = [];
+    const nextCommentTargetById = new Map<
+      string,
+      { id: string; lineNumber?: number; side?: 'additions' | 'deletions' }
+    >();
+    const nextFirstItemByBlockId = new Map<string, string>();
+    const nextFirstItemByPath = new Map<string, string>();
+    const nextItemBlockId = new Map<string, string>();
+    const nextItemMetadata = new Map<string, CodeViewItemMetadata>();
+    const nextSearchTargetsByBaseItemId = new Map<string, Array<RenderedSearchTarget>>();
+    const nextSelectedHeaderItemIds = new Set<string>();
+    const fontLayoutKey = `line-height:${diffLineHeight}`;
+
+    for (const block of reviewBlocks) {
+      if (block.header) {
+        const headerId = getBlockHeaderItemId(block);
+        nextFirstItemByBlockId.set(block.id, nextFirstItemByBlockId.get(block.id) ?? headerId);
+        nextItemBlockId.set(headerId, block.id);
+        if ((block.headerSelected ?? block.selected) === true) {
+          nextSelectedHeaderItemIds.add(headerId);
+        }
+        nextItems.push({
+          annotations: [
+            {
+              lineNumber: 1,
+              metadata: {
+                header: block.header,
+                type: 'walkthrough-header',
+              },
+            } satisfies LineAnnotation<ReviewAnnotationMetadata>,
+          ],
+          collapsed: false,
+          file: getPlaceholderFile(headerId),
+          id: headerId,
+          type: 'file',
+          // Selection stays out of the version: a scroll-driven current-stop
+          // change must not re-measure the header item, or the viewer's scroll
+          // anchoring yanks the scroll position at every stop boundary. The
+          // accent is applied through `codiff-selected-item` in onPostRender.
+          version: getItemVersion(`${block.id}:walkthrough-header`),
+        });
+      }
+
+      if (!block.file) {
+        continue;
+      }
+
+      const file = block.file;
+      const reviewIdentity = block.reviewIdentity ?? getReviewIdentity(file, reviewIdentityByPath);
+      const reviewKey = reviewIdentity.key;
+      const isViewed = isReviewIdentityViewed(viewed, reviewIdentity);
+      const isCollapsed =
+        !forceExpandedPaths.has(file.path) &&
+        !expandedReviewKeys.has(reviewKey) &&
+        (isViewed || collapsed.has(reviewKey) || isGeneratedWalkthroughFile(file));
+      const visibleSections = getVisibleDiffSections(file, showWhitespace);
+      const lineCount = getDiffLineCountFromVisibleSections(visibleSections);
+      const sections = isCollapsed ? visibleSections.slice(0, 1) : visibleSections;
+      const walkthroughNote = getBlockWalkthroughNote(block, walkthroughNotes);
+      const blockCommentsBySection = groupReviewCommentsBySection(block.comments ?? []);
+
+      for (const [index, { fileDiff, section }] of sections.entries()) {
+        const baseItemId = getItemId(section);
+        const id = getBlockItemId(block, section);
+        nextItemBlockId.set(id, block.id);
+        const searchTargets = nextSearchTargetsByBaseItemId.get(baseItemId) ?? [];
+        searchTargets.push({ fileDiff, itemId: id, path: file.path });
+        nextSearchTargetsByBaseItemId.set(baseItemId, searchTargets);
+        const markdownPreview = getMarkdownPreviewContents(file, section, fileDiff);
+        const canRenderImage =
+          !isReadOnly && onLoadImageContent != null && canRenderImagePreview(file.path, section);
+        const canRenderMarkdown = markdownPreview != null;
+        const canEditMarkdown =
+          canRenderMarkdown &&
+          !isReadOnly &&
+          isEditableWorkingTreeSection(source.type, file, section);
+        const isMarkdownPreview =
+          canRenderMarkdown &&
+          (markdownPreviewSections.get(section.id) ?? renderMarkdownAs === 'preview');
+        const isSelected = block.fileSelected ?? block.selected ?? selectedPath === file.path;
+        const reviewVersionPrefix = `${isMarkdownFilePath(file.path) ? markdownContentsVersion : 0}:${itemVersionByKey[reviewKey] ?? 0}:${block.id}:${
+          reviewIdentity.fingerprint
+        }:${reviewKey}:${section.id}:${commentLayoutPassByItem[id] ?? 0}`;
+        const sectionStateVersionKey = `${isCollapsed ? 'collapsed' : 'open'}:${
+          isViewed ? 'viewed' : 'pending'
+        }:${index}:${fontLayoutKey}:${walkthroughNote?.reason ?? ''}`;
+        const annotationMap = new Map<string, DiffLineAnnotation<ReviewAnnotationMetadata>>();
+        const globalSectionComments = commentsBySection.get(section.id) ?? [];
+        const visibleGlobalComments = globalSectionComments.filter(
+          (comment) =>
+            comment.filePath === file.path &&
+            reviewCommentAnchorIsVisibleInFileDiff(comment, fileDiff),
+        );
+        const blockSectionComments = blockCommentsBySection.get(section.id) ?? [];
+        const sectionComments = dedupeReviewComments([
+          ...visibleGlobalComments,
+          ...blockSectionComments,
+        ]);
+        for (const comment of sectionComments) {
+          if (!nextCommentTargetById.has(comment.id)) {
+            nextCommentTargetById.set(
+              comment.id,
+              isLineReviewComment(comment)
+                ? {
+                    id,
+                    lineNumber: comment.lineNumber,
+                    side: comment.side,
+                  }
+                : { id },
+            );
+          }
+          const key = getCommentKey(comment);
+          const existing = annotationMap.get(key);
+          if (existing && existing.metadata.type === 'review-comment') {
+            annotationMap.set(key, {
+              ...existing,
+              metadata: {
+                commentIds: [...existing.metadata.commentIds, comment.id],
+                type: 'review-comment',
+              },
+            });
+          } else {
+            const isLineComment = isLineReviewComment(comment);
+            annotationMap.set(key, {
+              lineNumber: isLineComment ? comment.lineNumber : 0,
+              metadata: {
+                commentIds: [comment.id],
+                type: 'review-comment',
+              },
+              side: isLineComment
+                ? comment.side
+                : file.status === 'deleted'
+                  ? 'deletions'
+                  : 'additions',
+            });
+          }
+        }
+        const fileCommentAnnotations = [...annotationMap.values()].filter(
+          (annotation) => annotation.lineNumber === 0,
+        );
+        const codeQualityAnnotations = codeQualityFindings
+          .filter(
+            (finding) =>
+              finding.status !== 'resolved' &&
+              finding.filePath === file.path &&
+              lineIsVisibleInFileDiff(fileDiff, 'additions', finding.lineNumber),
+          )
+          .map(
+            (finding) =>
+              ({
+                lineNumber: finding.lineNumber,
+                metadata: {
+                  finding,
+                  type: 'code-quality',
+                },
+                side: 'additions',
+              }) satisfies DiffLineAnnotation<ReviewAnnotationMetadata>,
+          );
+
+        nextItemMetadata.set(id, {
+          blockId: block.id,
+          canEditMarkdown,
+          canRenderMarkdown,
+          comments: sectionComments,
+          file,
+          isCollapsed,
+          isMarkdownPreview,
+          isSelected,
+          isViewed,
+          lineCount,
+          reviewIdentity,
+          section,
+          sectionCount: file.sections.length,
+          walkthroughNote,
+        });
+        nextFirstItemByBlockId.set(block.id, nextFirstItemByBlockId.get(block.id) ?? id);
+        nextFirstItemByPath.set(file.path, nextFirstItemByPath.get(file.path) ?? id);
+        if (canRenderImage) {
+          nextItems.push({
+            annotations: [
+              ...fileCommentAnnotations,
+              {
+                lineNumber: 1,
+                metadata: {
+                  path: file.path,
+                  sectionId: section.id,
+                  type: 'image-preview',
+                },
+              } satisfies LineAnnotation<ReviewAnnotationMetadata>,
+            ],
+            collapsed: isCollapsed,
+            file: getPlaceholderFile(file.path),
+            id,
+            type: 'file',
+            version: getItemVersion(
+              `${reviewVersionPrefix}:image:${sectionStateVersionKey}:${
+                imagePreviewLayoutPassBySection[section.id] ?? 0
+              }`,
+            ),
+          });
+          continue;
+        }
+        if (isMarkdownPreview) {
+          const markdownPreviewLayoutKey = `${section.id}:${file.fingerprint}`;
+          nextItems.push({
+            annotations: getAnnotations(
+              id,
+              JSON.stringify([
+                markdownPreview.contents,
+                markdownPreview.oldContents,
+                editingMarkdownSections.has(section.id),
+                [...annotationMap.values()],
+              ]),
+              [
+                ...[...annotationMap.values()].map((annotation) => ({
+                  ...annotation,
+                  lineNumber: 1,
+                })),
+                {
+                  lineNumber: 1,
+                  metadata: {
+                    contents: markdownPreview.contents,
+                    editing: editingMarkdownSections.has(section.id),
+                    layoutKey: markdownPreviewLayoutKey,
+                    oldContents: markdownPreview.oldContents,
+                    path: file.path,
+                    sectionId: section.id,
+                    type: 'markdown-preview',
+                  },
+                } satisfies LineAnnotation<ReviewAnnotationMetadata>,
+              ],
+            ),
+            collapsed: isCollapsed,
+            file: getPlaceholderFile(file.path),
+            id,
+            type: 'file',
+            version: getItemVersion(
+              `${reviewVersionPrefix}:markdown:${sectionStateVersionKey}:${editingMarkdownSections.has(section.id)}:${
+                markdownPreviewLayoutKey
+              }:${markdownPreviewLayoutPassBySection[section.id] ?? 0}`,
+            ),
+          });
+          continue;
+        }
+        nextItems.push({
+          annotations: [...annotationMap.values(), ...codeQualityAnnotations],
+          collapsed: isCollapsed,
+          fileDiff,
+          id,
+          type: 'diff',
+          version: getItemVersion(
+            `${reviewVersionPrefix}:${sectionStateVersionKey}:${
+              showWhitespace ? 'ws' : 'ignore-ws'
+            }:${diffStyle}:${getReviewCommentsDigest(sectionComments)}:${codeQualityAnnotations
+              .map(({ metadata }) =>
+                metadata.type === 'code-quality'
+                  ? `${metadata.finding.fingerprint}:${metadata.finding.status}`
+                  : '',
+              )
+              .join(',')}`,
+          ),
+        });
+      }
+    }
+
+    return {
+      commentTargetById: nextCommentTargetById,
+      firstItemByBlockId: nextFirstItemByBlockId,
+      firstItemByPath: nextFirstItemByPath,
+      itemBlockId: nextItemBlockId,
+      itemMetadata: nextItemMetadata,
+      items: nextItems,
+      searchTargetsByBaseItemId: nextSearchTargetsByBaseItemId,
+      selectedHeaderItemIds: nextSelectedHeaderItemIds,
+    };
+  }, [
+    collapsed,
+    codeQualityFindings,
+    commentLayoutPassByItem,
+    commentsBySection,
+    diffLineHeight,
+    diffStyle,
+    expandedReviewKeys,
+    forceExpandedPaths,
+    getAnnotations,
+    getPlaceholderFile,
+    imagePreviewLayoutPassBySection,
+    isReadOnly,
+    itemVersionByKey,
+    markdownPreviewLayoutPassBySection,
+    markdownPreviewSections,
+    editingMarkdownSections,
+    markdownContentsVersion,
+    onLoadImageContent,
+    renderMarkdownAs,
+    reviewBlocks,
+    selectedPath,
+    showWhitespace,
+    source.type,
+    viewed,
+    reviewIdentityByPath,
+    walkthroughNotes,
+  ]);
+
+  const codeViewItems = useMemo<ReadonlyArray<CodeViewItem<ReviewAnnotationMetadata>>>(() => {
+    if (items.length > 0 || !sourceDescriptionItemId) {
+      return items;
+    }
+
+    return [
+      {
+        collapsed: true,
+        file: getPlaceholderFile(
+          shouldShowCommitMessage ? 'commit-message.md' : 'source-description.md',
+          '',
+        ),
+        id: sourceDescriptionItemId,
+        type: 'file',
+      },
+    ];
+  }, [getPlaceholderFile, items, shouldShowCommitMessage, sourceDescriptionItemId]);
+
+  const highlightedCodeItems = codeViewItems.filter(
+    (item) => itemMetadata.get(item.id)?.isSelected,
+  );
+  const selectedCodeItemId =
+    highlightedCodeItems.find(
+      (item) =>
+        item.id === selectedLines?.id && itemMetadata.get(item.id)?.section.kind === 'unstaged',
+    )?.id ??
+    highlightedCodeItems.find((item) => itemMetadata.get(item.id)?.section.kind === 'unstaged')
+      ?.id ??
+    highlightedCodeItems[0]?.id;
+  const codeEditing = useCodeEditing({
+    codeViewRef,
+    items: codeViewItems,
+    keymap,
+    onLoadSectionContents,
+    onRefresh: onRefreshMarkdown,
+    selectedItemId: selectedCodeItemId,
+    sourceKey,
+    store: codeEditingStore,
+  });
+
+  const canEditCodeItem = useCallback(
+    (item: CodeViewItem<ReviewAnnotationMetadata>, meta: CodeViewItemMetadata | undefined) =>
+      meta != null &&
+      item.type === 'diff' &&
+      !isReadOnly &&
+      !meta.section.binary &&
+      (meta.section.loadState == null ||
+        meta.section.loadState === 'ready' ||
+        meta.section.loadState === 'deferred') &&
+      !meta.isMarkdownPreview &&
+      meta.section.kind === 'unstaged' &&
+      isEditableWorkingTreeSection(source.type, meta.file, meta.section) &&
+      onLoadSectionContents != null &&
+      window.codiff?.getRepositoryFile != null,
+    [isReadOnly, onLoadSectionContents, source.type],
+  );
+  const startCodeEdit = useCallback(
+    (item: CodeViewItem<ReviewAnnotationMetadata>, meta: CodeViewItemMetadata) => {
+      if (meta.isCollapsed) {
+        onToggleCollapsed(meta.file, true, meta.reviewIdentity.key);
+      }
+      if (isMarkdownFilePath(meta.file.path)) {
+        // Keep the text diff while editing, even if `renderMarkdownAs` changes.
+        setMarkdownPreviewSections((current) => new Map(current).set(meta.section.id, false));
+      }
+      void codeEditing.startEdit(item, meta);
+    },
+    [codeEditing, onToggleCollapsed],
+  );
+  const editAfterExpandRef = useRef<{ path: string; sourceKey: string } | null>(null);
+  useEffect(() => {
+    const pending = editAfterExpandRef.current;
+    if (!pending) {
+      return;
+    }
+    if (
+      pending.sourceKey !== sourceKey ||
+      !highlightedCodeItems.some((item) => itemMetadata.get(item.id)?.file.path === pending.path)
+    ) {
+      editAfterExpandRef.current = null;
+      return;
+    }
+    const item = highlightedCodeItems.find((candidate) => {
+      const meta = itemMetadata.get(candidate.id);
+      return meta?.file.path === pending.path && canEditCodeItem(candidate, meta);
+    });
+    const meta = item && itemMetadata.get(item.id);
+    if (item && meta) {
+      editAfterExpandRef.current = null;
+      startCodeEdit(item, meta);
+    }
+  }, [canEditCodeItem, highlightedCodeItems, itemMetadata, sourceKey, startCodeEdit]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        event.isComposing ||
+        isNativeInputTarget(event.target) ||
+        !matchesShortcut(event, keymap, 'editFile')
+      ) {
+        return;
+      }
+      const item = codeViewItems.find((candidate) => candidate.id === selectedCodeItemId);
+      const meta = item && itemMetadata.get(item.id);
+      if (!item || !meta || !codeEditing.canStartEdit(item.id, meta.file.path)) {
+        return;
+      }
+      if (!canEditCodeItem(item, meta)) {
+        // Collapsed files render only their first section, which may be staged.
+        // Expand first so editing uses the actual unstaged item and its annotations.
+        if (
+          !meta.isCollapsed ||
+          !getVisibleDiffSections(meta.file, showWhitespace).some(({ fileDiff, section }) =>
+            canEditCodeItem({ fileDiff, id: item.id, type: 'diff' }, { ...meta, section }),
+          )
+        ) {
+          return;
+        }
+        event.preventDefault();
+        editAfterExpandRef.current = { path: meta.file.path, sourceKey };
+        onToggleCollapsed(meta.file, true, meta.reviewIdentity.key);
+        return;
+      }
+      event.preventDefault();
+      startCodeEdit(item, meta);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    canEditCodeItem,
+    codeEditing,
+    codeViewItems,
+    itemMetadata,
+    keymap,
+    onToggleCollapsed,
+    selectedCodeItemId,
+    showWhitespace,
+    sourceKey,
+    startCodeEdit,
+  ]);
+
+  const clearCommentLineHighlight = useCallback(() => {
+    codeViewRef.current?.clearSelectedLines();
+    navigatedSelectionRef.current = null;
+    setSelectedLines(null);
+  }, []);
+
+  const resolvedActiveSearchMatch = useMemo(
+    () => resolveRenderedSearchMatch(activeSearchMatch, itemMetadata, searchTargetsByBaseItemId),
+    [activeSearchMatch, itemMetadata, searchTargetsByBaseItemId],
+  );
+  const getDefinitionDiffTarget = useCallback(
+    (candidate: DefinitionCandidate) => {
+      for (const item of items) {
+        if (item.type !== 'diff') {
+          continue;
+        }
+        const metadata = itemMetadata.get(item.id);
+        const path =
+          candidate.side === 'deletions'
+            ? (metadata?.file.oldPath ?? metadata?.file.path)
+            : metadata?.file.path;
+        if (
+          metadata &&
+          path === candidate.path &&
+          lineIsVisibleInFileDiff(item.fileDiff, candidate.side, candidate.lineNumber)
+        ) {
+          return { item, metadata };
+        }
+      }
+      return null;
+    },
+    [itemMetadata, items],
+  );
+
+  const setCodeViewSelectedLines = useCallback((selection: CodeViewLineSelection | null) => {
+    if (
+      selection == null ||
+      navigatedSelectionRef.current == null ||
+      selection.id !== navigatedSelectionRef.current.id ||
+      !isSameSelection(selection.range, navigatedSelectionRef.current.range)
+    ) {
+      navigatedSelectionRef.current = null;
+    }
+    setSelectedLines(selection);
+  }, []);
+
+  const deferCommentLineHighlightClear = useCallback(() => {
+    const timer = window.setTimeout(() => {
+      deferredTimersRef.current.delete(timer);
+      clearCommentLineHighlight();
+    }, 0);
+    deferredTimersRef.current.add(timer);
+  }, [clearCommentLineHighlight]);
+
+  const cancelPendingEmptyCommentDeletes = useCallback(() => {
+    for (const timer of emptyCommentDeleteTimersRef.current.values()) {
+      window.clearTimeout(timer);
+      deferredTimersRef.current.delete(timer);
+    }
+    emptyCommentDeleteTimersRef.current.clear();
+  }, []);
+
+  const flushPendingCommentBlurs = useCallback(() => {
+    if (activePointerIdsRef.current.size > 0) {
+      return;
+    }
+
+    const callbacks = [...pendingCommentBlursRef.current.values()];
+    pendingCommentBlursRef.current.clear();
+    for (const callback of callbacks) {
+      callback();
+    }
+  }, []);
+
+  const schedulePendingCommentBlurFlush = useCallback(() => {
+    if (
+      activePointerIdsRef.current.size > 0 ||
+      pendingCommentBlursRef.current.size === 0 ||
+      pendingCommentBlurTimerRef.current != null
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      deferredTimersRef.current.delete(timer);
+      pendingCommentBlurTimerRef.current = null;
+      flushPendingCommentBlurs();
+    }, 0);
+    pendingCommentBlurTimerRef.current = timer;
+    deferredTimersRef.current.add(timer);
+  }, [flushPendingCommentBlurs]);
+
+  useEffect(() => {
+    const activePointerIds = activePointerIdsRef.current;
+    const deferredTimers = deferredTimersRef.current;
+    const pendingCommentBlurs = pendingCommentBlursRef.current;
+    const handlePointerDown = (event: PointerEvent) => {
+      const timer = pendingCommentBlurTimerRef.current;
+      if (timer != null) {
+        window.clearTimeout(timer);
+        deferredTimers.delete(timer);
+        pendingCommentBlurTimerRef.current = null;
+      }
+      activePointerIds.add(event.pointerId);
+    };
+    const handlePointerEnd = (event: PointerEvent) => {
+      activePointerIds.delete(event.pointerId);
+      schedulePendingCommentBlurFlush();
+    };
+    const handleWindowBlur = () => {
+      activePointerIds.clear();
+      schedulePendingCommentBlurFlush();
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('pointercancel', handlePointerEnd, true);
+    window.addEventListener('pointerup', handlePointerEnd, true);
+    window.addEventListener('blur', handleWindowBlur);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('pointercancel', handlePointerEnd, true);
+      window.removeEventListener('pointerup', handlePointerEnd, true);
+      window.removeEventListener('blur', handleWindowBlur);
+      activePointerIds.clear();
+      pendingCommentBlurs.clear();
+      const timer = pendingCommentBlurTimerRef.current;
+      if (timer != null) {
+        window.clearTimeout(timer);
+        deferredTimers.delete(timer);
+        pendingCommentBlurTimerRef.current = null;
+      }
+    };
+  }, [schedulePendingCommentBlurFlush]);
+
+  const deferCommentBlurUntilPointerEnd = useCallback((commentId: string, callback: () => void) => {
+    if (activePointerIdsRef.current.size > 0 || pendingCommentBlurTimerRef.current != null) {
+      pendingCommentBlursRef.current.set(commentId, callback);
+    } else {
+      callback();
+    }
+  }, []);
+
+  const scrollFileItemToTop = useCallback((itemId: string) => {
+    const handle = codeViewRef.current;
+    const viewer = handle?.getInstance();
+    if (!handle || !viewer || viewer.getTopForItem(itemId) == null) {
+      return;
+    }
+
+    handle.scrollTo({
+      behavior: 'smooth-auto',
+      id: itemId,
+      offset: DEFAULT_PADDING,
+      type: 'item',
+    });
+  }, []);
+
+  const canCreateFileComments =
+    !isReadOnly &&
+    source.type === 'pull-request' &&
+    (source.provider === 'gitlab' || source.provider === 'azure-devops');
+
+  const createFileComment = useCallback(
+    (meta: CodeViewItemMetadata, itemId: string) => {
+      if (!canCreateFileComments) {
+        return;
+      }
+
+      cancelPendingEmptyCommentDeletes();
+      scrollFileItemToTop(itemId);
+      if (meta.isCollapsed) {
+        onToggleCollapsed(meta.file, true, meta.reviewIdentity.key);
+      }
+      if (meta.isMarkdownPreview) {
+        setMarkdownPreviewSections((current) => {
+          const next = new Map(current);
+          next.set(meta.section.id, false);
+          return next;
+        });
+      }
+      onCreateComment({
+        anchor: 'file',
+        filePath: meta.file.path,
+        sectionId: meta.section.id,
+      });
+      clearCommentLineHighlight();
+    },
+    [
+      canCreateFileComments,
+      cancelPendingEmptyCommentDeletes,
+      clearCommentLineHighlight,
+      onCreateComment,
+      onToggleCollapsed,
+      scrollFileItemToTop,
+    ],
+  );
+
+  const createCommentForRange = useCallback(
+    (
+      range: CodeViewLineSelection['range'],
+      context: { item: CodeViewItem<ReviewAnnotationMetadata> },
+    ) => {
+      if (context.item.type !== 'diff') {
+        return;
+      }
+      if (isReadOnly) {
+        return;
+      }
+
+      const meta = itemMetadata.get(context.item.id);
+      if (!meta || meta.isCollapsed) {
+        return;
+      }
+
+      const startSide = range.side ?? range.endSide ?? 'additions';
+      const endSide = range.endSide ?? startSide;
+      if (startSide !== endSide) {
+        window.alert('Review comments cannot span added and deleted lines.');
+        return;
+      }
+
+      const start = Math.min(range.start, range.end);
+      const end = Math.max(range.start, range.end);
+      cancelPendingEmptyCommentDeletes();
+      onCreateComment({
+        filePath: meta.file.path,
+        lineNumber: end,
+        sectionId: meta.section.id,
+        side: endSide,
+        ...(end !== start ? { startLineNumber: start } : {}),
+      });
+      deferCommentLineHighlightClear();
+    },
+    [
+      cancelPendingEmptyCommentDeletes,
+      deferCommentLineHighlightClear,
+      isReadOnly,
+      itemMetadata,
+      onCreateComment,
+    ],
+  );
+
+  // Lets the library fetch full file contents when the user expands unchanged
+  // context on a patch-only diff; the partial FileDiffMetadata is hydrated in
+  // place (see `parseSectionDiffWithOptions` for the identity contract).
+  const loadDiffFiles = useMemo(() => {
+    if (!onLoadSectionContents || isReadOnly) {
+      return undefined;
+    }
+
+    return (fileDiff: FileDiffMetadata) => {
+      const target = getSectionForFileDiff(fileDiff);
+      if (!target) {
+        return Promise.reject(
+          new Error(`No loadable diff section registered for '${fileDiff.name}'.`),
+        );
+      }
+
+      return loadSectionContents(target.file, target.section, onLoadSectionContents);
+    };
+  }, [isReadOnly, onLoadSectionContents]);
+
+  const codeViewOptions: CodeViewOptions<ReviewAnnotationMetadata, undefined> = useMemo(
+    () =>
+      ({
+        collapsedContextThreshold: diffCollapsedContextThreshold,
+        diffIndicators: 'bars',
+        diffStyle,
+        enableGutterUtility: !isReadOnly,
+        enableLineSelection: !isReadOnly,
+        expandUnchanged: expandUnchanged && loadDiffFiles != null,
+        expansionLineCount: diffContextExpansionLineCount,
+        hunkSeparators: 'line-info-basic',
+        itemMetrics,
+        layout: {
+          ...codeViewLayout,
+          paddingBottom: bottomInset,
+        },
+        lineDiffType: workerHighlighterOptions.lineDiffType,
+        lineHoverHighlight: 'both',
+        loadDiffFiles,
+        maxLineDiffLength: workerHighlighterOptions.maxLineDiffLength,
+        onGutterUtilityClick: (range, context) => {
+          if (isReadOnly || context.item.edit) {
+            return;
+          }
+          ignoreNextLineSelectionEndRef.current = context.item.type === 'diff';
+          createCommentForRange(range, context);
+        },
+        onLineClick: (line, context) => {
+          if (context.item.edit) {
+            return;
+          }
+          const lineElement = 'lineElement' in line ? line.lineElement : null;
+          const isDefinitionNavigation = isPrimaryModifier(line.event);
+          if (isDefinitionNavigation && onFindDefinitions) {
+            line.event.preventDefault();
+            line.event.stopPropagation();
+            const identifier = lineElement
+              ? getIdentifierFromPointerEvent(line.event, lineElement)
+              : null;
+            const meta = itemMetadata.get(context.item.id);
+            const side = 'annotationSide' in line ? line.annotationSide : null;
+            if (!identifier || !meta || !side) {
+              setDefinitionLookup(null);
+              return;
+            }
+            const requestId = ++definitionLookupRequestRef.current;
+            setDefinitionLookup({
+              anchor: { x: line.event.clientX, y: line.event.clientY },
+              identifier,
+              result: null,
+              sourceKey,
+            });
+            void onFindDefinitions({
+              identifier,
+              kind: meta.section.kind,
+              lineNumber: line.lineNumber,
+              path: side === 'deletions' ? (meta.file.oldPath ?? meta.file.path) : meta.file.path,
+              side,
+              source,
+            })
+              .then((result) => {
+                if (definitionLookupRequestRef.current === requestId) {
+                  setDefinitionLookup((current) =>
+                    current?.identifier === identifier && current.sourceKey === sourceKey
+                      ? { ...current, result }
+                      : current,
+                  );
+                }
+              })
+              .catch(() => {
+                if (definitionLookupRequestRef.current === requestId) {
+                  setDefinitionLookup((current) =>
+                    current?.identifier === identifier && current.sourceKey === sourceKey
+                      ? {
+                          ...current,
+                          result: {
+                            reason: 'Definition search is unavailable for this repository.',
+                            status: 'unavailable',
+                          },
+                        }
+                      : current,
+                  );
+                }
+              });
+            return;
+          }
+          if (isReadOnly) {
+            return;
+          }
+          if (isInteractiveReviewEvent(line.event)) {
+            return;
+          }
+
+          const meta = itemMetadata.get(context.item.id);
+          if (!meta || meta.isCollapsed) {
+            return;
+          }
+
+          if (shouldLoadDiffSectionContents(meta.section)) {
+            onLoadSection(meta.file, meta.section);
+            return;
+          }
+
+          if (hasActiveTextSelection(lineElement)) {
+            return;
+          }
+
+          const side = 'annotationSide' in line ? line.annotationSide : null;
+          if (!side) {
+            return;
+          }
+
+          cancelPendingEmptyCommentDeletes();
+          onCreateComment({
+            filePath: meta.file.path,
+            lineNumber: line.lineNumber,
+            sectionId: meta.section.id,
+            side,
+          });
+        },
+        onLineSelectionEnd: (range, context) => {
+          if (isReadOnly || context.item.edit) {
+            return;
+          }
+          if (ignoreNextLineSelectionEndRef.current) {
+            ignoreNextLineSelectionEndRef.current = false;
+            return;
+          }
+
+          if (!range) {
+            return;
+          }
+
+          createCommentForRange(range, context);
+        },
+        onPostRender: (node, _instance, phase, context) => {
+          if (phase !== 'unmount') {
+            onReady?.();
+          }
+          const metadata = itemMetadata.get(context.item.id);
+          // Load full Markdown once an item reaches the viewport so diffs can offer a preview.
+          // Fetching every document before startup defeats CodeView's virtualization.
+          if (
+            !isReadOnly &&
+            phase !== 'unmount' &&
+            onLoadSectionContents &&
+            context.item.type === 'diff' &&
+            metadata &&
+            !metadata.isCollapsed &&
+            isMarkdownFilePath(metadata.file.path) &&
+            isPatchOnlyDiffSection(metadata.section) &&
+            metadata.section.summary?.canLoad !== false &&
+            !loadingMarkdownPreviews.current.has(context.item.fileDiff)
+          ) {
+            loadingMarkdownPreviews.current.add(context.item.fileDiff);
+            // Retry a failed load once; if it fails again, the file stays a text diff.
+            const load = () =>
+              loadSectionContents(metadata.file, metadata.section, onLoadSectionContents);
+            void load()
+              .catch(() => load())
+              .then(() => setMarkdownContentsVersion((version) => version + 1))
+              .catch(() => {});
+          }
+          const isWalkthroughHeaderItem = context.item.id.endsWith(':walkthrough-header');
+          node.classList.toggle('codiff-walkthrough-header-item', isWalkthroughHeaderItem);
+          node.classList.toggle(
+            'codiff-selected-item',
+            metadata?.isSelected === true || selectedHeaderItemIds.has(context.item.id),
+          );
+          node.classList.toggle(
+            'codiff-markdown-preview-item',
+            metadata?.isMarkdownPreview === true,
+          );
+          node.classList.toggle(
+            'codiff-image-preview-item',
+            context.item.type === 'file' &&
+              Boolean(metadata && canRenderImagePreview(metadata.file.path, metadata.section)),
+          );
+          node.classList.toggle(
+            'codiff-loadable-summary-item',
+            !context.item.edit &&
+              metadata != null &&
+              shouldLoadDiffSectionContents(metadata.section),
+          );
+          node.classList.toggle(
+            'codiff-loading-summary-item',
+            Boolean(metadata && loadingSectionIds.has(metadata.section.id)),
+          );
+          if (definitionModifierActiveRef.current) {
+            window.requestAnimationFrame(() => {
+              if (
+                definitionModifierActiveRef.current &&
+                node.isConnected &&
+                !codeViewRef.current?.getItem(context.item.id)?.edit
+              ) {
+                applyIdentifierNavigationState([{ element: node }], true);
+              }
+            });
+          }
+        },
+        overflow: wordWrap ? 'wrap' : 'scroll',
+        parseDiffOptions: getDiffParseOptions(showWhitespace),
+        preferredHighlighter: workerHighlighterOptions.preferredHighlighter,
+        stickyHeaders: true,
+        theme: {
+          dark: 'Dunkel',
+          light: 'Licht',
+        },
+        themeType: theme,
+        tokenizeMaxLength: 100_000,
+        unsafeCSS: codeViewUnsafeCSS,
+        useTokenTransformer: workerHighlighterOptions.useTokenTransformer,
+      }) satisfies CodeViewOptions<ReviewAnnotationMetadata, undefined>,
+    [
+      bottomInset,
+      cancelPendingEmptyCommentDeletes,
+      createCommentForRange,
+      diffStyle,
+      expandUnchanged,
+      isReadOnly,
+      itemMetadata,
+      itemMetrics,
+      loadDiffFiles,
+      loadingSectionIds,
+      onCreateComment,
+      onFindDefinitions,
+      onLoadSection,
+      onLoadSectionContents,
+      onReady,
+      selectedHeaderItemIds,
+      showWhitespace,
+      source,
+      sourceKey,
+      theme,
+      wordWrap,
+    ],
+  );
+
+  const focusComment = useCallback(
+    (comment: ReviewComment) => {
+      focusedCommentEditorIdRef.current = comment.id;
+      pendingCommentBlursRef.current.delete(comment.id);
+      onCommentDraftChange?.({ body: comment.body, id: comment.id });
+      const timer = emptyCommentDeleteTimersRef.current.get(comment.id);
+      if (timer == null) {
+        return;
+      }
+
+      window.clearTimeout(timer);
+      deferredTimersRef.current.delete(timer);
+      emptyCommentDeleteTimersRef.current.delete(comment.id);
+    },
+    [onCommentDraftChange],
+  );
+
+  const blurComment = useCallback(
+    (comment: ReviewComment, body: string, flushDraft: () => void) => {
+      deferCommentBlurUntilPointerEnd(comment.id, () => {
+        if (focusedCommentEditorIdRef.current === comment.id) {
+          focusedCommentEditorIdRef.current = null;
+          onCommentDraftChange?.(null);
+        }
+        flushDraft();
+        clearCommentLineHighlight();
+        if (!comment.isReadOnly && body.trim().length === 0) {
+          const existingTimer = emptyCommentDeleteTimersRef.current.get(comment.id);
+          if (existingTimer != null) {
+            window.clearTimeout(existingTimer);
+            deferredTimersRef.current.delete(existingTimer);
+          }
+
+          const timer = window.setTimeout(() => {
+            deferredTimersRef.current.delete(timer);
+            emptyCommentDeleteTimersRef.current.delete(comment.id);
+            onDeleteComment(comment.id);
+          }, 120);
+          deferredTimersRef.current.add(timer);
+          emptyCommentDeleteTimersRef.current.set(comment.id, timer);
+        }
+      });
+    },
+    [
+      clearCommentLineHighlight,
+      deferCommentBlurUntilPointerEnd,
+      onCommentDraftChange,
+      onDeleteComment,
+    ],
+  );
+
+  const replyToThread = useCallback(
+    (threadId: string, comment: ReviewComment) => {
+      clearCommentLineHighlight();
+      cancelPendingEmptyCommentDeletes();
+      onCreateComment({
+        ...(isFileReviewComment(comment) ? { anchor: 'file' as const } : {}),
+        filePath: comment.filePath,
+        ...(comment.lineNumber != null ? { lineNumber: comment.lineNumber } : {}),
+        sectionId: comment.sectionId,
+        ...(comment.side ? { side: comment.side } : {}),
+        ...(comment.startLineNumber != null ? { startLineNumber: comment.startLineNumber } : {}),
+        ...(comment.startSide ? { startSide: comment.startSide } : {}),
+        threadId,
+      });
+    },
+    [cancelPendingEmptyCommentDeletes, clearCommentLineHighlight, onCreateComment],
+  );
+
+  const deleteComment = useCallback(
+    (commentId: string) => {
+      clearCommentLineHighlight();
+      onDeleteComment(commentId);
+    },
+    [clearCommentLineHighlight, onDeleteComment],
+  );
+
+  const setMarkdownEditorRef = useCallback(
+    (sectionId: string, editor: MarkdownDocumentEditorHandle | null) => {
+      if (editor) {
+        markdownEditorRefs.current.set(sectionId, editor);
+      } else {
+        markdownEditorRefs.current.delete(sectionId);
+      }
+    },
+    [],
+  );
+
+  const finishMarkdownEdit = useCallback(
+    async (meta: CodeViewItemMetadata) => {
+      const sectionId = meta.section.id;
+      setFinishingMarkdownSections((current) => new Set(current).add(sectionId));
+      setMarkdownEditErrors((current) => ({ ...current, [sectionId]: undefined }));
+      try {
+        const editor = markdownEditorRefs.current.get(sectionId);
+        if (editor && !(await editor.flush())) {
+          return;
+        }
+        if (onRefreshMarkdown && !(await onRefreshMarkdown(meta.file, meta.section))) {
+          return;
+        }
+        setEditingMarkdownSections((current) => {
+          const next = new Set(current);
+          next.delete(sectionId);
+          return next;
+        });
+      } catch (error: unknown) {
+        setMarkdownEditErrors((current) => ({
+          ...current,
+          [sectionId]: error instanceof Error ? error.message : String(error),
+        }));
+      } finally {
+        setFinishingMarkdownSections((current) => {
+          const next = new Set(current);
+          next.delete(sectionId);
+          return next;
+        });
+      }
+    },
+    [onRefreshMarkdown],
+  );
+
+  const toggleMarkdownPreview = useCallback(
+    async (file: ChangedFile, section: DiffSection) => {
+      clearCommentLineHighlight();
+      if (
+        (markdownPreviewSections.get(section.id) ?? renderMarkdownAs === 'preview') &&
+        isEditableWorkingTreeSection(source.type, file, section)
+      ) {
+        if (refreshingMarkdownSectionsRef.current.has(section.id)) {
+          return;
+        }
+        refreshingMarkdownSectionsRef.current.add(section.id);
+        try {
+          const editor = markdownEditorRefs.current.get(section.id);
+          if (editor && !(await editor.flush())) {
+            return;
+          }
+          if (editor && onRefreshMarkdown && !(await onRefreshMarkdown(file, section))) {
+            return;
+          }
+        } finally {
+          refreshingMarkdownSectionsRef.current.delete(section.id);
+        }
+      }
+      setMarkdownPreviewSections((current) => {
+        const next = new Map(current);
+        next.set(section.id, !(current.get(section.id) ?? renderMarkdownAs === 'preview'));
+        return next;
+      });
+      setEditingMarkdownSections((current) => {
+        const next = new Set(current);
+        next.delete(section.id);
+        return next;
+      });
+    },
+    [
+      clearCommentLineHighlight,
+      markdownPreviewSections,
+      onRefreshMarkdown,
+      renderMarkdownAs,
+      source.type,
+    ],
+  );
+
+  useEffect(() => {
+    const target = pendingMarkdownSourceRef.current;
+    if (!target) {
+      return;
+    }
+    if (target.sourceKey !== sourceKey) {
+      pendingMarkdownSourceRef.current = null;
+      return;
+    }
+    const item = items.find(
+      (item) => item.type === 'diff' && itemMetadata.get(item.id)?.section.id === target.sectionId,
+    );
+    if (!item) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      codeViewRef.current?.scrollTo({
+        align: 'center',
+        behavior: 'instant',
+        id: item.id,
+        lineNumber: target.lineNumber,
+        side: target.side,
+        type: 'line',
+      });
+      pendingMarkdownSourceRef.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [itemMetadata, items, sourceKey]);
+
+  const workerPoolOptions = useMemo(() => getCodeViewWorkerPoolOptions(), []);
+
+  const requestScrollTargetIntoView = useCallback(
+    (
+      itemId: string,
+      behavior: ReviewScrollBehavior = 'instant',
+      commentTarget?: {
+        lineNumber?: number;
+        side?: 'additions' | 'deletions';
+      },
+    ) => {
+      const handle = codeViewRef.current;
+      const viewer = handle?.getInstance();
+      if (!handle || !viewer || viewer.getTopForItem(itemId) == null) {
+        return false;
+      }
+
+      handle.scrollTo(
+        commentTarget?.lineNumber != null && commentTarget.side
+          ? {
+              align: 'center',
+              behavior: getEffectiveScrollBehavior(behavior),
+              id: itemId,
+              lineNumber: commentTarget.lineNumber,
+              offset: DEFAULT_PADDING,
+              side: commentTarget.side,
+              type: 'line',
+            }
+          : {
+              behavior: getEffectiveScrollBehavior(behavior),
+              id: itemId,
+              offset: DEFAULT_PADDING,
+              type: 'item',
+            },
+      );
+
+      return true;
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    if (!scrollTarget || handledScrollRequestRef.current === scrollTarget.request) {
+      return;
+    }
+
+    const behavior = scrollTarget.behavior ?? 'instant';
+    const commentTarget = scrollTarget.commentId
+      ? commentTargetById.get(scrollTarget.commentId)
+      : undefined;
+    const anchor = scrollTarget.anchor;
+    const anchorItem = anchor
+      ? searchTargetsByBaseItemId
+          .get(getItemId({ id: anchor.sectionId }))
+          ?.find(
+            ({ itemId, path }) =>
+              path === scrollTarget.path &&
+              (!scrollTarget.blockId || itemBlockId.get(itemId) === scrollTarget.blockId),
+          )
+      : undefined;
+    const lineTarget =
+      commentTarget ??
+      (anchorItem &&
+      anchor?.lineNumber != null &&
+      anchor.side &&
+      lineIsVisibleInFileDiff(anchorItem.fileDiff, anchor.side, anchor.lineNumber)
+        ? anchor
+        : undefined);
+    const itemId =
+      commentTarget?.id ??
+      anchorItem?.itemId ??
+      (scrollTarget.blockId
+        ? firstItemByBlockId.get(scrollTarget.blockId)
+        : scrollTarget.path
+          ? firstItemByPath.get(scrollTarget.path)
+          : null);
+    if (!itemId) {
+      return;
+    }
+    const meta = itemMetadata.get(itemId);
+    if (anchorItem && meta?.isCollapsed) {
+      const frame = requestAnimationFrame(() =>
+        onToggleCollapsed(meta.file, true, meta.reviewIdentity.key),
+      );
+      return () => cancelAnimationFrame(frame);
+    }
+    if (lineTarget?.lineNumber != null && meta?.isMarkdownPreview) {
+      const frame = requestAnimationFrame(
+        () => void toggleMarkdownPreview(meta.file, meta.section),
+      );
+      return () => cancelAnimationFrame(frame);
+    }
+
+    let frame: number | null = null;
+    let attempts = 0;
+    let canceled = false;
+
+    const tryScroll = () => {
+      if (canceled || handledScrollRequestRef.current === scrollTarget.request) {
+        return;
+      }
+
+      if (requestScrollTargetIntoView(itemId, behavior, lineTarget)) {
+        handledScrollRequestRef.current = scrollTarget.request;
+        return;
+      }
+
+      if (attempts < scrollTargetRetryFrameLimit) {
+        attempts += 1;
+        frame = window.requestAnimationFrame(tryScroll);
+      }
+    };
+
+    tryScroll();
+
+    return () => {
+      canceled = true;
+      if (frame != null) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, [
+    commentTargetById,
+    firstItemByBlockId,
+    firstItemByPath,
+    itemBlockId,
+    itemMetadata,
+    onToggleCollapsed,
+    requestScrollTargetIntoView,
+    scrollTarget,
+    searchTargetsByBaseItemId,
+    toggleMarkdownPreview,
+  ]);
+
+  useEffect(() => {
+    selectedLinesRef.current = selectedLines;
+  }, [selectedLines]);
+
+  useEffect(() => {
+    if (!hunkNavigation || handledHunkNavRef.current === hunkNavigation.request) {
+      return;
+    }
+
+    const handle = codeViewRef.current;
+    const viewer = handle?.getInstance();
+    if (!handle || !viewer) {
+      return;
+    }
+
+    handledHunkNavRef.current = hunkNavigation.request;
+
+    const anchors: Array<NavAnchor> = [];
+    const seen = new Set<string>();
+    const lineScrollTarget = (
+      id: string,
+      lineNumber: number,
+      side: 'additions' | 'deletions',
+    ): CodeViewScrollTarget => ({
+      align: 'center',
+      behavior: 'smooth-auto',
+      id,
+      lineNumber,
+      offset: DEFAULT_PADDING,
+      side,
+      type: 'line',
+    });
+    const push = (anchor: NavAnchor) => {
+      if (seen.has(anchor.key)) {
+        return;
+      }
+      seen.add(anchor.key);
+      anchors.push(anchor);
+    };
+
+    for (const item of items) {
+      const itemTop = viewer.getTopForItem(item.id);
+      if (itemTop == null) {
+        continue;
+      }
+
+      const meta = itemMetadata.get(item.id);
+      if (meta?.isMarkdownPreview && !meta.isCollapsed && codeViewElement) {
+        const preview = [
+          ...codeViewElement.querySelectorAll<HTMLElement>('[data-codiff-markdown-item]'),
+        ].find((element) => element.dataset.codiffMarkdownItem === item.id);
+        const changes = preview?.querySelectorAll<HTMLElement>('[data-markdown-change]');
+        if (changes?.length) {
+          for (const [index, change] of [...changes].entries()) {
+            const position = Math.max(
+              0,
+              viewer.getScrollTop() +
+                change.getBoundingClientRect().top -
+                codeViewElement.getBoundingClientRect().top -
+                headerHeight -
+                DEFAULT_PADDING,
+            );
+            push({
+              itemId: item.id,
+              key: `markdown:${item.id}:${index}`,
+              scrollTarget: { behavior: 'smooth-auto', position, type: 'position' },
+              selection: null,
+              top: position,
+            });
+          }
+          continue;
+        }
+      }
+      // Collapsed files and non-diff previews (markdown/image) jump to the header.
+      if (!meta || meta.isCollapsed || item.type !== 'diff') {
+        push({
+          itemId: item.id,
+          key: `item:${item.id}`,
+          scrollTarget: {
+            align: 'start',
+            behavior: 'smooth-auto',
+            id: item.id,
+            offset: DEFAULT_PADDING,
+            type: 'item',
+          },
+          selection: null,
+          top: itemTop,
+        });
+        continue;
+      }
+
+      // Collect this item's hunks and comments, then order them by rendered row
+      // so navigation matches what's on screen. `items` is already in visual
+      // order, so structural order (item order, then row order) is exactly
+      // top-to-bottom — and stable across keypresses, unlike sorting by the
+      // estimated absolute top, which shifts as items measure.
+      const headerTop = itemTop + headerHeight;
+      const entries: Array<{ anchor: NavAnchor; renderedIndex: number }> = [];
+      const addLineEntry = (
+        lineNumber: number,
+        side: 'additions' | 'deletions',
+        selection: SelectedLineRange,
+      ) => {
+        const renderedIndex = estimateRenderedLineIndex(item.fileDiff, lineNumber, side, diffStyle);
+        entries.push({
+          anchor: {
+            itemId: item.id,
+            key: `line:${item.id}:${side}:${lineNumber}`,
+            scrollTarget: lineScrollTarget(item.id, lineNumber, side),
+            selection,
+            top: headerTop + renderedIndex * diffLineHeight,
+          },
+          renderedIndex,
+        });
+      };
+
+      for (const hunk of item.fileDiff.hunks) {
+        const selection = getHunkSelectionRange(hunk);
+        const side = selection?.side ?? (hunk.additionLines > 0 ? 'additions' : 'deletions');
+        const lineNumber =
+          selection?.start ?? (side === 'additions' ? hunk.additionStart : hunk.deletionStart);
+        addLineEntry(
+          lineNumber,
+          side,
+          selection ?? { end: lineNumber, endSide: side, side, start: lineNumber },
+        );
+      }
+
+      for (const comment of meta.comments) {
+        if (!isLineReviewComment(comment)) {
+          push({
+            itemId: item.id,
+            key: `file-comment:${item.id}:${comment.id}`,
+            scrollTarget: {
+              align: 'start',
+              behavior: 'smooth-auto',
+              id: item.id,
+              offset: DEFAULT_PADDING,
+              type: 'item',
+            },
+            selection: null,
+            top: itemTop,
+          });
+        } else {
+          addLineEntry(comment.lineNumber, comment.side, {
+            end: comment.lineNumber,
+            endSide: comment.side,
+            side: comment.side,
+            start: comment.lineNumber,
+          });
+        }
+      }
+
+      entries.sort((a, b) => a.renderedIndex - b.renderedIndex);
+      for (const entry of entries) {
+        push(entry.anchor);
+      }
+    }
+
+    if (!anchors.length) {
+      return;
+    }
+
+    // Treat the current line selection as the active anchor so j/k step one hunk
+    // at a time from it. A selection the user made (e.g. dragging to comment)
+    // won't match any anchor, so we fall back to seeding from the scroll offset.
+    const current = selectedLinesRef.current;
+    const activeIndex = current
+      ? anchors.findIndex(
+          (anchor) =>
+            anchor.selection != null &&
+            anchor.itemId === current.id &&
+            isSameSelection(anchor.selection, current.range),
+        )
+      : -1;
+
+    let targetIndex: number;
+    if (activeIndex !== -1) {
+      targetIndex = Math.min(
+        Math.max(activeIndex + hunkNavigation.direction, 0),
+        anchors.length - 1,
+      );
+    } else {
+      const baseTop = viewer.getScrollTop() + DEFAULT_PADDING;
+      const epsilon = 4;
+      if (hunkNavigation.direction === 1) {
+        const found = anchors.findIndex((anchor) => anchor.top > baseTop + epsilon);
+        targetIndex = found === -1 ? anchors.length - 1 : found;
+      } else {
+        targetIndex = 0;
+        for (let index = anchors.length - 1; index >= 0; index -= 1) {
+          if (anchors[index].top < baseTop - epsilon) {
+            targetIndex = index;
+            break;
+          }
+        }
+      }
+    }
+
+    const target = anchors[targetIndex];
+    if (!target) {
+      return;
+    }
+
+    if (target.selection) {
+      const nextSelection = { id: target.itemId, range: target.selection };
+      navigatedSelectionRef.current = nextSelection;
+      setSelectedLines(nextSelection);
+    } else {
+      clearCommentLineHighlight();
+    }
+    handle.scrollTo(target.scrollTarget);
+  }, [
+    clearCommentLineHighlight,
+    codeViewElement,
+    diffLineHeight,
+    diffStyle,
+    headerHeight,
+    hunkNavigation,
+    itemMetadata,
+    items,
+  ]);
+
+  // Enter on a navigated hunk starts a review comment on its selection and moves
+  // focus into the new comment input.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Enter' ||
+        event.repeat ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.defaultPrevented ||
+        isInteractiveKeyboardTarget(event.target)
+      ) {
+        return;
+      }
+
+      const selection = selectedLinesRef.current;
+      if (isReadOnly) {
+        return;
+      }
+      if (
+        !selection ||
+        navigatedSelectionRef.current == null ||
+        selection.id !== navigatedSelectionRef.current.id ||
+        !isSameSelection(selection.range, navigatedSelectionRef.current.range)
+      ) {
+        return;
+      }
+
+      const item = items.find((candidate) => candidate.id === selection.id);
+      if (!item) {
+        return;
+      }
+
+      event.preventDefault();
+      createCommentForRange(selection.range, { item });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [createCommentForRange, isReadOnly, items]);
+
+  const scheduleSearchHighlights = useCallback(() => {
+    const viewer = codeViewRef.current?.getInstance();
+    if (!viewer) {
+      return;
+    }
+
+    if (highlightFrameRef.current != null) {
+      window.cancelAnimationFrame(highlightFrameRef.current);
+    }
+
+    highlightFrameRef.current = window.requestAnimationFrame(() => {
+      highlightFrameRef.current = null;
+      applySearchHighlights(
+        viewer.getRenderedItems().filter(({ item }) => !item.edit),
+        searchQuery,
+        resolvedActiveSearchMatch,
+      );
+    });
+  }, [resolvedActiveSearchMatch, searchQuery]);
+
+  const updateRenderedIdentifierNavigation = useCallback(
+    (active: boolean, viewer?: CodeViewInstance) => {
+      const nextViewer = viewer ?? codeViewRef.current?.getInstance();
+      if (!nextViewer) {
+        return;
+      }
+      if (definitionHighlightFrameRef.current != null) {
+        window.cancelAnimationFrame(definitionHighlightFrameRef.current);
+        definitionHighlightFrameRef.current = null;
+      }
+      if (!active) {
+        applyIdentifierNavigationState(
+          nextViewer.getRenderedItems().filter(({ item }) => !item.edit),
+          false,
+        );
+        return;
+      }
+      definitionHighlightFrameRef.current = window.requestAnimationFrame(() => {
+        definitionHighlightFrameRef.current = null;
+        applyIdentifierNavigationState(
+          nextViewer.getRenderedItems().filter(({ item }) => !item.edit),
+          true,
+        );
+      });
+    },
+    [],
+  );
+
+  const scheduleStickyHeaderStateUpdate = useCallback((viewer?: CodeViewInstance) => {
+    const nextViewer = viewer ?? codeViewRef.current?.getInstance();
+    if (!nextViewer) {
+      return;
+    }
+
+    if (stickyHeaderFrameRef.current != null) {
+      window.cancelAnimationFrame(stickyHeaderFrameRef.current);
+    }
+
+    stickyHeaderFrameRef.current = window.requestAnimationFrame(() => {
+      stickyHeaderFrameRef.current = null;
+      updateStickyHeaderState(nextViewer);
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      for (const timer of deferredTimersRef.current) {
+        window.clearTimeout(timer);
+      }
+      deferredTimersRef.current.clear();
+      emptyCommentDeleteTimersRef.current.clear();
+      if (definitionHighlightFrameRef.current != null) {
+        window.cancelAnimationFrame(definitionHighlightFrameRef.current);
+      }
+      if (highlightFrameRef.current != null) {
+        window.cancelAnimationFrame(highlightFrameRef.current);
+      }
+      if (stickyHeaderFrameRef.current != null) {
+        window.cancelAnimationFrame(stickyHeaderFrameRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    scheduleSearchHighlights();
+    scheduleStickyHeaderStateUpdate();
+  }, [items, scheduleSearchHighlights, scheduleStickyHeaderStateUpdate]);
+
+  useEffect(() => {
+    if (!onFindDefinitions) {
+      return;
+    }
+
+    let pointerDown = false;
+    const updateDefinitionModifierState = (active: boolean) => {
+      if (definitionModifierActiveRef.current === active) {
+        return;
+      }
+      definitionModifierActiveRef.current = active;
+      updateRenderedIdentifierNavigation(active);
+    };
+    const handleModifierChange = (event: KeyboardEvent) => {
+      updateDefinitionModifierState(isPrimaryModifier(event) && !pointerDown);
+    };
+    const handleModifierPointer = (event: PointerEvent) => {
+      pointerDown = (event.buttons & 1) !== 0;
+      updateDefinitionModifierState(isPrimaryModifier(event) && !pointerDown);
+    };
+    const handleSelectionChange = () => {
+      // A selection can start or clear without the modifier changing.
+      updateRenderedIdentifierNavigation(definitionModifierActiveRef.current);
+    };
+    const clearDefinitionModifierState = () => {
+      pointerDown = false;
+      updateDefinitionModifierState(false);
+    };
+
+    window.addEventListener('keydown', handleModifierChange);
+    window.addEventListener('keyup', handleModifierChange);
+    window.addEventListener('pointerdown', handleModifierPointer);
+    window.addEventListener('pointermove', handleModifierPointer);
+    window.addEventListener('pointerup', handleModifierPointer);
+    window.addEventListener('pointercancel', clearDefinitionModifierState);
+    window.addEventListener('blur', clearDefinitionModifierState);
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      clearDefinitionModifierState();
+      window.removeEventListener('keydown', handleModifierChange);
+      window.removeEventListener('keyup', handleModifierChange);
+      window.removeEventListener('pointerdown', handleModifierPointer);
+      window.removeEventListener('pointermove', handleModifierPointer);
+      window.removeEventListener('pointerup', handleModifierPointer);
+      window.removeEventListener('pointercancel', clearDefinitionModifierState);
+      window.removeEventListener('blur', clearDefinitionModifierState);
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [onFindDefinitions, updateRenderedIdentifierNavigation]);
+
+  const invalidateDefinitionLookup = useCallback(() => {
+    definitionLookupRequestRef.current++;
+  }, []);
+  useEffect(() => invalidateDefinitionLookup, [invalidateDefinitionLookup]);
+
+  useEffect(() => {
+    if (!activeSearchMatch) {
+      lastScrolledSearchMatchRef.current = null;
+      return;
+    }
+
+    const handle = codeViewRef.current;
+    const viewer = handle?.getInstance();
+    if (!handle || !viewer || !resolvedActiveSearchMatch) {
+      return;
+    }
+    const meta = itemMetadata.get(resolvedActiveSearchMatch.itemId);
+    if (resolvedActiveSearchMatch.lineNumber != null && meta?.isMarkdownPreview) {
+      const frame = requestAnimationFrame(
+        () => void toggleMarkdownPreview(meta.file, meta.section),
+      );
+      return () => cancelAnimationFrame(frame);
+    }
+
+    // Walkthrough blocks re-resolve the match into a fresh object whenever the
+    // rendered items change, e.g. when opening a comment. Only scroll when the
+    // active match itself or its rendered item changes, so editing the diff
+    // while searching does not yank the view back to the match.
+    const lastScrolledSearchMatch = lastScrolledSearchMatchRef.current;
+    if (
+      lastScrolledSearchMatch?.match === activeSearchMatch &&
+      lastScrolledSearchMatch.itemId === resolvedActiveSearchMatch.itemId
+    ) {
+      scheduleSearchHighlights();
+      return;
+    }
+    lastScrolledSearchMatchRef.current = {
+      itemId: resolvedActiveSearchMatch.itemId,
+      match: activeSearchMatch,
+    };
+
+    if (resolvedActiveSearchMatch.lineNumber == null) {
+      handle.scrollTo({
+        align: 'center',
+        behavior: 'smooth-auto',
+        id: resolvedActiveSearchMatch.itemId,
+        type: 'item',
+      });
+    } else {
+      handle.scrollTo({
+        align: 'center',
+        behavior: 'smooth-auto',
+        id: resolvedActiveSearchMatch.itemId,
+        lineNumber: resolvedActiveSearchMatch.lineNumber,
+        offset: DEFAULT_PADDING,
+        side: resolvedActiveSearchMatch.side,
+        type: 'line',
+      });
+    }
+
+    scheduleSearchHighlights();
+  }, [
+    activeSearchMatch,
+    itemMetadata,
+    resolvedActiveSearchMatch,
+    scheduleSearchHighlights,
+    toggleMarkdownPreview,
+  ]);
+
+  // Rendered as a non-virtualized element at the top of the CodeView scroll
+  // content. Height changes (async markdown layout, editing) are re-measured
+  // by the viewer automatically.
+  const renderCodeViewHeader = useCallback(
+    () => (
+      <div className="codiff-source-description-panel codiff-code-view-source-description">
+        <SourceDescriptionHeader
+          actions={sourceDescriptionActions}
+          canCollapse={sourceDescription.length > 0 || canEditSourceDescription}
+          canEditTitle={canEditSourceTitle}
+          isCollapsed={sourceDescriptionCollapsed}
+          label={sourceDescriptionLabel}
+          onToggleCollapsed={toggleSourceDescriptionCollapsed}
+          onUpdateTitle={onUpdateSourceTitle}
+          title={sourceTitle}
+        />
+        {!sourceDescriptionCollapsed &&
+        (sourceDescriptionHasContent || canEditSourceDescription) ? (
+          <div className="codiff-source-description-panel-body">
+            <SourceDescriptionBody
+              ariaLabel={sourceDescriptionAriaLabel}
+              author={sourceAuthor}
+              canEdit={canEditSourceDescription}
+              description={sourceDescription}
+              keymap={keymap}
+              layoutKey="code-view-header"
+              onLayoutReady={noopLayoutReady}
+              onUpdateDescription={onUpdateSourceDescription}
+              onUploadDescriptionAsset={onUploadSourceDescriptionAsset}
+            />
+            {sourceDescriptionFooter ? (
+              <div className="codiff-source-description-footer">{sourceDescriptionFooter}</div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    ),
+    [
+      canEditSourceDescription,
+      canEditSourceTitle,
+      keymap,
+      onUpdateSourceDescription,
+      onUpdateSourceTitle,
+      onUploadSourceDescriptionAsset,
+      sourceAuthor,
+      sourceDescription,
+      sourceDescriptionActions,
+      sourceDescriptionAriaLabel,
+      sourceDescriptionCollapsed,
+      sourceDescriptionFooter,
+      sourceDescriptionHasContent,
+      sourceDescriptionLabel,
+      sourceTitle,
+      toggleSourceDescriptionCollapsed,
+    ],
+  );
+
+  const renderCustomHeader = useCallback(
+    (item: CodeViewItem<ReviewAnnotationMetadata>) => {
+      const editSession = codeEditing.sessions.get(item.id);
+      const meta = editSession?.metadata ?? itemMetadata.get(item.id);
+      const canEditMarkdown = meta?.isMarkdownPreview === true && meta.canEditMarkdown;
+      const isEditingMarkdown = canEditMarkdown && editingMarkdownSections.has(meta.section.id);
+      const isEditing = editSession != null || isEditingMarkdown;
+      const isBusy =
+        codeEditing.isBusy(item.id) ||
+        (canEditMarkdown && finishingMarkdownSections.has(meta.section.id));
+      const isAutosaving = editSession?.saving && !isBusy;
+      const canEdit = canEditMarkdown || canEditCodeItem(item, meta);
+      const editError = canEditMarkdown
+        ? markdownEditErrors[meta.section.id]
+        : codeEditing.getError(item.id);
+      return meta ? (
+        <>
+          <CodeViewHeader
+            allowViewedToggle={allowViewedToggle}
+            canCreateFileComment={canCreateFileComments}
+            editActions={
+              isEditing ? (
+                <>
+                  {editSession ? (
+                    <Button
+                      aria-label={`${editSession?.hasChanges ? 'Revert edits to' : 'Cancel editing'} ${meta.file.path}`}
+                      className="codiff-edit-revert-button"
+                      data-autosaving={isAutosaving ? '' : undefined}
+                      disabled={isBusy || editSession.saving}
+                      onClick={() => void codeEditing.revertEdit(item.id)}
+                      title={
+                        editSession?.hasChanges
+                          ? 'Restore the file to when editing started'
+                          : 'Cancel editing'
+                      }
+                      type="button"
+                      variant={editSession?.hasChanges ? 'destructive' : 'default'}
+                    >
+                      {editSession?.hasChanges ? 'Revert' : 'Cancel'}
+                    </Button>
+                  ) : null}
+                  <Button
+                    aria-label={`Done editing ${meta.file.path}`}
+                    data-autosaving={isAutosaving ? '' : undefined}
+                    disabled={isBusy || editSession?.saving}
+                    onClick={() =>
+                      void (isEditingMarkdown
+                        ? finishMarkdownEdit(meta)
+                        : codeEditing.doneEdit(item.id))
+                    }
+                    title="Finish editing; changes are saved automatically"
+                    type="button"
+                  >
+                    <Check aria-hidden size={14} weight="bold" />
+                    Done
+                  </Button>
+                </>
+              ) : canEdit ? (
+                <FileEditButton
+                  disabled={!codeEditing.canStartEdit(item.id, meta.file.path)}
+                  isBusy={isBusy}
+                  item={item}
+                  meta={meta}
+                  onEdit={() => {
+                    if (canEditMarkdown) {
+                      setMarkdownEditErrors((current) => ({
+                        ...current,
+                        [meta.section.id]: undefined,
+                      }));
+                      setEditingMarkdownSections((current) =>
+                        new Set(current).add(meta.section.id),
+                      );
+                      // Keep the preview while editing, even if `renderMarkdownAs` changes.
+                      setMarkdownPreviewSections((current) =>
+                        new Map(current).set(meta.section.id, true),
+                      );
+                      if (meta.isCollapsed) {
+                        onToggleCollapsed(meta.file, true, meta.reviewIdentity.key);
+                      }
+                    } else {
+                      startCodeEdit(item, meta);
+                    }
+                  }}
+                  onPrepare={canEditMarkdown ? undefined : codeEditing.prepareEdit}
+                />
+              ) : null
+            }
+            isEditing={isEditing}
+            isSectionLoading={loadingSectionIds.has(meta.section.id)}
+            meta={meta}
+            onCreateFileComment={() => createFileComment(meta, item.id)}
+            onLoadSection={onLoadSection}
+            onOpenFile={onOpenFile}
+            onToggleCollapsed={onToggleCollapsed}
+            onToggleMarkdownPreview={toggleMarkdownPreview}
+            onToggleViewed={onToggleViewed}
+            readOnly={isReadOnly}
+          />
+          {editError ? (
+            <div className="codiff-code-edit-error" role="alert">
+              {editError}
+            </div>
+          ) : null}
+        </>
+      ) : null;
+    },
+    [
+      allowViewedToggle,
+      canCreateFileComments,
+      canEditCodeItem,
+      createFileComment,
+      codeEditing,
+      editingMarkdownSections,
+      finishingMarkdownSections,
+      finishMarkdownEdit,
+      itemMetadata,
+      isReadOnly,
+      loadingSectionIds,
+      markdownEditErrors,
+      onLoadSection,
+      onOpenFile,
+      onToggleCollapsed,
+      onToggleViewed,
+      startCodeEdit,
+      toggleMarkdownPreview,
+    ],
+  );
+
+  const renderAnnotation = useCallback(
+    (
+      annotation:
+        | DiffLineAnnotation<ReviewAnnotationMetadata>
+        | LineAnnotation<ReviewAnnotationMetadata>,
+      _fileOrDiff: unknown,
+      item: CodeViewItem<ReviewAnnotationMetadata>,
+    ) => {
+      if (annotation.metadata.type === 'image-preview') {
+        const meta = itemMetadata.get(item.id);
+        return meta && onLoadImageContent ? (
+          <ImageDiffPreview
+            file={meta.file}
+            loadImageContent={onLoadImageContent}
+            onLayoutReady={markImagePreviewLayoutReady}
+            section={meta.section}
+            source={source}
+          />
+        ) : null;
+      }
+
+      if (annotation.metadata.type === 'markdown-preview') {
+        const metadata = annotation.metadata;
+        return (
+          <MarkdownPreview
+            cacheKey={`${sourceKey}:${item.id}`}
+            contents={annotation.metadata.contents}
+            editing={metadata.editing}
+            heightCache={markdownPreviewHeights}
+            itemId={item.id}
+            oldContents={metadata.oldContents}
+            onEditorRef={setMarkdownEditorRef}
+            onLayoutReady={markMarkdownPreviewLayoutReady}
+            onViewSource={(lineNumber, side) => {
+              pendingMarkdownSourceRef.current = {
+                lineNumber,
+                sectionId: metadata.sectionId,
+                side,
+                sourceKey,
+              };
+              setMarkdownPreviewSections((current) =>
+                new Map(current).set(metadata.sectionId, false),
+              );
+            }}
+            path={annotation.metadata.path}
+            sectionId={annotation.metadata.sectionId}
+          />
+        );
+      }
+
+      if (annotation.metadata.type === 'walkthrough-header') {
+        return annotation.metadata.header;
+      }
+
+      if (annotation.metadata.type === 'code-quality') {
+        return (
+          <CodeQualityAnnotation
+            annotation={annotation as DiffLineAnnotation<CodeQualityAnnotationMetadata>}
+          />
+        );
+      }
+
+      return (
+        <ReviewAnnotation
+          agentId={agentId}
+          agentLabel={agentLabel}
+          annotation={annotation as DiffLineAnnotation<ReviewCommentAnnotationMetadata>}
+          comments={renderComments}
+          focusCommentId={focusCommentId}
+          focusCommentRequest={focusCommentRequest}
+          identity={gitIdentity}
+          keymap={keymap}
+          onAskCodex={onAskCodex}
+          onAskFollowUpDraftChange={onAskFollowUpDraftChange}
+          onCommentBlur={blurComment}
+          onCommentDraftChange={onCommentDraftChange}
+          onCommentFocus={focusComment}
+          onDeleteComment={deleteComment}
+          onHeightChange={() => markCommentLayoutChanged(item.id)}
+          onReplyToThread={replyToThread}
+          onResolveThread={onResolveThread}
+          onSaveCommentEdit={onSaveCommentEdit}
+          onSubmitComment={onSubmitComment}
+          onUpdateComment={onUpdateComment}
+          supportsReviewCommentActions={supportsReviewCommentActions}
+        />
+      );
+    },
+    [
+      agentId,
+      agentLabel,
+      blurComment,
+      deleteComment,
+      focusCommentId,
+      focusCommentRequest,
+      focusComment,
+      gitIdentity,
+      itemMetadata,
+      keymap,
+      markMarkdownPreviewLayoutReady,
+      markdownPreviewHeights,
+      markImagePreviewLayoutReady,
+      markCommentLayoutChanged,
+      onAskCodex,
+      onAskFollowUpDraftChange,
+      onCommentDraftChange,
+      onLoadImageContent,
+      onResolveThread,
+      onSaveCommentEdit,
+      onSubmitComment,
+      onUpdateComment,
+      renderComments,
+      replyToThread,
+      setMarkdownEditorRef,
+      source,
+      sourceKey,
+      supportsReviewCommentActions,
+    ],
+  );
+
+  const handleScroll = useCallback(
+    (_scrollTop: number, viewer: CodeViewInstance) => {
+      onSelectPathFromScroll(viewer);
+      if (onActiveBlockChange) {
+        const activationTop = viewer.getScrollTop() + DEFAULT_PADDING;
+        let activeBlockId: string | null = null;
+        for (const item of items) {
+          const top = viewer.getTopForItem(item.id);
+          if (top == null) {
+            continue;
+          }
+          if (top > activationTop) {
+            break;
+          }
+          activeBlockId = itemBlockId.get(item.id) ?? activeBlockId;
+        }
+        if (activeBlockId) {
+          onActiveBlockChange(activeBlockId);
+        }
+      }
+      scheduleSearchHighlights();
+      scheduleStickyHeaderStateUpdate(viewer);
+      if (definitionModifierActiveRef.current) {
+        updateRenderedIdentifierNavigation(true, viewer);
+      }
+    },
+    [
+      itemBlockId,
+      items,
+      onActiveBlockChange,
+      onSelectPathFromScroll,
+      scheduleSearchHighlights,
+      scheduleStickyHeaderStateUpdate,
+      updateRenderedIdentifierNavigation,
+    ],
+  );
+
+  const codeView = (
+    <CodeView
+      className={`code-view${compactHeaders ? ' compact-file-headers' : ''}`}
+      containerRef={setCodeViewElement}
+      disableWorkerPool={disableWorkerPool}
+      editorOptions={codeEditing.editorOptions}
+      items={codeEditing.items}
+      onItemEditChange={codeEditing.onItemEditChange}
+      onItemEditComplete={codeEditing.onItemEditComplete}
+      onScroll={handleScroll}
+      onSelectedLinesChange={setCodeViewSelectedLines}
+      options={codeViewOptions}
+      ref={codeViewRef}
+      renderAnnotation={renderAnnotation}
+      renderCodeViewHeader={sourceDescriptionItemId ? renderCodeViewHeader : undefined}
+      renderCustomHeader={renderCustomHeader}
+      selectedLines={isReadOnly ? null : selectedLines}
+      style={codeViewStyle}
+    />
+  );
+
+  const renderedCodeView = disableWorkerPool ? (
+    codeView
+  ) : (
+    <WorkerPoolContextProvider
+      highlighterOptions={workerHighlighterOptions}
+      poolOptions={workerPoolOptions}
+    >
+      <CodeView
+        className={`code-view${compactHeaders ? ' compact-file-headers' : ''}`}
+        containerRef={setCodeViewElement}
+        disableWorkerPool={false}
+        editorOptions={codeEditing.editorOptions}
+        items={codeEditing.items}
+        onItemEditChange={codeEditing.onItemEditChange}
+        onItemEditComplete={codeEditing.onItemEditComplete}
+        onScroll={handleScroll}
+        onSelectedLinesChange={setCodeViewSelectedLines}
+        options={codeViewOptions}
+        ref={codeViewRef}
+        renderAnnotation={renderAnnotation}
+        renderCodeViewHeader={sourceDescriptionItemId ? renderCodeViewHeader : undefined}
+        renderCustomHeader={renderCustomHeader}
+        selectedLines={isReadOnly ? null : selectedLines}
+        style={codeViewStyle}
+      />
+    </WorkerPoolContextProvider>
+  );
+
+  return (
+    <>
+      <EditProvider createEditor={createCodeEditor}>{renderedCodeView}</EditProvider>
+      {definitionLookup?.sourceKey === sourceKey && onOpenDefinition ? (
+        <DefinitionPopover
+          anchor={definitionLookup.anchor}
+          getDestination={(candidate) =>
+            getDefinitionDiffTarget(candidate)
+              ? 'diff'
+              : candidate.canOpenInEditor
+                ? 'editor'
+                : 'unavailable'
+          }
+          identifier={definitionLookup.identifier}
+          onClose={() => {
+            invalidateDefinitionLookup();
+            setDefinitionLookup(null);
+          }}
+          onOpen={(candidate) => {
+            const target = getDefinitionDiffTarget(candidate);
+            if (target) {
+              if (target.metadata.isCollapsed) {
+                onToggleCollapsed(target.metadata.file, true, target.metadata.reviewIdentity.key);
+              }
+              const scrollToDefinition = () =>
+                codeViewRef.current?.scrollTo({
+                  align: 'center',
+                  behavior: 'smooth-auto',
+                  id: target.item.id,
+                  lineNumber: candidate.lineNumber,
+                  offset: DEFAULT_PADDING,
+                  side: candidate.side,
+                  type: 'line',
+                });
+              if (target.metadata.isCollapsed) {
+                window.requestAnimationFrame(() =>
+                  window.requestAnimationFrame(scrollToDefinition),
+                );
+              } else {
+                scrollToDefinition();
+              }
+            } else if (candidate.canOpenInEditor) {
+              onOpenDefinition(candidate);
+            }
+            invalidateDefinitionLookup();
+            setDefinitionLookup(null);
+          }}
+          result={definitionLookup.result}
+        />
+      ) : null}
+    </>
+  );
+}

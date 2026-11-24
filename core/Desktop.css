@@ -1,0 +1,172 @@
+/* Keep the native title bar draggable before the app's toolbar is available.
+   Attach this to the root so loading animations and transforms cannot move it. */
+#root:empty::before,
+#root:has(> .loading)::before,
+#root:has(> .empty-state)::before {
+  -webkit-app-region: drag;
+  content: '';
+  height: 40px;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 20;
+}
+
+.open-review-source-trigger[aria-expanded='true'] {
+  background: var(--chrome-selected);
+  color: var(--chrome-text);
+}
+
+.open-review-source-menu {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  flex: none;
+}
+
+.open-review-source-menu-list {
+  background: var(--chrome-panel);
+  border: 1px solid var(--chrome-divider);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.18);
+  corner-shape: squircle;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 176px;
+  padding: 4px;
+  position: fixed;
+  z-index: 60;
+}
+
+.open-review-source-menu-item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--chrome-control-radius);
+  color: var(--chrome-text);
+  corner-shape: squircle;
+  cursor: pointer;
+  display: flex;
+  font: 600 12px/1 var(--font-sans);
+  gap: 8px;
+  padding: 7px 9px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.open-review-source-menu-item:hover {
+  background: var(--chrome-hover);
+}
+
+.open-review-source-menu-item svg {
+  color: var(--chrome-secondary);
+  flex: none;
+}
+
+.open-review-source-menu-separator {
+  background: var(--chrome-divider);
+  flex: none;
+  height: 1px;
+  margin: 3px 6px;
+}
+
+/* The update pill is desktop-only chrome, so its styles live here instead of
+   the shared App.css that ships to the web app. */
+:root {
+  /* One step darker than the VS Code / Codex update blue so 12px white text
+     clears the WCAG AA 4.5:1 contrast ratio. */
+  --update-accent: rgb(89 115 191);
+  --update-accent-contrast: #ffffff;
+}
+
+.update-pill-anchor {
+  -webkit-app-region: no-drag;
+  border-top: 1px solid var(--sidebar-border);
+  display: flex;
+  flex: none;
+  justify-content: center;
+  padding: 8px;
+  position: relative;
+}
+
+.update-pill-dismiss {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  padding: 4px;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.update-pill-dismiss:hover {
+  color: var(--text);
+}
+
+/* The pill is a regular .codiff-button; these rules only give it the accent
+   fill, so the chained selectors must outrank the shared button defaults. */
+.update-pill.codiff-button {
+  animation: update-pill-in 360ms cubic-bezier(0.2, 0.82, 0.22, 1) both;
+  background: var(--update-accent);
+  border-color: color-mix(in srgb, var(--update-accent) 60%, var(--text) 14%);
+  color: var(--update-accent-contrast);
+  max-width: 100%;
+}
+
+.update-pill.codiff-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--update-accent) 90%, #000000);
+}
+
+.update-pill.codiff-button:disabled {
+  cursor: default;
+}
+
+.update-pill.codiff-button.available {
+  animation:
+    update-pill-in 360ms cubic-bezier(0.2, 0.82, 0.22, 1) both,
+    update-pill-glow 2.6s ease-in-out 460ms 3;
+}
+
+.update-pill.codiff-button.error {
+  background: color-mix(in srgb, var(--danger) 82%, var(--text) 6%);
+  border-color: color-mix(in srgb, var(--danger) 60%, var(--text) 14%);
+}
+
+.update-pill.codiff-button.error:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 78%, #000000);
+}
+
+.update-pill-spinner {
+  animation: update-pill-spin 900ms linear infinite;
+}
+
+@keyframes update-pill-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes update-pill-glow {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--update-accent) 16%, transparent);
+  }
+}
+
+@keyframes update-pill-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-pill,
+  .update-pill-spinner {
+    animation: none;
+  }
+}

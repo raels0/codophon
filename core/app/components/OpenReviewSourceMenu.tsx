@@ -1,0 +1,211 @@
+import { FolderOpenIcon as FolderOpen } from '@phosphor-icons/react/FolderOpen';
+import { GitBranchIcon as GitBranch } from '@phosphor-icons/react/GitBranch';
+import { GitCommitIcon as GitCommit } from '@phosphor-icons/react/GitCommit';
+import { GitPullRequestIcon as GitPullRequest } from '@phosphor-icons/react/GitPullRequest';
+import { PlusIcon as Plus } from '@phosphor-icons/react/Plus';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
+import type { OpenReviewSourceKind } from '../../types.ts';
+
+const menuActions: ReadonlyArray<{
+  icon: ReactNode;
+  kind: OpenReviewSourceKind;
+  label: string;
+}> = [
+  {
+    icon: <GitPullRequest aria-hidden size={15} weight="bold" />,
+    kind: 'pull-request',
+    label: 'Open PR',
+  },
+  {
+    icon: <GitBranch aria-hidden size={15} weight="bold" />,
+    kind: 'branch',
+    label: 'Open Branch',
+  },
+  {
+    icon: <GitCommit aria-hidden size={15} weight="bold" />,
+    kind: 'commit',
+    label: 'Open Commit',
+  },
+];
+
+export function OpenReviewSourceMenu({
+  onOpen,
+  onOpenFolder,
+}: {
+  onOpen: (kind: OpenReviewSourceKind) => void;
+  onOpenFolder: () => void;
+}) {
+  // The top bar creates a stacking context (backdrop-filter) that later
+  // sibling rows paint over on non-macOS platforms, so the menu is portaled to
+  // the document body and positioned from the trigger's viewport rect.
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null);
+  const open = menuPosition != null;
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const openMenu = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    setMenuPosition({ left: rect?.left ?? 0, top: (rect?.bottom ?? 0) + 6 });
+  }, []);
+
+  const close = useCallback(() => {
+    setMenuPosition(null);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    itemRefs.current[0]?.focus();
+    const dismiss = (event: PointerEvent) => {
+      if (
+        // oxlint-disable-next-line @nkzw/no-instanceof
+        event.target instanceof Node &&
+        !triggerRef.current?.contains(event.target) &&
+        !menuRef.current?.contains(event.target)
+      ) {
+        close();
+      }
+    };
+    document.addEventListener('pointerdown', dismiss);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      window.removeEventListener('resize', close);
+    };
+  }, [close, open]);
+
+  const closeWithFocus = useCallback(() => {
+    close();
+    triggerRef.current?.focus();
+  }, [close]);
+
+  const handleTriggerKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        openMenu();
+      }
+    },
+    [openMenu],
+  );
+
+  const handleMenuKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Tab') {
+        // The portal lives at the end of the body, so native traversal from a
+        // menu item would wrap to the document edges. Refocusing the trigger
+        // before the default action makes Tab continue from the top bar.
+        closeWithFocus();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeWithFocus();
+        return;
+      }
+
+      const items = itemRefs.current.filter((item) => item != null);
+      if (!items.length) {
+        return;
+      }
+      const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+      const nextIndex =
+        event.key === 'ArrowDown'
+          ? (currentIndex + 1) % items.length
+          : event.key === 'ArrowUp'
+            ? (currentIndex - 1 + items.length) % items.length
+            : event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? items.length - 1
+                : null;
+      if (nextIndex != null) {
+        event.preventDefault();
+        items[nextIndex]?.focus();
+      }
+    },
+    [closeWithFocus],
+  );
+
+  return (
+    <div className="open-review-source-menu">
+      <button
+        aria-controls={open ? 'open-review-source-menu' : undefined}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Open a PR, branch, commit, or folder"
+        className="open-review-source-trigger review-top-bar-icon-button"
+        id="open-review-source-trigger"
+        onClick={open ? close : openMenu}
+        onKeyDown={handleTriggerKeyDown}
+        ref={triggerRef}
+        title="Open a PR, branch, commit, or folder"
+        type="button"
+      >
+        <Plus aria-hidden size={16} weight="bold" />
+      </button>
+      {menuPosition
+        ? createPortal(
+            <div
+              aria-labelledby="open-review-source-trigger"
+              className="open-review-source-menu-list"
+              id="open-review-source-menu"
+              onKeyDown={handleMenuKeyDown}
+              ref={menuRef}
+              role="menu"
+              style={{ left: menuPosition.left, top: menuPosition.top }}
+            >
+              {menuActions.map((action, index) => (
+                <button
+                  className="open-review-source-menu-item"
+                  key={action.kind}
+                  onClick={() => {
+                    close();
+                    onOpen(action.kind);
+                  }}
+                  ref={(element) => {
+                    itemRefs.current[index] = element;
+                  }}
+                  role="menuitem"
+                  tabIndex={-1}
+                  type="button"
+                >
+                  {action.icon}
+                  <span>{action.label}</span>
+                </button>
+              ))}
+              <div className="open-review-source-menu-separator" role="separator" />
+              <button
+                className="open-review-source-menu-item"
+                onClick={() => {
+                  close();
+                  onOpenFolder();
+                }}
+                ref={(element) => {
+                  itemRefs.current[menuActions.length] = element;
+                }}
+                role="menuitem"
+                tabIndex={-1}
+                type="button"
+              >
+                <FolderOpen aria-hidden size={15} weight="bold" />
+                <span>Open Folder</span>
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}

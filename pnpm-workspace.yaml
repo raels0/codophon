@@ -1,0 +1,38 @@
+allowBuilds:
+  '@google/genai': false
+  '@nkzw/mdx-editor': true
+  '@swc/core': true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  native-keymap: true
+  node-pty: true
+  protobufjs: false
+  sharp: true
+blockExoticSubdeps: false
+minimumReleaseAgeExclude:
+  - '@nkzw/*'
+  - '@pierre/*'
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
+  vitest: 5.1.0
+nodeLinker: hoisted
+onlyBuiltDependencies:
+  - '@nkzw/mdx-editor'
+  - '@swc/core'
+  - electron
+  - electron-winstaller
+  - unrs-resolver
+overrides:
+  extract-zip>yauzl: ^3.4.0
+  vite@*: 'catalog:'
+patchedDependencies:
+  native-keymap@3.3.9: patches/native-keymap@3.3.9.patch
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: '*'
+    vitest: '*'
