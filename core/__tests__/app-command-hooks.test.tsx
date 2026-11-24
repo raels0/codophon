@@ -232,6 +232,7 @@ test('app commands register the complete command set and delegate dynamic action
     'copy-review-brief',
     'copy-comments-and-close',
     'toggle-viewed',
+    'edit-file',
     'open-file',
     'toggle-sidebar',
     'toggle-outdated-comments',
@@ -253,6 +254,13 @@ test('app commands register the complete command set and delegate dynamic action
     }
     return match;
   };
+  const editRequests = vi.fn();
+  window.addEventListener('codiff:edit-selected-file', editRequests);
+  command('edit-file').execute();
+  window.removeEventListener('codiff:edit-selected-file', editRequests);
+  expect(editRequests).toHaveBeenCalledOnce();
+  expect(command('edit-file').keymapAction).toBe('editFile');
+
   command('file-filter').execute();
   command('diff-search').execute();
   command('open-pull-request').execute();

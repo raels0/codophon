@@ -2311,6 +2311,20 @@ a.review-top-bar-source:focus-visible {
   width: 64px;
 }
 
+/* Edit mode is a deliberate state, so the header says so next to Done. */
+.codiff-edit-mode-badge {
+  align-items: center;
+  background: var(--tree-selection-bg);
+  border-radius: 999px;
+  color: var(--tree-selection-focus);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 600;
+  gap: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 .compact-file-headers .codiff-file-header:has(.codiff-file-details) {
   gap: 6px;
   grid-auto-flow: row;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { AgentSettingsSection } from '../../config/types.ts';
+import { EDIT_SELECTED_FILE_EVENT } from '../../lib/app-constants.ts';
 import type { ReviewComment, ReviewIdentity, SidebarMode } from '../../lib/app-types.ts';
 import { createCommandRegistry, type Command } from '../../lib/command-registry.ts';
 import type { ReviewCommandTarget } from '../../lib/review-command-target.ts';
@@ -185,6 +186,13 @@ export function useAppCommands({
         },
         id: 'toggle-viewed',
         title: 'Toggle Viewed',
+      }),
+      registry.register({
+        description: () => getReviewCommandTarget()?.file.path ?? null,
+        execute: () => window.dispatchEvent(new Event(EDIT_SELECTED_FILE_EVENT)),
+        id: 'edit-file',
+        keymapAction: 'editFile',
+        title: 'Edit File',
       }),
       registry.register({
         description: () => getReviewCommandTarget()?.file.path ?? null,

@@ -49,6 +49,7 @@ import codexIconUrl from '../../assets/codex.svg';
 import opencodeIconUrl from '../../assets/opencode.svg';
 import { getShortcutLabel, matchesShortcut } from '../../config/keymap.ts';
 import type { CodiffDiffStyle, CodiffKeymap } from '../../config/types.ts';
+import { EDIT_SELECTED_FILE_EVENT } from '../../lib/app-constants.ts';
 import type {
   CodeViewInstance,
   CodeViewItemMetadata,
@@ -211,6 +212,7 @@ function FileEditButton({
   disabled,
   isBusy,
   item,
+  keymap,
   meta,
   onEdit,
   onPrepare,
@@ -218,10 +220,12 @@ function FileEditButton({
   disabled: boolean;
   isBusy: boolean;
   item: CodeViewItem<ReviewAnnotationMetadata>;
+  keymap: CodiffKeymap;
   meta: CodeViewItemMetadata;
   onEdit: () => void;
   onPrepare?: ReturnType<typeof useCodeEditing>['prepareEdit'];
 }) {
+  const shortcut = getShortcutLabel(keymap, 'editFile');
   useEffect(() => {
     // Headers only mount for rendered items. Warm visible files without loading
     // every file in the review, and surface any preparation failure on click.
@@ -230,10 +234,12 @@ function FileEditButton({
 
   return (
     <Button
+      aria-keyshortcuts={shortcut}
       aria-label={`Edit ${meta.file.path}`}
+      className="codiff-edit-button"
       disabled={disabled || isBusy}
       onClick={onEdit}
-      title="Edit working-tree file"
+      title={`Edit this file in place (${shortcut}). Changes save to disk as you type.`}
       type="button"
     >
       <PencilSimple aria-hidden size={14} weight="bold" />
@@ -2662,20 +2668,12 @@ export function ReviewCodeView({
   }, [canEditCodeItem, highlightedCodeItems, itemMetadata, sourceKey, startCodeEdit]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.defaultPrevented ||
-        event.repeat ||
-        event.isComposing ||
-        isNativeInputTarget(event.target) ||
-        !matchesShortcut(event, keymap, 'editFile')
-      ) {
-        return;
-      }
+    /** Enter edit mode for the highlighted file. Returns whether it handled the request. */
+    const editSelectedFile = () => {
       const item = codeViewItems.find((candidate) => candidate.id === selectedCodeItemId);
       const meta = item && itemMetadata.get(item.id);
       if (!item || !meta || !codeEditing.canStartEdit(item.id, meta.file.path)) {
-        return;
+        return false;
       }
       if (!canEditCodeItem(item, meta)) {
         // Collapsed files render only their first section, which may be staged.
@@ -2686,18 +2684,33 @@ export function ReviewCodeView({
             canEditCodeItem({ fileDiff, id: item.id, type: 'diff' }, { ...meta, section }),
           )
         ) {
-          return;
+          return false;
         }
-        event.preventDefault();
         editAfterExpandRef.current = { path: meta.file.path, sourceKey };
         onToggleCollapsed(meta.file, true, meta.reviewIdentity.key);
-        return;
+        return true;
       }
-      event.preventDefault();
       startCodeEdit(item, meta);
+      return true;
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        !event.defaultPrevented &&
+        !event.repeat &&
+        !event.isComposing &&
+        !isNativeInputTarget(event.target) &&
+        matchesShortcut(event, keymap, 'editFile') &&
+        editSelectedFile()
+      ) {
+        event.preventDefault();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener(EDIT_SELECTED_FILE_EVENT, editSelectedFile);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener(EDIT_SELECTED_FILE_EVENT, editSelectedFile);
+    };
   }, [
     canEditCodeItem,
     codeEditing,
@@ -4096,7 +4109,12 @@ export function ReviewCodeView({
                       {editSession?.hasChanges ? 'Revert' : 'Cancel'}
                     </Button>
                   ) : null}
+                  <span className="codiff-edit-mode-badge" role="status">
+                    <PencilSimple aria-hidden size={12} weight="bold" />
+                    Editing
+                  </span>
                   <Button
+                    aria-keyshortcuts={getShortcutLabel(keymap, 'doneEditing')}
                     aria-label={`Done editing ${meta.file.path}`}
                     data-autosaving={isAutosaving ? '' : undefined}
                     disabled={isBusy || editSession?.saving}
@@ -4105,7 +4123,7 @@ export function ReviewCodeView({
                         ? finishMarkdownEdit(meta)
                         : codeEditing.doneEdit(item.id))
                     }
-                    title="Finish editing; changes are saved automatically"
+                    title={`Finish editing (${getShortcutLabel(keymap, 'doneEditing')}). Changes are already saved.`}
                     type="button"
                   >
                     <Check aria-hidden size={14} weight="bold" />
@@ -4117,6 +4135,7 @@ export function ReviewCodeView({
                   disabled={!codeEditing.canStartEdit(item.id, meta.file.path)}
                   isBusy={isBusy}
                   item={item}
+                  keymap={keymap}
                   meta={meta}
                   onEdit={() => {
                     if (canEditMarkdown) {
@@ -4172,6 +4191,7 @@ export function ReviewCodeView({
       finishMarkdownEdit,
       itemMetadata,
       isReadOnly,
+      keymap,
       loadingSectionIds,
       markdownEditErrors,
       onLoadSection,

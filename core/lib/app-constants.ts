@@ -27,3 +27,6 @@ export const defaultTerminalHelperStatus: TerminalHelperStatus = {
   installed: false,
   path: '',
 };
+
+/** The command palette asks the diff view to enter edit mode through this window event. */
+export const EDIT_SELECTED_FILE_EVENT = 'codiff:edit-selected-file';
