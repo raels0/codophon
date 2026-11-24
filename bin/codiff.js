@@ -11,7 +11,6 @@ import { fileURLToPath } from 'node:url';
 import packageJson from '../package.json' with { type: 'json' };
 import { formatHelpText, parseArguments, resolvePullRequestTargetUrl } from './arguments.js';
 import { completionShells, generateCompletionScript } from './completions.js';
-import { waitForPlanResult } from './plan-result.js';
 import { runUpdateCommand } from './update-command.js';
 import { getUpdateNotice } from './update-notice.js';
 import { waitForWalkthroughResult } from './walkthrough-result.js';
@@ -153,7 +152,6 @@ const run = async () => {
     codexSessionId,
     commitRef,
     opencodeSessionId,
-    planFilePath,
     pullRequestBranch,
     pullRequestNumber,
     pullRequestProvider,
@@ -165,11 +163,6 @@ const run = async () => {
   } = parsedArguments;
   let { pullRequestUrl } = parsedArguments;
 
-  if (planFilePath && (!existsSync(planFilePath) || !/\.md$/i.test(planFilePath))) {
-    process.stderr.write(`codiff: plan file not found or not Markdown: ${planFilePath}\n`);
-    process.exitCode = 1;
-    return;
-  }
   if (!pullRequestUrl && (pullRequestBranch || pullRequestNumber != null)) {
     try {
       pullRequestUrl = resolvePullRequestTargetUrl({
@@ -195,10 +188,6 @@ const run = async () => {
     process.exit(1);
   }
 
-  const planResultDirectory = planFilePath
-    ? mkdtempSync(join(tmpdir(), 'codiff-plan-result-'))
-    : null;
-  const planResultPath = planResultDirectory ? join(planResultDirectory, 'result.json') : '';
   // The app launches detached, so wait for it to report whether it applied the
   // walkthrough file; otherwise a file it rejects would still exit 0 here.
   const walkthroughResultDirectory = walkthroughFilePath
@@ -215,8 +204,6 @@ const run = async () => {
     CODIFF_COMMIT_REF: commitRef ?? '',
     CODIFF_CODEX_SESSION_ID: codexSessionId ?? '',
     CODIFF_OPENCODE_SESSION_ID: opencodeSessionId ?? '',
-    CODIFF_PLAN_FILE: planFilePath ?? '',
-    CODIFF_PLAN_RESULT_FILE: planResultPath,
     CODIFF_PULL_REQUEST_URL: pullRequestUrl ?? '',
     CODIFF_REVIEW_PROVIDER: pullRequestProvider ?? '',
     CODIFF_RANGE: range ? `${range.base}${range.symmetric ? '...' : '..'}${range.head}` : '',
@@ -249,23 +236,6 @@ const run = async () => {
   });
 
   child.unref();
-  if (planResultDirectory) {
-    try {
-      const result = await waitForPlanResult(planResultPath, child);
-      if (result.status === 'canceled') {
-        process.exitCode = 2;
-      } else {
-        process.stdout.write(`CODIFF_PLAN_RESULT ${JSON.stringify(result)}\n`);
-      }
-    } catch (error) {
-      process.stderr.write(
-        `${error instanceof Error ? error.message : 'Codiff could not open the plan.'}\n`,
-      );
-      process.exitCode = 1;
-    } finally {
-      rmSync(planResultDirectory, { force: true, recursive: true });
-    }
-  }
   if (walkthroughResultDirectory) {
     try {
       const result = await waitForWalkthroughResult(walkthroughResultPath, child);

@@ -220,7 +220,7 @@ export type WalkthroughProgressEvent = {
 export type CodiffMarkdownDocument = {
   content: string;
   id: string;
-  kind: 'plan' | 'repository';
+  kind: 'repository';
   path: string;
   version: string;
 };
@@ -292,18 +292,6 @@ export type PlanCommentThread = {
   updatedAt: string;
 };
 
-export type PlanReview = {
-  document: {
-    id: string;
-    path: string;
-    version: string;
-  };
-  threads: ReadonlyArray<PlanCommentThread>;
-  version: 1;
-};
-
-export type PlanHandoffStatus = 'closed' | 'done';
-
 export type WalkthroughContext = {
   changedFiles?: ReadonlyArray<{
     path: string;
@@ -340,10 +328,6 @@ export type CodiffLaunchOptions = {
   claudeSessionId?: string;
   codexSessionId?: string;
   opencodeSessionId?: string;
-  /** Exact Markdown file opened by the blocking plan handoff. */
-  planFile?: string;
-  /** Result file used to resume the waiting agent process. */
-  planResultFile?: string;
   repositoryPathProvided: boolean;
   source?: ReviewSource;
   walkthrough: boolean;

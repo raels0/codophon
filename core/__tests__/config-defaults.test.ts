@@ -246,7 +246,5 @@ test('electron defaults load from packaged app shape', () => {
 
 test('npm package includes runtime config and bundled skills', () => {
   expect(packageJson.files).toContain('config');
-  expect(packageJson.files).toContain('codex');
-  expect(packageJson.files).toContain('claude');
-  expect(packageJson.files).toContain('opencode');
+  expect(packageJson.files).toContain('skills');
 });

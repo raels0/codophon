@@ -5,16 +5,7 @@ import { MagnifyingGlassIcon as MagnifyingGlass } from '@phosphor-icons/react/Ma
 import { PathIcon as Path } from '@phosphor-icons/react/Path';
 import { TreeStructureIcon as TreeStructure } from '@phosphor-icons/react/TreeStructure';
 import type { FileDiffLoadedFiles } from '@pierre/diffs';
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AgentSettingsDialog } from './app/components/AgentSettingsDialog.tsx';
 import { AskHistoryDialog } from './app/components/AskHistoryDialog.tsx';
 import { AskNotifications } from './app/components/AskNotifications.tsx';
@@ -136,7 +127,6 @@ import type {
   ChangedFile,
   AgentSkillStatus,
   CodiffLaunchOptions,
-  CodiffMarkdownDocument,
   CodiffPreferences,
   CodiffUpdateStatus,
   DefinitionCandidate,
@@ -152,9 +142,6 @@ import type {
 const emptyReviewComments: ReadonlyArray<ReviewComment> = [];
 const emptyWalkthroughNotes = new Map<string, WalkthroughNote>();
 const disableCodeViewWorkerPool = process.env.NODE_ENV === 'test';
-const PlanEditorView = lazy(async () => ({
-  default: (await import('./app/components/PlanEditorView.tsx')).PlanEditorView,
-}));
 
 const getFailedSectionLoadState = (section: DiffSection): DiffSection =>
   isPatchOnlyDiffSection(section)
@@ -245,10 +232,8 @@ export default function App({
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [isWindowFullScreen, setIsWindowFullScreen] = useState(false);
   const [pendingSource, setPendingSource] = useState<ReviewSource | null>(null);
-  const [planDocument, setPlanDocument] = useState<CodiffMarkdownDocument | null>(null);
   const [codeEditingStore] = useState(createCodeEditingStore);
   useUnsavedCodeEditsGuard(codeEditingStore);
-  const [planLoadError, setPlanLoadError] = useState<string | null>(null);
   const [loadingSectionIds, setLoadingSectionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [openReviewSourceKind, setOpenReviewSourceKind] = useState<OpenReviewSourceKind | null>(
     null,
@@ -688,7 +673,6 @@ export default function App({
 
   useEffect(() => {
     let canceled = false;
-    let loadingPlan = false;
 
     const load = async () => {
       const reloadSelection = consumeReloadSelection();
@@ -697,19 +681,6 @@ export default function App({
         return;
       }
       setLaunchOptions(nextLaunchOptions);
-
-      if (nextLaunchOptions.planFile) {
-        loadingPlan = true;
-        const nextPlanDocument = await window.codiff.getMarkdownDocument({
-          kind: 'plan',
-          path: nextLaunchOptions.planFile,
-        });
-        if (!canceled) {
-          setPlanDocument(nextPlanDocument);
-          setPlanLoadError(null);
-        }
-        return;
-      }
 
       void window.codiff
         .getAgentSkillStatus()
@@ -888,11 +859,7 @@ export default function App({
         return;
       }
 
-      if (loadingPlan) {
-        setPlanLoadError(error instanceof Error ? error.message : String(error));
-      } else {
-        setLoadError(getRepositoryLoadError(error));
-      }
+      setLoadError(getRepositoryLoadError(error));
       setWalkthroughLoading(false);
     });
 
@@ -1857,7 +1824,6 @@ export default function App({
     configLoaded &&
       Boolean(
         loadError ||
-        planLoadError ||
         (state &&
           (state.files.length === 0 ||
             visibleFiles.length === 0 ||
@@ -1889,28 +1855,6 @@ export default function App({
       {settingsDialog}
     </>
   );
-
-  if (launchOptions.planFile) {
-    if (planLoadError) {
-      return withAgentSettings(
-        <main className="empty-state">
-          <div className="empty-panel squircle">
-            <strong>Could not open plan</strong>
-            <span>{planLoadError}</span>
-          </div>
-        </main>,
-      );
-    }
-    return withAgentSettings(
-      planDocument && configLoaded ? (
-        <Suspense fallback={<main className="loading">Loading…</main>}>
-          <PlanEditorView document={planDocument} onReady={markInitialContentReady} />
-        </Suspense>
-      ) : (
-        <main className="loading">Loading…</main>
-      ),
-    );
-  }
 
   if (loadError) {
     const showFirstRun =

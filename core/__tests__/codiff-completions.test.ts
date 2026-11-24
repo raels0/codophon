@@ -127,7 +127,7 @@ test('completes refs for flags documented as taking a ref', () => {
 });
 
 test('completes paths for flags documented as taking a file', () => {
-  expect(generateCompletionScript('fish')).toContain('-l plan -r -F');
+  expect(generateCompletionScript('fish')).toContain('-l walkthrough-file -r -F');
 });
 
 test('completes the documented choices for flags that list them', () => {

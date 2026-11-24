@@ -80,30 +80,6 @@ test('preserves repository Markdown file permissions when saving', async () => {
   expect((await stat(path)).mode & 0o777).toBe(0o755);
 });
 
-test('writes through a symlinked plan without replacing the symlink', async () => {
-  await using directory = await createTemporaryDirectory('codiff-plan-symlink-');
-  const target = join(directory.path, 'target.md');
-  const planFile = join(directory.path, 'plan.md');
-  const context = { planFile, repositoryRoot: directory.path };
-
-  await writeFile(target, '# Original\n');
-  await symlink(target, planFile);
-  const document = await readMarkdownDocument({ kind: 'plan', path: planFile }, context);
-
-  await writeMarkdownDocument(
-    {
-      baseVersion: document.version,
-      content: '# Updated\n',
-      kind: 'plan',
-      path: planFile,
-    },
-    context,
-  );
-
-  expect((await lstat(planFile)).isSymbolicLink()).toBe(true);
-  expect(await readFile(target, 'utf8')).toBe('# Updated\n');
-});
-
 test('returns the disk document when a stale version attempts to overwrite it', async () => {
   await using directory = await createTemporaryDirectory('codiff-markdown-conflict-');
   const path = join(directory.path, 'plan.md');
@@ -129,31 +105,6 @@ test('returns the disk document when a stale version attempts to overwrite it', 
     },
     name: 'MarkdownDocumentConflictError',
   });
-});
-
-test('allows only the exact plan file and repository-contained Markdown paths', async () => {
-  await using directory = await createTemporaryDirectory('codiff-markdown-paths-');
-  const planFile = join(directory.path, 'plan.md');
-
-  await writeFile(planFile, '# Plan\n');
-  await expect(
-    readMarkdownDocument(
-      { kind: 'plan', path: join(directory.path, 'other.md') },
-      { planFile, repositoryRoot: directory.path },
-    ),
-  ).rejects.toThrow('does not belong to this window');
-  await expect(
-    readMarkdownDocument(
-      { kind: 'repository', path: '../plan.md' },
-      { repositoryRoot: directory.path },
-    ),
-  ).rejects.toThrow('escapes the repository');
-  await expect(
-    readMarkdownDocument(
-      { kind: 'repository', path: 'plan.txt' },
-      { repositoryRoot: directory.path },
-    ),
-  ).rejects.toThrow('Invalid repository Markdown path');
 });
 
 test('rejects repository Markdown paths that resolve outside through a symlink', async () => {

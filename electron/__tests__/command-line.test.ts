@@ -150,30 +150,6 @@ test('parses the OpenCode agent override', () => {
   });
 });
 
-test('plan command lines do not inspect Git refs', { concurrent: false }, async () => {
-  await using directory = await createTemporaryDirectory('codiff-plan-command-line-');
-  const fakeBin = join(directory.path, 'bin');
-  const gitMarker = join(directory.path, 'git-invoked');
-  const planFile = join(directory.path, 'plan.md');
-  await using _environment = createTemporaryEnvironment({
-    PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
-  });
-
-  await mkdir(fakeBin);
-  await writeFile(planFile, '# Plan\n');
-  await writeFile(join(fakeBin, 'git'), `#!/bin/sh\nprintf invoked > "${gitMarker}"\nexit 99\n`);
-  await chmod(join(fakeBin, 'git'), 0o755);
-
-  expect(readCommandLine(['codiff', '--plan-file', planFile, 'workspace'])).toMatchObject({
-    launchOptions: {
-      planFile,
-      repositoryPathProvided: true,
-    },
-    repositoryPath: 'workspace',
-  });
-  expect(await readFile(gitMarker, 'utf8').catch(() => null)).toBeNull();
-});
-
 test('parses commit and walkthrough command-line options', () => {
   expect(readCommandLine(['codiff', '--walkthrough', '--commit', 'HEAD', '/repo'])).toEqual({
     launchOptions: {
@@ -185,27 +161,6 @@ test('parses commit and walkthrough command-line options', () => {
       walkthrough: true,
     },
     pullRequestNumber: null,
-    repositoryPath: '/repo',
-  });
-});
-
-test('parses plan handoff command-line options', () => {
-  expect(
-    readCommandLine([
-      'codiff',
-      '--plan-file',
-      '/tmp/plan.md',
-      '--plan-result-file',
-      '/tmp/result.json',
-      '/repo',
-    ]),
-  ).toMatchObject({
-    launchOptions: {
-      planFile: '/tmp/plan.md',
-      planResultFile: '/tmp/result.json',
-      repositoryPathProvided: true,
-      walkthrough: false,
-    },
     repositoryPath: '/repo',
   });
 });
@@ -564,18 +519,6 @@ test('does not restore over explicit launch intent', async () => {
       {
         repositoryPathProvided: false,
         walkthrough: true,
-      },
-      directory.path,
-      {},
-    ),
-  ).toBe('/fallback');
-  expect(
-    getInitialRepositoryPath(
-      '/fallback',
-      {
-        planFile: '/tmp/plan.md',
-        repositoryPathProvided: false,
-        walkthrough: false,
       },
       directory.path,
       {},

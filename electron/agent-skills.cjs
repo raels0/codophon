@@ -23,13 +23,13 @@ const AGENT_SKILLS = Object.freeze([
     agentLabel: 'Codex',
     id: 'codex',
     label: 'Codex Skill',
-    targets: [{ sourceSubdir: 'codex/skills/codiff', targetSubdir: '.codex/skills/codiff' }],
+    targets: [{ sourceSubdir: 'skills/codiff', targetSubdir: '.codex/skills/codiff' }],
   },
   {
     agentLabel: 'Claude Code',
     id: 'claude',
     label: 'Claude Code Skill',
-    targets: [{ sourceSubdir: 'claude/skills/codiff', targetSubdir: '.claude/skills/codiff' }],
+    targets: [{ sourceSubdir: 'skills/codiff', targetSubdir: '.claude/skills/codiff' }],
   },
   {
     agentLabel: 'OpenCode',
@@ -39,7 +39,7 @@ const AGENT_SKILLS = Object.freeze([
           '<!-- Managed by Codiff. Reinstall the OpenCode integration instead of editing this file. -->',
         ],
         managedMarker: '<!-- codiff-managed-opencode-command:v1 -->',
-        sourceSubdir: 'opencode/commands/codiff.md',
+        sourceSubdir: 'skills/opencode-command.md',
         targetSubdir: '.config/opencode/commands/codiff.md',
       },
     ],
@@ -47,7 +47,7 @@ const AGENT_SKILLS = Object.freeze([
     label: 'OpenCode Skill',
     targets: [
       {
-        sourceSubdir: 'opencode/skills/codiff',
+        sourceSubdir: 'skills/codiff',
         targetSubdir: '.config/opencode/skills/codiff',
       },
     ],

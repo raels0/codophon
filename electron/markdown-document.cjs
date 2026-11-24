@@ -70,44 +70,16 @@ const resolveRepositoryMarkdownPath = (root, filePath) => {
   };
 };
 
-/** @param {string} filePath */
-const resolvePlanMarkdownPath = (filePath) => {
-  const requestedPath = resolve(filePath);
-  if (!isMarkdownPath(requestedPath)) {
-    throw new Error('Plan files must use the .md extension.');
-  }
-  const absolutePath = realpathSync(requestedPath);
-
-  return {
-    absolutePath,
-    id: `plan:${requestedPath}`,
-    kind: /** @type {const} */ ('plan'),
-    path: requestedPath,
-  };
-};
-
 /**
- * @param {{kind: 'plan' | 'repository'; path: string}} request
- * @param {{planFile?: string; repositoryRoot: string}} context
+ * @param {{kind: 'repository'; path: string}} request
+ * @param {{repositoryRoot: string}} context
  */
 const resolveMarkdownPath = (request, context) => {
-  if (request.kind === 'plan') {
-    if (!context.planFile) {
-      throw new Error('This window does not have a plan document.');
-    }
-
-    const plan = resolvePlanMarkdownPath(context.planFile);
-    if (request.path && resolve(request.path) !== plan.path) {
-      throw new Error('The requested plan does not belong to this window.');
-    }
-    return plan;
-  }
-
   return resolveRepositoryMarkdownPath(context.repositoryRoot, request.path);
 };
 
 /**
- * @param {{absolutePath: string; id: string; kind: 'plan' | 'repository'; path: string}} resolved
+ * @param {{absolutePath: string; id: string; kind: 'repository'; path: string}} resolved
  * @returns {Promise<import('../core/types.ts').CodiffMarkdownDocument>}
  */
 const readResolvedMarkdownDocument = async (resolved) => {
@@ -132,8 +104,8 @@ const readResolvedMarkdownDocument = async (resolved) => {
 };
 
 /**
- * @param {{kind: 'plan' | 'repository'; path: string}} request
- * @param {{planFile?: string; repositoryRoot: string}} context
+ * @param {{kind: 'repository'; path: string}} request
+ * @param {{repositoryRoot: string}} context
  */
 const readMarkdownDocument = async (request, context) =>
   readResolvedMarkdownDocument(resolveMarkdownPath(request, context));
@@ -142,10 +114,10 @@ const readMarkdownDocument = async (request, context) =>
  * @param {{
  *   baseVersion: string;
  *   content: string;
- *   kind: 'plan' | 'repository';
+ *   kind: 'repository';
  *   path: string;
  * }} request
- * @param {{planFile?: string; repositoryRoot: string}} context
+ * @param {{repositoryRoot: string}} context
  */
 const writeMarkdownDocument = async (request, context) => {
   if (Buffer.byteLength(request.content, 'utf8') > MAX_MARKDOWN_BYTES) {
@@ -192,7 +164,7 @@ const writeMarkdownDocument = async (request, context) => {
  * @param {{
  *   onChange: (document: import('../core/types.ts').CodiffMarkdownDocument) => void;
  *   onDelete?: (id: string) => void;
- *   resolved: {absolutePath: string; id: string; kind: 'plan' | 'repository'; path: string};
+ *   resolved: {absolutePath: string; id: string; kind: 'repository'; path: string};
  * }} options
  */
 const watchMarkdownDocument = ({ onChange, onDelete, resolved }) => {

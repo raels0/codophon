@@ -71,7 +71,6 @@ const { releasePageUrl } = require('./update-check.cjs');
 const { createUpdater, resolveUpdateStrategy } = require('./updater.cjs');
 const { parseReviewUrl, resolveReviewUrl } = require('./review-source.cjs');
 const {
-  getPlanWindowTitle,
   getRepositoryWindowTitle,
   restoreRepositoryWindowTitleAfterLoad,
 } = require('./window-title.cjs');
@@ -122,7 +121,6 @@ const {
   createRepositoryWatcherCoordinator,
   readRepositoryWatcherSnapshot,
 } = require('./repository-watcher.cjs');
-const { getPlanReviewPath, readPlanReview, writePlanReview } = require('./plan-review.cjs');
 const { createWalkthroughProgressReporter } = require('./walkthrough-progress.cjs');
 
 /**
@@ -150,14 +148,8 @@ const windowLaunchOptions = new Map();
 const windowInitialRepositoryStates = new Map();
 /** @type {Map<number, number>} */
 const walkthroughProgressGenerations = new Map();
-/** @type {Map<number, string>} */
-const planInitialVersions = new Map();
-/** @type {Set<number>} */
-const readyPlanWindows = new Set();
 /** @type {Map<number, Map<string, () => void>>} */
 const markdownDocumentWatchers = new Map();
-/** @type {Set<number>} */
-const completedPlanWindows = new Set();
 /** @type {Set<import('electron').BrowserWindow>} */
 const openWindows = new Set();
 const pendingCommentsClipboardController = createPendingCommentsClipboardController({ clipboard });
@@ -251,7 +243,6 @@ const getWindowRepositoryRoot = (webContentsId) =>
 
 /** @param {number} webContentsId */
 const getMarkdownDocumentContext = (webContentsId) => ({
-  planFile: windowLaunchOptions.get(webContentsId)?.planFile,
   repositoryRoot: getWindowRepositoryRoot(webContentsId),
 });
 
@@ -291,7 +282,7 @@ const clearMarkdownDocumentWatchers = (webContentsId) => {
 
 /**
  * @param {import('electron').WebContents} webContents
- * @param {{kind: 'plan' | 'repository'; path: string}} request
+ * @param {{kind: 'repository'; path: string}} request
  */
 const ensureMarkdownDocumentWatcher = (webContents, request) => {
   const webContentsId = webContents.id;
@@ -322,46 +313,6 @@ const ensureMarkdownDocumentWatcher = (webContents, request) => {
     }),
   );
   markdownDocumentWatchers.set(webContentsId, watchers);
-};
-
-/**
- * @param {number} webContentsId
- * @param {'canceled' | 'closed' | 'done' | 'open'} status
- * @param {import('../core/types.ts').PlanReview} [review]
- */
-const writePlanResult = (webContentsId, status, review) => {
-  const launchOptions = windowLaunchOptions.get(webContentsId);
-  if (!launchOptions?.planFile || !launchOptions.planResultFile) {
-    return;
-  }
-  if (status === 'done' || status === 'closed') {
-    completedPlanWindows.add(webContentsId);
-  } else if (completedPlanWindows.has(webContentsId)) {
-    return;
-  }
-
-  try {
-    writeFileSync(
-      launchOptions.planResultFile,
-      `${JSON.stringify({
-        path: launchOptions.planFile,
-        pid: process.pid,
-        ...(review
-          ? { reviewPath: getPlanReviewPath(app.getPath('userData'), launchOptions.planFile) }
-          : {}),
-        ...(review ? { review } : {}),
-        ...(review && planInitialVersions.has(webContentsId)
-          ? {
-              documentChanged: review.document.version !== planInitialVersions.get(webContentsId),
-            }
-          : {}),
-        status,
-      })}\n`,
-      'utf8',
-    );
-  } catch {
-    // The waiting process may have been interrupted and removed its temporary result directory.
-  }
 };
 
 const sendConfigChanged = () => {
@@ -1041,10 +992,8 @@ const createWindow = (
   }
   windowRepositories.set(webContentsId, identity?.repositoryRoot || repositoryPath);
   windowLaunchOptions.set(webContentsId, launchOptions);
-  const initialRepositoryStatePromise = launchOptions.planFile
-    ? null
-    : preloadedRepositoryState ||
-      readInitialRepositoryStateWithConfig(repositoryPath, launchOptions);
+  const initialRepositoryStatePromise =
+    preloadedRepositoryState || readInitialRepositoryStateWithConfig(repositoryPath, launchOptions);
   const initialRepositoryState = initialRepositoryStatePromise?.then((state) => {
     if (!window.isDestroyed()) {
       storeResolvedRepositoryState(webContentsId, state);
@@ -1056,10 +1005,9 @@ const createWindow = (
     windowInitialRepositoryStates.set(webContentsId, initialRepositoryState);
   }
   if (
-    !launchOptions.planFile &&
-    (!launchOptions.source ||
-      launchOptions.source.type === 'branch' ||
-      launchOptions.source.type === 'branch-working-tree')
+    !launchOptions.source ||
+    launchOptions.source.type === 'branch' ||
+    launchOptions.source.type === 'branch-working-tree'
   ) {
     void initialRepositoryState
       .then((state) => {
@@ -1113,21 +1061,6 @@ const createWindow = (
       });
     } catch {}
 
-    if (launchOptions.planFile) {
-      if (completedPlanWindows.has(webContentsId)) {
-        return;
-      }
-      if (!readyPlanWindows.has(webContentsId)) {
-        writePlanResult(webContentsId, 'canceled');
-        return;
-      }
-      event.preventDefault();
-      if (!window.webContents.isDestroyed()) {
-        window.webContents.send('codiff:planCloseRequested');
-      }
-      return;
-    }
-
     if (allowClose || quitting || !config.settings.copyCommentsOnClose) {
       return;
     }
@@ -1150,9 +1083,6 @@ const createWindow = (
     definitionSearchCoordinator.cancel(webContentsId);
     repositoryWatcherCoordinator.detach(webContentsId);
     clearMarkdownDocumentWatchers(webContentsId);
-    completedPlanWindows.delete(webContentsId);
-    planInitialVersions.delete(webContentsId);
-    readyPlanWindows.delete(webContentsId);
     windowIdentities.delete(webContentsId);
     windowRevealControllers.delete(webContentsId);
     windowInitialRepositoryStates.delete(webContentsId);
@@ -1163,40 +1093,11 @@ const createWindow = (
   });
   window.webContents.on('render-process-gone', () => {
     definitionSearchCoordinator.cancel(webContentsId);
-    writePlanResult(webContentsId, 'canceled');
   });
-  window.webContents.on(
-    'did-fail-load',
-    (_event, errorCode, _errorDescription, _url, isMainFrame) => {
-      if (isMainFrame && errorCode !== -3) {
-        writePlanResult(webContentsId, 'canceled');
-      }
-    },
-  );
   window.webContents.on('did-finish-load', () => {
-    const currentLaunchOptions = windowLaunchOptions.get(webContentsId);
-    if (!currentLaunchOptions?.planFile) {
-      // The renderer's static HTML title can replace the title set while repository state loads.
-      // Reapply the resolved title after every navigation so the native window list stays useful.
-      void restoreRepositoryWindowTitleAfterLoad(window, initialRepositoryState).catch(() => {});
-      return;
-    }
-    // The renderer's static HTML title replaces constructor titles during navigation.
-    // Set this after every plan load so native window lists keep the plan filename.
-    window.setTitle(getPlanWindowTitle(currentLaunchOptions.planFile));
-    void readMarkdownDocument(
-      { kind: 'plan', path: currentLaunchOptions.planFile },
-      getMarkdownDocumentContext(webContentsId),
-    ).then(
-      (document) => {
-        if (!planInitialVersions.has(webContentsId)) {
-          planInitialVersions.set(webContentsId, document.version);
-        }
-      },
-      () => {
-        writePlanResult(webContentsId, 'canceled');
-      },
-    );
+    // The renderer's static HTML title can replace the title set while repository state loads.
+    // Reapply the resolved title after every navigation so the native window list stays useful.
+    void restoreRepositoryWindowTitleAfterLoad(window, initialRepositoryState).catch(() => {});
   });
 
   const rendererURL = process.env.ELECTRON_RENDERER_URL;
@@ -1246,21 +1147,15 @@ const focusOrCreateWindow = (
         );
 
   if (matchingWindow) {
-    if (launchOptions.planFile || launchOptions.walkthrough || launchOptions.walkthroughFile) {
+    if (launchOptions.walkthrough || launchOptions.walkthroughFile) {
       walkthroughLaunchController.clear(matchingWebContentsId);
       windowRepositories.set(matchingWebContentsId, identity?.repositoryRoot || repositoryPath);
       windowLaunchOptions.set(matchingWebContentsId, launchOptions);
-      if (launchOptions.planFile) {
-        planInitialVersions.delete(matchingWebContentsId);
-        readyPlanWindows.delete(matchingWebContentsId);
-        windowInitialRepositoryStates.delete(matchingWebContentsId);
-      } else {
-        windowInitialRepositoryStates.set(
-          matchingWebContentsId,
-          preloadedRepositoryState ||
-            readInitialRepositoryStateWithConfig(repositoryPath, launchOptions),
-        );
-      }
+      windowInitialRepositoryStates.set(
+        matchingWebContentsId,
+        preloadedRepositoryState ||
+          readInitialRepositoryStateWithConfig(repositoryPath, launchOptions),
+      );
       if (identity) {
         windowIdentities.set(matchingWebContentsId, identity);
       }
@@ -1557,9 +1452,6 @@ ipcMain.handle('codiff:resolvePullRequestUrl', (event, value) => {
 
 ipcMain.handle('codiff:getMarkdownDocument', async (event, request) => {
   const document = await readMarkdownDocument(request, getMarkdownDocumentContext(event.sender.id));
-  if (request.kind === 'plan' && !planInitialVersions.has(event.sender.id)) {
-    planInitialVersions.set(event.sender.id, document.version);
-  }
   ensureMarkdownDocumentWatcher(event.sender, request);
   return document;
 });
@@ -1605,42 +1497,6 @@ ipcMain.handle('codiff:saveMarkdownDocument', async (event, request) => {
     }
     throw error;
   }
-});
-
-ipcMain.handle('codiff:getPlanReview', async (event) => {
-  const launchOptions = windowLaunchOptions.get(event.sender.id);
-  if (!launchOptions?.planFile) {
-    throw new Error('This window does not have a plan document.');
-  }
-  return readPlanReview(app.getPath('userData'), launchOptions.planFile);
-});
-
-ipcMain.handle('codiff:savePlanReview', async (event, review) => {
-  const launchOptions = windowLaunchOptions.get(event.sender.id);
-  if (!launchOptions?.planFile) {
-    throw new Error('This window does not have a plan document.');
-  }
-  return writePlanReview(app.getPath('userData'), launchOptions.planFile, review);
-});
-
-ipcMain.handle('codiff:completePlan', async (event, review, requestedStatus) => {
-  const launchOptions = windowLaunchOptions.get(event.sender.id);
-  if (!launchOptions?.planFile) {
-    throw new Error('This window does not have a plan document.');
-  }
-  const status = requestedStatus === 'closed' ? 'closed' : 'done';
-  const savedReview = await writePlanReview(
-    app.getPath('userData'),
-    launchOptions.planFile,
-    review,
-  );
-  writePlanResult(event.sender.id, status, savedReview);
-  BrowserWindow.fromWebContents(event.sender)?.close();
-});
-
-ipcMain.handle('codiff:markPlanReady', async (event) => {
-  readyPlanWindows.add(event.sender.id);
-  writePlanResult(event.sender.id, 'open');
 });
 
 ipcMain.handle(

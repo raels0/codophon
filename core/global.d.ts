@@ -24,8 +24,6 @@ import type {
   NarrativeWalkthroughRequestOptions,
   NarrativeWalkthroughResult,
   OpenReviewSourceKind,
-  PlanHandoffStatus,
-  PlanReview,
   RepositoryHistory,
   ReviewBriefPostedComment,
   RepositoryFileDocument,
@@ -56,7 +54,6 @@ declare global {
     codiff: {
       applyUpdate: () => Promise<CodiffUpdateStatus>;
       askReviewAssistant: (request: ReviewAssistantRequest) => Promise<ReviewAssistantResult>;
-      completePlan: (review: PlanReview, status: PlanHandoffStatus) => Promise<void>;
       createWalkthroughCommit: (
         request: WalkthroughCommitRequest,
       ) => Promise<WalkthroughCommitResult>;
@@ -80,7 +77,6 @@ declare global {
         source?: ReviewSource,
         options?: NarrativeWalkthroughRequestOptions,
       ) => Promise<NarrativeWalkthroughResult>;
-      getPlanReview: () => Promise<PlanReview | null>;
       getPreferences: () => Promise<CodiffPreferences>;
       getRepositoryFile: (path: string) => Promise<RepositoryFileDocument>;
       getRepositoryHistory: (limit?: number, source?: ReviewSource) => Promise<RepositoryHistory>;
@@ -94,7 +90,6 @@ declare global {
       installAgentSkill: () => Promise<AgentSkillStatus>;
       installTerminalHelper: () => Promise<TerminalHelperStatus>;
       isWindowFullScreen: () => Promise<boolean>;
-      markPlanReady: () => Promise<void>;
       markWindowReady: () => void;
       onConfigChanged: (callback: (config: CodiffConfig) => void) => () => void;
       onCopyPendingCommentsRequest: (callback: () => string | Promise<string>) => () => void;
@@ -109,7 +104,6 @@ declare global {
       ) => () => void;
       onOpenAgentSettings?: (callback: (section: AgentSettingsSection) => void) => () => void;
       onOpenReviewSource: (callback: (kind: OpenReviewSourceKind) => void) => () => void;
-      onPlanCloseRequested: (callback: () => void) => () => void;
       onRefreshRequest: (callback: () => void) => () => void;
       onRepositoryChanged: (callback: (change: { root: string }) => void) => () => void;
       onUpdateStatusChanged: (callback: (status: CodiffUpdateStatus) => void) => () => void;
@@ -125,7 +119,6 @@ declare global {
       saveMarkdownDocument: (
         request: SaveMarkdownDocumentRequest,
       ) => Promise<SaveMarkdownDocumentResult>;
-      savePlanReview: (review: PlanReview) => Promise<PlanReview>;
       saveRepositoryFile: (request: SaveRepositoryFileRequest) => Promise<SaveRepositoryFileResult>;
       selectAgentModel?: (agent: CodiffAgentBackend, model: string) => Promise<void>;
       setAgentPrompt?: (id: AgentPromptId, text: string | null) => Promise<AgentPromptOverrides>;

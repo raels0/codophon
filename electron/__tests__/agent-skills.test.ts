@@ -51,13 +51,13 @@ test('lists every bundled skill with its installation target', () => {
       agentLabel: 'Codex',
       id: 'codex',
       label: 'Codex Skill',
-      targets: [{ sourceSubdir: 'codex/skills/codiff', targetSubdir: '.codex/skills/codiff' }],
+      targets: [{ sourceSubdir: 'skills/codiff', targetSubdir: '.codex/skills/codiff' }],
     },
     {
       agentLabel: 'Claude Code',
       id: 'claude',
       label: 'Claude Code Skill',
-      targets: [{ sourceSubdir: 'claude/skills/codiff', targetSubdir: '.claude/skills/codiff' }],
+      targets: [{ sourceSubdir: 'skills/codiff', targetSubdir: '.claude/skills/codiff' }],
     },
     {
       agentLabel: 'OpenCode',
@@ -67,7 +67,7 @@ test('lists every bundled skill with its installation target', () => {
             '<!-- Managed by Codiff. Reinstall the OpenCode integration instead of editing this file. -->',
           ],
           managedMarker: '<!-- codiff-managed-opencode-command:v1 -->',
-          sourceSubdir: 'opencode/commands/codiff.md',
+          sourceSubdir: 'skills/opencode-command.md',
           targetSubdir: '.config/opencode/commands/codiff.md',
         },
       ],
@@ -75,7 +75,7 @@ test('lists every bundled skill with its installation target', () => {
       label: 'OpenCode Skill',
       targets: [
         {
-          sourceSubdir: 'opencode/skills/codiff',
+          sourceSubdir: 'skills/codiff',
           targetSubdir: '.config/opencode/skills/codiff',
         },
       ],
@@ -95,31 +95,13 @@ test('builds an Install Skill submenu that routes each agent action', () => {
   expect(install).toHaveBeenCalledWith(expect.objectContaining({ id: 'opencode' }), browserWindow);
 });
 
-test('keeps skill instructions identical outside agent integration details', async () => {
-  const paths = [
-    'codex/skills/codiff/SKILL.md',
-    'claude/skills/codiff/SKILL.md',
-    'opencode/skills/codiff/SKILL.md',
-  ];
-  const documents = await Promise.all(paths.map((path) => readFile(path, 'utf8')));
-  const normalized = documents.map((document) => {
-    expect(document).toContain('   **Agent integration:**');
-    return document.replace(
-      /   \*\*Agent integration:\*\*[\s\S]*?\n\n/,
-      '   **Agent integration:** <agent-specific>\n\n',
-    );
-  });
-
-  expect(new Set(normalized).size).toBe(1);
-});
-
 test('installs the OpenCode skill into its global skills directory', async () => {
   await using directory = await createTemporaryDirectory('codiff-opencode-skill-');
   const home = join(directory.path, 'home');
   const root = join(directory.path, 'app');
-  const source = join(root, 'opencode/skills/codiff');
+  const source = join(root, 'skills/codiff');
   const target = join(home, '.config/opencode/skills/codiff');
-  const commandSource = join(root, 'opencode/commands/codiff.md');
+  const commandSource = join(root, 'skills/opencode-command.md');
   const commandTarget = join(home, '.config/opencode/commands/codiff.md');
   const skill = listAgentSkills().find(({ id }) => id === 'opencode');
   let model = 'anthropic/claude-sonnet-4-6';
@@ -162,8 +144,8 @@ test('does not replace a user-authored OpenCode command', async () => {
   await using directory = await createTemporaryDirectory('codiff-opencode-command-conflict-');
   const home = join(directory.path, 'home');
   const root = join(directory.path, 'app');
-  const source = join(root, 'opencode/skills/codiff');
-  const commandSource = join(root, 'opencode/commands/codiff.md');
+  const source = join(root, 'skills/codiff');
+  const commandSource = join(root, 'skills/opencode-command.md');
   const commandTarget = join(home, '.config/opencode/commands/codiff.md');
   const skill = listAgentSkills().find(({ id }) => id === 'opencode');
 
@@ -199,7 +181,7 @@ test('replaces a dangling skill symlink on reinstall', async () => {
   await using directory = await createTemporaryDirectory('codiff-dangling-skill-');
   const home = join(directory.path, 'home');
   const root = join(directory.path, 'app');
-  const source = join(root, 'claude/skills/codiff');
+  const source = join(root, 'skills/codiff');
   const target = join(home, '.claude/skills/codiff');
   const skill = listAgentSkills().find(({ id }) => id === 'claude');
 

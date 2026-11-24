@@ -55,13 +55,6 @@ export const flagDefinitions = [
     type: 'string',
   },
   {
-    argument: '<file>',
-    consumesSource: true,
-    description: 'Edit a Markdown plan and wait until it is handed back.',
-    name: 'plan',
-    type: 'string',
-  },
-  {
     description: 'Show version number and exit.',
     name: 'version',
     short: 'v',
@@ -291,7 +284,6 @@ export const parseArguments = (args) => {
     typeof values['claude-session'] === 'string' ? values['claude-session'] : null;
   const opencodeSessionId =
     typeof values['opencode-session'] === 'string' ? values['opencode-session'] : null;
-  const planFilePath = typeof values.plan === 'string' ? values.plan : null;
   // `--completions` without a value parses as `true`; keep it as an empty shell
   // so the command can tell "no shell given" apart from "flag not used".
   const completionShell =
@@ -318,10 +310,6 @@ export const parseArguments = (args) => {
 
   for (let index = 0; index < positionals.length; index += 1) {
     const arg = positionals[index];
-    if (planFilePath) {
-      requestedPath ??= arg;
-      continue;
-    }
     const parsedPullRequestUrl = pullRequestUrl ? null : parsePullRequestUrlArgument(arg);
     if (parsedPullRequestUrl) {
       pullRequestUrl = parsedPullRequestUrl;
@@ -406,7 +394,6 @@ export const parseArguments = (args) => {
     ...(claudeSessionId ? { claudeSessionId } : {}),
     ...(codexSessionId ? { codexSessionId } : {}),
     ...(opencodeSessionId ? { opencodeSessionId } : {}),
-    ...(planFilePath ? { planFilePath: resolve(planFilePath) } : {}),
     ...(branchRef ? { branchRef } : {}),
     ...(range ? { range } : {}),
     commitRef,

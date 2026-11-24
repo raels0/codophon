@@ -136,12 +136,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
       'opencode-session': {
         type: 'string',
       },
-      'plan-file': {
-        type: 'string',
-      },
-      'plan-result-file': {
-        type: 'string',
-      },
       'walkthrough-context': {
         type: 'string',
       },
@@ -163,16 +157,9 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
   let repositoryPath = null;
   let sourceCandidate = null;
   let rangeCandidate = null;
-  const requestedPlanFilePath =
-    (typeof values['plan-file'] === 'string' ? values['plan-file'] : '') ||
-    (useEnvironment ? process.env.CODIFF_PLAN_FILE || '' : '');
 
   for (let index = 0; index < positionals.length; index += 1) {
     const arg = positionals[index];
-    if (requestedPlanFilePath) {
-      repositoryPath ??= arg;
-      continue;
-    }
     const parsedPullRequestUrl = pullRequestUrl ? null : parsePullRequestUrlArgument(arg);
     if (parsedPullRequestUrl) {
       pullRequestUrl = parsedPullRequestUrl;
@@ -251,8 +238,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
   const envCodexSessionId = useEnvironment ? process.env.CODIFF_CODEX_SESSION_ID || '' : '';
   const envClaudeSessionId = useEnvironment ? process.env.CODIFF_CLAUDE_SESSION_ID || '' : '';
   const envOpenCodeSessionId = useEnvironment ? process.env.CODIFF_OPENCODE_SESSION_ID || '' : '';
-  const envPlanFilePath = useEnvironment ? process.env.CODIFF_PLAN_FILE || '' : '';
-  const envPlanResultFilePath = useEnvironment ? process.env.CODIFF_PLAN_RESULT_FILE || '' : '';
   const envAgentBackend = useEnvironment ? process.env.CODIFF_AGENT_BACKEND || '' : '';
   const envWalkthroughContextPath = useEnvironment
     ? process.env.CODIFF_WALKTHROUGH_CONTEXT || ''
@@ -272,11 +257,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
   const opencodeSessionId =
     (typeof values['opencode-session'] === 'string' ? values['opencode-session'] : '') ||
     envOpenCodeSessionId ||
-    undefined;
-  const planFilePath = requestedPlanFilePath || envPlanFilePath || undefined;
-  const planResultFilePath =
-    (typeof values['plan-result-file'] === 'string' ? values['plan-result-file'] : '') ||
-    envPlanResultFilePath ||
     undefined;
   const rawAgentBackend =
     (typeof values.agent === 'string' ? values.agent : '') || envAgentBackend || '';
@@ -322,8 +302,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
       ...(claudeSessionId ? { claudeSessionId } : {}),
       ...(codexSessionId ? { codexSessionId } : {}),
       ...(opencodeSessionId ? { opencodeSessionId } : {}),
-      ...(planFilePath ? { planFile: resolve(planFilePath) } : {}),
-      ...(planResultFilePath ? { planResultFile: resolve(planResultFilePath) } : {}),
       repositoryPathProvided,
       source:
         sourceRange && sourcePullRequestNumber == null
@@ -419,8 +397,7 @@ const getInitialRepositoryPath = (
     !environment.CODIFF_REPOSITORY_PATH &&
     !launchOptions.repositoryPathProvided &&
     !launchOptions.source &&
-    !launchOptions.walkthrough &&
-    !launchOptions.planFile
+    !launchOptions.walkthrough
   ) {
     return resolve(lastRepositoryPath);
   }

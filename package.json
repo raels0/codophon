@@ -17,13 +17,11 @@
   },
   "files": [
     "bin",
-    "claude",
     "config",
-    "codex",
     "core",
     "dist",
     "electron",
-    "opencode"
+    "skills"
   ],
   "type": "module",
   "main": "./electron/main.cjs",
