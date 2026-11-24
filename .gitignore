@@ -13,3 +13,6 @@ out/
 source_strings.json
 tsconfig.tsbuildinfo
 vite.config.ts.timestamp-*
+
+/test-results/
+/playwright-report/

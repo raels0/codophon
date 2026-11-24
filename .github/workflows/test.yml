@@ -36,3 +36,21 @@ jobs:
           vpr build
       - run: |
           vp run test:all
+
+  user-flows:
+    # The end-to-end flows drive the real Electron app against throwaway repositories.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: 24
+          cache: true
+          run-install: true
+      - run: vp run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/

@@ -40,7 +40,8 @@
     "package:app": "vp build && electron-forge package",
     "prepack": "vp build",
     "prepare": "vp config",
-    "test": "vp test"
+    "test": "vp test",
+    "test:e2e": "vp build && playwright test"
   },
   "dependencies": {
     "@nkzw/mdx-editor": "^1.0.4",
@@ -68,6 +69,7 @@
     "@electron-forge/maker-zip": "^8.0.1",
     "@nkzw/eslint-plugin": "^2.0.0",
     "@nkzw/oxlint-config": "^2.0.1",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
