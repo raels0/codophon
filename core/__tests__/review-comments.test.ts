@@ -268,8 +268,6 @@ test('keeps a submitted shared comment visible until the matching snapshot comme
     {
       author: { login: 'ada', name: 'Ada Lovelace' },
       body: draft.body,
-      canDelete: true,
-      canEdit: true,
       filePath: draft.filePath,
       id: 'persisted-comment',
       lineNumber: draft.lineNumber,

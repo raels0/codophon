@@ -5,7 +5,6 @@ import type { WalkthroughBlockScrollTarget } from './NarrativeWalkthroughView.ts
 
 const emptyFiles: ReadonlyArray<ChangedFile> = [];
 const emptyPaths = new Set<string>();
-const emptyWalkthroughNotes = new Map();
 
 type ReviewCodeViewProps = ComponentProps<typeof ReviewCodeView>;
 
@@ -21,7 +20,6 @@ type WalkthroughReviewProps = Omit<
   | 'scrollTarget'
   | 'selectedPath'
   | 'showSourceDescription'
-  | 'walkthroughNotes'
 >;
 
 const ignorePathScroll = () => {};
@@ -62,7 +60,6 @@ export function WalkthroughDiffSurface({
         showSourceDescription
         sourceDescriptionActions={sourceDescriptionActions ?? reviewProps.sourceDescriptionActions}
         sourceDescriptionFooter={sourceDescriptionFooter ?? reviewProps.sourceDescriptionFooter}
-        walkthroughNotes={emptyWalkthroughNotes}
       />
     </div>
   );

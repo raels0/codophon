@@ -93,10 +93,7 @@ export type ReviewComment = {
   anchor?: 'file' | 'line';
   author?: PullRequestExistingReviewComment['author'];
   body: string;
-  canDelete?: boolean;
-  canEdit?: boolean;
   canReplyThread?: boolean;
-  canResolveThread?: boolean;
   codexReply?: {
     body?: string;
     context?: ReviewAssistantContext;
@@ -112,7 +109,6 @@ export type ReviewComment = {
   id: string;
   isOutdated?: boolean;
   isReadOnly?: boolean;
-  isThreadResolved?: boolean;
   lineNumber?: number;
   remoteSubmit?: {
     error?: string;

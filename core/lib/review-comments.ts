@@ -185,15 +185,11 @@ export const toSubmittedReviewComment = (
   ...(comment.anchor ? { anchor: comment.anchor } : {}),
   author: comment.author,
   body: comment.body,
-  ...(comment.canDelete ? { canDelete: true } : {}),
-  ...(comment.canEdit ? { canEdit: true } : {}),
   ...(comment.canReplyThread === false ? { canReplyThread: false } : {}),
-  ...(comment.canResolveThread ? { canResolveThread: true } : {}),
   filePath: comment.filePath,
   id: comment.id,
   ...(comment.isOutdated ? { isOutdated: true } : {}),
   isReadOnly: true,
-  ...(comment.isThreadResolved ? { isThreadResolved: true } : {}),
   ...(comment.lineNumber != null ? { lineNumber: comment.lineNumber } : {}),
   sectionId: comment.sectionId ?? draft.sectionId,
   ...(comment.side ? { side: comment.side } : {}),
@@ -274,9 +270,7 @@ export const getReviewCommentsDigest = (comments: ReadonlyArray<ReviewComment>) 
             .join(';') ?? ''
         }:${
           comment.remoteSubmit?.status ?? ''
-        }:${comment.remoteSubmit?.error ?? ''}:${comment.threadId ?? ''}:${
-          comment.canResolveThread === true ? '1' : '0'
-        }:${comment.isThreadResolved === true ? '1' : '0'}`,
+        }:${comment.remoteSubmit?.error ?? ''}:${comment.threadId ?? ''}`,
     )
     .join('\0');
 
@@ -446,15 +440,11 @@ export const getReviewCommentsFromState = (state: RepositoryState): ReadonlyArra
           {
             author: comment.author,
             body: comment.body,
-            ...(comment.canDelete ? { canDelete: true } : {}),
-            ...(comment.canEdit ? { canEdit: true } : {}),
             ...(comment.canReplyThread === false ? { canReplyThread: false } : {}),
-            ...(comment.canResolveThread ? { canResolveThread: true } : {}),
             filePath: comment.filePath,
             id: comment.id,
             ...(comment.isOutdated ? { isOutdated: true } : {}),
             isReadOnly: true,
-            ...(comment.isThreadResolved ? { isThreadResolved: true } : {}),
             ...(comment.anchor === 'file' ? { anchor: 'file' as const } : {}),
             ...(comment.lineNumber != null ? { lineNumber: comment.lineNumber } : {}),
             sectionId: section.id,

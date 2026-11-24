@@ -498,11 +498,6 @@
 .wt-arc-node.current:active {
   transform: scale(1.04);
 }
-.wt-hybrid-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
 
 .wt-stop {
   display: flex;

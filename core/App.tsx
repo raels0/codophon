@@ -75,7 +75,6 @@ import {
   type ReviewScrollBehavior,
   type ReviewScrollTarget,
   type SourceSession,
-  type WalkthroughNote,
 } from './lib/app-types.ts';
 import { getAskPR, getAskReviewKey, getAskReviewVersion } from './lib/ask-cache.ts';
 import {
@@ -140,7 +139,6 @@ import type {
 } from './types.ts';
 
 const emptyReviewComments: ReadonlyArray<ReviewComment> = [];
-const emptyWalkthroughNotes = new Map<string, WalkthroughNote>();
 const disableCodeViewWorkerPool = process.env.NODE_ENV === 'test';
 
 const getFailedSectionLoadState = (section: DiffSection): DiffSection =>
@@ -1969,7 +1967,6 @@ export default function App({
     onOpenFile: openFile,
     onReady: markInitialContentReady,
     onRefreshMarkdown: refreshMarkdownFile,
-    onSaveCommentEdit: updateComment,
     onSelectPathFromScroll: updateSelectedPathFromScroll,
     onSubmitComment: submitPullRequestComment,
     onToggleCollapsed: toggleCollapsed,
@@ -2349,7 +2346,6 @@ export default function App({
             forceExpandedPaths={diffSearchMatchPathSet}
             scrollTarget={scrollTarget}
             selectedPath={visibleSelectedPath}
-            walkthroughNotes={emptyWalkthroughNotes}
           />
         )}
       </main>

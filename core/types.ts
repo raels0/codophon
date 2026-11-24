@@ -63,9 +63,7 @@ export type PullRequestReviewActionStatus = {
 
 export type PullRequestReviewStatus = {
   approve?: PullRequestReviewActionStatus;
-  close?: PullRequestReviewActionStatus;
   comment?: PullRequestReviewActionStatus;
-  markReady?: PullRequestReviewActionStatus;
   requestChanges?: PullRequestReviewActionStatus;
 };
 
@@ -116,9 +114,6 @@ export type ReviewSource =
   | {
       author?: ReviewAuthor;
       baseSha?: string;
-      canEditDescription?: boolean;
-      canEditReviewers?: boolean;
-      canEditTitle?: boolean;
       description?: string;
       draft?: boolean;
       headSha?: string;
@@ -269,8 +264,6 @@ export type PlanCommentAuthor = {
 export type PlanCommentMessage = {
   author: PlanCommentAuthor;
   body: string;
-  canDelete?: boolean;
-  canEdit?: boolean;
   createdAt: string;
   id: string;
   updatedAt: string;
@@ -744,13 +737,9 @@ export type PullRequestReviewComment = {
 
 export type PullRequestExistingReviewComment = PullRequestReviewComment & {
   author: ReviewAuthor;
-  canDelete?: boolean;
-  canEdit?: boolean;
   canReplyThread?: boolean;
-  canResolveThread?: boolean;
   id: string;
   isOutdated?: boolean;
-  isThreadResolved?: boolean;
   submittedAt?: string;
   url?: string;
 };
@@ -758,8 +747,6 @@ export type PullRequestExistingReviewComment = PullRequestReviewComment & {
 export type PullRequestGeneralComment = {
   author: ReviewAuthor;
   body: string;
-  canDelete?: boolean;
-  canEdit?: boolean;
   id: string;
   submittedAt?: string;
   url?: string;

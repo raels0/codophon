@@ -104,9 +104,6 @@ const normalizeAuthor = (author) => ({
 const createSource = (pr, metadata, baseSha) => ({
   author: normalizeAuthor(metadata.createdBy),
   baseSha,
-  canEditDescription: false,
-  canEditReviewers: false,
-  canEditTitle: false,
   description: metadata.description?.trim(),
   draft: metadata.isDraft,
   headSha: metadata.lastMergeSourceCommit?.commitId,
@@ -122,10 +119,7 @@ const createSource = (pr, metadata, baseSha) => ({
     }
     return { ...normalizeAuthor(reviewer), approved: (reviewer.vote || 0) > 0, id: reviewer.id };
   }),
-  reviewStatus: {
-    close: { disabled: true, reason: 'Close this pull request in Azure DevOps.' },
-    markReady: { disabled: true, reason: 'Mark this pull request ready in Azure DevOps.' },
-  },
+  reviewStatus: {},
   title: metadata.title,
   type: 'pull-request',
   url: pr.url,

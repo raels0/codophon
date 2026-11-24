@@ -3,8 +3,6 @@ import { CaretDownIcon as CaretDown } from '@phosphor-icons/react/CaretDown';
 import { CaretUpIcon as CaretUp } from '@phosphor-icons/react/CaretUp';
 import { ChatCircleIcon as ChatCircle } from '@phosphor-icons/react/ChatCircle';
 import { CheckIcon as Check } from '@phosphor-icons/react/Check';
-import { CheckCircleIcon as CheckCircle } from '@phosphor-icons/react/CheckCircle';
-import { PowerIcon as Power } from '@phosphor-icons/react/Power';
 import { SealQuestionIcon as SealQuestion } from '@phosphor-icons/react/SealQuestion';
 import { XIcon as X } from '@phosphor-icons/react/X';
 import { Copy as LucideCopy } from 'lucide-react';
@@ -633,8 +631,6 @@ export function PullRequestReviewButtons({
   children,
   disabled,
   hasPendingComments,
-  onClosePullRequest,
-  onMarkPullRequestReady,
   onSubmitReview,
   reviewStatus,
   showCommentReview = false,
@@ -642,8 +638,6 @@ export function PullRequestReviewButtons({
   children?: ReactNode;
   disabled: boolean;
   hasPendingComments: boolean;
-  onClosePullRequest?: () => void;
-  onMarkPullRequestReady?: () => void;
   onSubmitReview: (event: PullRequestReviewEvent, body?: string) => Promise<void> | void;
   reviewStatus?: PullRequestReviewStatus;
   showCommentReview?: boolean;
@@ -651,14 +645,8 @@ export function PullRequestReviewButtons({
   const approveBlocked = isPullRequestReviewActionDisabled(reviewStatus, 'APPROVE');
   const commentBlocked = isPullRequestReviewActionDisabled(reviewStatus, 'COMMENT');
   const requestChangesBlocked = isPullRequestReviewActionDisabled(reviewStatus, 'REQUEST_CHANGES');
-  const closeStatus = reviewStatus?.close;
-  const closeVisible = onClosePullRequest && closeStatus && closeStatus.disabled !== true;
-  const markReadyStatus = reviewStatus?.markReady;
-  const markReadyVisible =
-    onMarkPullRequestReady && markReadyStatus && markReadyStatus.disabled !== true;
   const commentVisible = showCommentReview && !commentBlocked;
-  const hasReviewActions =
-    commentVisible || !approveBlocked || !requestChangesBlocked || markReadyVisible || closeVisible;
+  const hasReviewActions = commentVisible || !approveBlocked || !requestChangesBlocked;
   if (!hasReviewActions && !children) {
     return null;
   }
@@ -719,34 +707,6 @@ export function PullRequestReviewButtons({
             'Request changes',
           )}
         />
-      ) : null}
-      {markReadyVisible ? (
-        <Button
-          action={onMarkPullRequestReady}
-          aria-label="Mark pull request as ready"
-          className="review-submit-button ready"
-          disabled={disabled}
-          pendingPlaceholder="Marking ready…"
-          title={markReadyStatus.reason ?? 'Mark pull request as ready'}
-          type="button"
-        >
-          <CheckCircle aria-hidden className="review-submit-icon ready" size={15} weight="bold" />
-          <span>Mark ready</span>
-        </Button>
-      ) : null}
-      {closeVisible ? (
-        <Button
-          action={onClosePullRequest}
-          aria-label="Close pull request"
-          className="review-submit-button close"
-          disabled={disabled}
-          pendingPlaceholder="Closing…"
-          title={closeStatus.reason ?? 'Close pull request'}
-          type="button"
-        >
-          <Power aria-hidden className="review-submit-icon close" size={15} weight="bold" />
-          <span>Close</span>
-        </Button>
       ) : null}
     </div>
   );
