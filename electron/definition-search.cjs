@@ -320,9 +320,8 @@ const resolveSearchRevision = async (request, repoPath) => {
     head = source.headSha || null;
     base = source.baseSha || null;
   } else if (source.type === 'pull-request' && source.number != null) {
-    const namespace = source.provider === 'gitlab' ? 'merge-requests' : 'pull-requests';
-    head = `refs/codiff/${namespace}/${source.number}/head`;
-    base = `refs/codiff/${namespace}/${source.number}/base`;
+    head = `refs/codiff/pull-requests/${source.number}/head`;
+    base = `refs/codiff/pull-requests/${source.number}/base`;
     mergeBase = true;
   }
 

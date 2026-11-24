@@ -9,7 +9,7 @@ const { parseRemoteUrl, parseReviewUrl } = require('../review-source.cjs') as {
     organization?: string;
     project?: string;
     projectPath: string;
-    provider: 'github' | 'gitlab' | 'azure-devops';
+    provider: 'github' | 'azure-devops';
     repo?: string;
     webHost?: string;
   } | null;
@@ -20,7 +20,7 @@ const { parseRemoteUrl, parseReviewUrl } = require('../review-source.cjs') as {
     owner?: string;
     project?: string;
     projectPath: string;
-    provider: 'github' | 'gitlab' | 'azure-devops';
+    provider: 'github' | 'azure-devops';
     repo?: string;
     url: string;
   } | null;
@@ -83,48 +83,6 @@ test('parseReviewUrl strips a `.git` suffix from GitHub repositories', () => {
   });
 });
 
-test('parseReviewUrl reads GitLab merge request URLs on arbitrary hosts', () => {
-  expect(
-    parseReviewUrl('https://gitlab.example.com/group/subgroup/project/-/merge_requests/23'),
-  ).toEqual({
-    host: 'gitlab.example.com',
-    number: 23,
-    projectPath: 'group/subgroup/project',
-    provider: 'gitlab',
-    url: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
-  });
-});
-
-test('parseReviewUrl ignores GitLab tab segments, queries and fragments', () => {
-  for (const value of [
-    'https://gitlab.example.com/group/project/-/merge_requests/23/',
-    'https://gitlab.example.com/group/project/-/merge_requests/23/diffs',
-    'https://gitlab.example.com/group/project/-/merge_requests/23/diffs#note_9182',
-    'https://gitlab.example.com/group/project/-/merge_requests/23/commits',
-    'https://gitlab.example.com/group/project/-/merge_requests/23/pipelines',
-    'https://gitlab.example.com/group/project/-/merge_requests/23?commit_id=0f1e2d3c',
-    'gitlab.example.com/group/project/-/merge_requests/23/diffs',
-  ]) {
-    expect(parseReviewUrl(value)).toMatchObject({
-      number: 23,
-      projectPath: 'group/project',
-      provider: 'gitlab',
-      url: 'https://gitlab.example.com/group/project/-/merge_requests/23',
-    });
-  }
-});
-
-test('parseReviewUrl reads legacy GitLab merge request URLs without the `/-/` segment', () => {
-  expect(
-    parseReviewUrl('https://gitlab.example.com/group/project/merge_requests/23/diffs'),
-  ).toMatchObject({
-    number: 23,
-    projectPath: 'group/project',
-    provider: 'gitlab',
-    url: 'https://gitlab.example.com/group/project/-/merge_requests/23',
-  });
-});
-
 test('parseReviewUrl rejects values that are not review URLs', () => {
   for (const value of [
     '',
@@ -142,28 +100,13 @@ test('parseReviewUrl rejects values that are not review URLs', () => {
   }
 });
 
-test('parseRemoteUrl drops a custom port from `ssh://` remotes', () => {
-  expect(parseRemoteUrl('ssh://git@gitlab.example.com:2222/group/project.git')).toEqual({
-    host: 'gitlab.example.com',
-    projectPath: 'group/project',
-    provider: 'gitlab',
-  });
-});
-
-test('parseRemoteUrl keeps an explicit port on `https://` remotes', () => {
-  expect(parseRemoteUrl('https://gitlab.example.com:8443/group/subgroup/project.git')).toEqual({
-    host: 'gitlab.example.com:8443',
-    projectPath: 'group/subgroup/project',
-    provider: 'gitlab',
-  });
+test('parseRemoteUrl ignores remotes that are neither GitHub nor Azure DevOps', () => {
+  expect(parseRemoteUrl('ssh://git@gitlab.example.com:2222/group/project.git')).toBeNull();
+  expect(parseRemoteUrl('https://gitlab.example.com:8443/group/subgroup/project.git')).toBeNull();
+  expect(parseRemoteUrl('git@gitlab.example.com:group/project.git')).toBeNull();
 });
 
 test('parseRemoteUrl reads scp-style and GitHub remotes', () => {
-  expect(parseRemoteUrl('git@gitlab.example.com:group/project.git')).toEqual({
-    host: 'gitlab.example.com',
-    projectPath: 'group/project',
-    provider: 'gitlab',
-  });
   expect(parseRemoteUrl('https://github.com/nkzw-tech/codiff.git')).toEqual({
     host: 'github.com',
     projectPath: 'nkzw-tech/codiff',

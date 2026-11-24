@@ -26,8 +26,6 @@ import { buildReviewCommentsMarkdown } from '../../lib/review-comments.ts';
 import type {
   ChangedFile,
   CodiffUpdateStatus,
-  PullRequestMergeOptions,
-  PullRequestMergeState,
   PullRequestReviewEvent,
   PullRequestReviewStatus,
 } from '../../types.ts';
@@ -764,11 +762,11 @@ export function PullRequestReviewButtons({
       {markReadyVisible ? (
         <Button
           action={onMarkPullRequestReady}
-          aria-label="Mark merge request as ready"
+          aria-label="Mark pull request as ready"
           className="review-submit-button ready"
           disabled={disabled}
           pendingPlaceholder="Marking ready…"
-          title={markReadyStatus.reason ?? 'Mark merge request as ready'}
+          title={markReadyStatus.reason ?? 'Mark pull request as ready'}
           type="button"
         >
           <CheckCircle aria-hidden className="review-submit-icon ready" size={15} weight="bold" />
@@ -778,11 +776,11 @@ export function PullRequestReviewButtons({
       {closeVisible ? (
         <Button
           action={onClosePullRequest}
-          aria-label="Close merge request"
+          aria-label="Close pull request"
           className="review-submit-button close"
           disabled={disabled}
           pendingPlaceholder="Closing…"
-          title={closeStatus.reason ?? 'Close merge request'}
+          title={closeStatus.reason ?? 'Close pull request'}
           type="button"
         >
           <Power aria-hidden className="review-submit-icon close" size={15} weight="bold" />
@@ -790,232 +788,5 @@ export function PullRequestReviewButtons({
         </Button>
       ) : null}
     </div>
-  );
-}
-
-export const isTerminalPullRequestMergeState = (mergeState: PullRequestMergeState) =>
-  mergeState.status === 'closed' || mergeState.status === 'merged';
-
-export function PullRequestMergeStatusBadge({ mergeState }: { mergeState: PullRequestMergeState }) {
-  if (!isTerminalPullRequestMergeState(mergeState)) {
-    return null;
-  }
-
-  return (
-    <span
-      className="codiff-status-badge pull-request-merge-status-badge"
-      data-status={mergeState.status}
-      title={mergeState.reason ?? mergeState.statusLabel}
-    >
-      {mergeState.status === 'merged' ? (
-        <CheckCircle aria-hidden size={14} weight="fill" />
-      ) : (
-        <X aria-hidden size={14} weight="bold" />
-      )}
-      <span>{mergeState.statusLabel}</span>
-    </span>
-  );
-}
-
-const mergeCheckTitle = (check: PullRequestMergeState['checks'][number]) =>
-  [check.label, check.detail].filter(Boolean).join(': ');
-
-const MergeRequirementIcon = ({
-  status,
-}: {
-  status: PullRequestMergeState['checks'][number]['status'];
-}) =>
-  status === 'success' ? (
-    <CheckCircle
-      aria-hidden
-      className="pull-request-merge-requirement-icon success"
-      size={16}
-      weight="fill"
-    />
-  ) : (
-    <WarningOctagon
-      aria-hidden
-      className="pull-request-merge-requirement-icon failed"
-      size={16}
-      weight="fill"
-    />
-  );
-
-const getMergePrimaryLabel = (mergeState: PullRequestMergeState) => {
-  if (mergeState.canMerge) {
-    return 'Merge';
-  }
-  if (mergeState.canSetAutoMerge) {
-    return 'Auto-Merge';
-  }
-  return 'Cannot Merge';
-};
-
-export function PullRequestMergeControls({
-  disabled,
-  isPending = false,
-  mergeState,
-  onCancelAutoMerge,
-  onMergePullRequest,
-}: {
-  disabled: boolean;
-  isPending?: boolean;
-  mergeState: PullRequestMergeState;
-  onCancelAutoMerge?: () => Promise<void> | void;
-  onMergePullRequest?: (
-    options: PullRequestMergeOptions & { autoMerge: boolean },
-  ) => Promise<void> | void;
-}) {
-  const optionsKey = `${mergeState.sha}:${String(mergeState.options.removeSourceBranch)}:${String(mergeState.options.squash)}`;
-  const defaultOptions = {
-    key: optionsKey,
-    removeSourceBranch: mergeState.options.removeSourceBranch,
-    squash: mergeState.options.squash,
-  };
-  const [selectedOptions, setSelectedOptions] = useState(defaultOptions);
-  const currentOptions = selectedOptions.key === optionsKey ? selectedOptions : defaultOptions;
-  const { removeSourceBranch, squash } = currentOptions;
-
-  const primaryActionDisabled =
-    disabled || !onMergePullRequest || (!mergeState.canMerge && !mergeState.canSetAutoMerge);
-  const cancelDisabled = disabled || !onCancelAutoMerge || !mergeState.canCancelAutoMerge;
-  const primaryLabel = getMergePrimaryLabel(mergeState);
-  const primaryTitle =
-    mergeState.reason ??
-    (mergeState.canMerge
-      ? 'Merge this merge request'
-      : mergeState.canSetAutoMerge
-        ? 'Merge this merge request when GitLab checks pass'
-        : primaryLabel);
-  const submitMerge = async () => {
-    if (primaryActionDisabled || !onMergePullRequest) {
-      return;
-    }
-    await onMergePullRequest({
-      autoMerge: !mergeState.canMerge && mergeState.canSetAutoMerge,
-      removeSourceBranch,
-      squash,
-    });
-  };
-  const cancelAutoMerge = async () => {
-    if (cancelDisabled || !onCancelAutoMerge) {
-      return;
-    }
-    await onCancelAutoMerge();
-  };
-  const pendingLabel = <em>Thinking…</em>;
-  if (isTerminalPullRequestMergeState(mergeState)) {
-    return null;
-  }
-
-  return (
-    <section
-      aria-label="Merge status"
-      className="review-comment-body source-description-body pull-request-merge-panel"
-      data-status={mergeState.status}
-    >
-      <div className="review-comment-header read-only pull-request-merge-summary">
-        <strong>{mergeState.statusLabel}</strong>
-      </div>
-      <div className="pull-request-merge-content">
-        <div className="pull-request-merge-state">
-          <div className="pull-request-merge-requirements">
-            {mergeState.checks.map((check) => {
-              const content = (
-                <span className="pull-request-merge-requirement-content">
-                  <MergeRequirementIcon status={check.status} />
-                  <span className="pull-request-merge-requirement-text">{check.label}</span>
-                </span>
-              );
-              return (
-                <span
-                  className="pull-request-merge-requirement"
-                  data-status={check.status}
-                  key={`${check.label}:${check.status}`}
-                  title={mergeCheckTitle(check)}
-                >
-                  {check.url ? (
-                    <a href={check.url} rel="noreferrer" target="_blank">
-                      {content}
-                    </a>
-                  ) : (
-                    content
-                  )}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-        <div className="pull-request-merge-controls">
-          <div className="pull-request-merge-options">
-            <label className="pull-request-merge-option">
-              <input
-                checked={squash}
-                className="pull-request-merge-input"
-                disabled={disabled}
-                onChange={(event) =>
-                  setSelectedOptions({
-                    ...currentOptions,
-                    squash: event.currentTarget.checked,
-                  })
-                }
-                type="checkbox"
-              />
-              <span aria-hidden className="codiff-viewed-checkbox">
-                {squash ? <Check className="codiff-viewed-check" size={11} weight="bold" /> : null}
-              </span>
-              <span>Squash commits</span>
-            </label>
-            <label className="pull-request-merge-option">
-              <input
-                checked={removeSourceBranch}
-                className="pull-request-merge-input"
-                disabled={disabled || mergeState.forceRemoveSourceBranch}
-                onChange={(event) =>
-                  setSelectedOptions({
-                    ...currentOptions,
-                    removeSourceBranch: event.currentTarget.checked,
-                  })
-                }
-                type="checkbox"
-              />
-              <span aria-hidden className="codiff-viewed-checkbox">
-                {removeSourceBranch ? (
-                  <Check className="codiff-viewed-check" size={11} weight="bold" />
-                ) : null}
-              </span>
-              <span>Delete source branch</span>
-            </label>
-          </div>
-          <div className="pull-request-merge-actions">
-            {mergeState.autoMergeEnabled ? (
-              <Button
-                action={cancelAutoMerge}
-                className="pull-request-merge-button cancel"
-                disabled={cancelDisabled}
-                pendingPlaceholder={pendingLabel}
-                title={
-                  mergeState.canCancelAutoMerge ? 'Cancel GitLab auto-merge' : mergeState.reason
-                }
-                type="button"
-              >
-                {isPending ? pendingLabel : 'Cancel Auto-Merge'}
-              </Button>
-            ) : (
-              <Button
-                action={submitMerge}
-                className="pull-request-merge-button primary"
-                disabled={primaryActionDisabled}
-                pendingPlaceholder={pendingLabel}
-                title={primaryTitle}
-                type="button"
-              >
-                {isPending ? pendingLabel : primaryLabel}
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </section>
   );
 }

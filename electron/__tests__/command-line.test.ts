@@ -456,20 +456,6 @@ test('canonicalizes GitHub pull request URLs copied from a review tab', () => {
   }
 });
 
-test('canonicalizes GitLab merge request URLs copied from a review tab', () => {
-  for (const value of [
-    'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23/diffs#note_991',
-    'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23/commits',
-    'https://gitlab.example.com/group/subgroup/project/merge_requests/23',
-  ]) {
-    expect(readCommandLine(['codiff', value, '/repo']).launchOptions.source).toEqual({
-      provider: 'gitlab',
-      type: 'pull-request',
-      url: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
-    });
-  }
-});
-
 test('canonicalizes Azure DevOps pull request URLs copied from a review tab', () => {
   for (const value of [
     'https://dev.azure.com/contoso/Fabrikam/_git/Storefront/pullrequest/492?_a=files',
@@ -484,21 +470,13 @@ test('canonicalizes Azure DevOps pull request URLs copied from a review tab', ()
   }
 });
 
-test('resolves GitHub and GitLab review markers through repository remotes', async () => {
+test('resolves GitHub review markers through repository remotes', async () => {
   await using directory = await createTemporaryDirectory('codiff-review-markers-');
   const githubRepo = join(directory.path, 'github');
-  const gitlabRepo = join(directory.path, 'gitlab');
 
-  await Promise.all([mkdir(githubRepo), mkdir(gitlabRepo)]);
+  await mkdir(githubRepo);
   await git(githubRepo, ['init']);
   await git(githubRepo, ['remote', 'add', 'origin', 'git@github.com:nkzw-tech/codiff.git']);
-  await git(gitlabRepo, ['init']);
-  await git(gitlabRepo, [
-    'remote',
-    'add',
-    'origin',
-    'ssh://git@gitlab.example.com/group/subgroup/project.git',
-  ]);
 
   expect(getCommandLineLaunchOptions(['codiff', 'pr', '12', githubRepo]).source).toEqual({
     provider: 'github',
@@ -509,11 +487,6 @@ test('resolves GitHub and GitLab review markers through repository remotes', asy
     provider: 'github',
     type: 'pull-request',
     url: 'https://github.com/nkzw-tech/codiff/pull/12',
-  });
-  expect(getCommandLineLaunchOptions(['codiff', 'mr', '23', gitlabRepo]).source).toEqual({
-    provider: 'gitlab',
-    type: 'pull-request',
-    url: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
   });
 });
 
@@ -539,20 +512,6 @@ test('resolves Azure DevOps review markers through repository remotes', async ()
     provider: 'azure-devops',
     type: 'pull-request',
     url: 'https://dev.azure.com/contoso/Fabrikam/_git/Storefront/pullrequest/492',
-  });
-});
-
-test('parses GitLab merge request markers and nested URLs', () => {
-  expect(
-    readCommandLine([
-      'codiff',
-      'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
-      '/repo',
-    ]).launchOptions.source,
-  ).toEqual({
-    provider: 'gitlab',
-    type: 'pull-request',
-    url: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
   });
 });
 

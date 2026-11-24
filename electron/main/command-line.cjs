@@ -91,11 +91,9 @@ const parsePullRequestNumberValue = (value) => {
 const getReviewProviderMarker = (arg) =>
   /^(?:pr|pull-request)$/i.test(arg)
     ? 'github'
-    : /^(?:mr|merge-request)$/i.test(arg)
-      ? 'gitlab'
-      : /^(?:ado|azdo|azure|azure-devops)$/i.test(arg)
-        ? 'azure-devops'
-        : null;
+    : /^(?:ado|azdo|azure|azure-devops)$/i.test(arg)
+      ? 'azure-devops'
+      : null;
 
 /** Stores the canonical form so pasted review tabs, queries and anchors never reach the Git layer.
  * @param {string} arg */
@@ -302,9 +300,7 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
     undefined;
   const sourcePullRequestNumber = envPullRequestNumber ?? pullRequestNumber;
   const sourceReviewProvider =
-    envReviewProvider === 'github' ||
-    envReviewProvider === 'gitlab' ||
-    envReviewProvider === 'azure-devops'
+    envReviewProvider === 'github' || envReviewProvider === 'azure-devops'
       ? envReviewProvider
       : pullRequestProvider;
   const sourceRef = envCommitRef || commitRef;

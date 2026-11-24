@@ -138,15 +138,6 @@ test('parseArguments canonicalizes review URLs copied from a review tab', () => 
   }
 
   for (const value of [
-    'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23/diffs#note_991',
-    'https://gitlab.example.com/group/subgroup/project/merge_requests/23',
-  ]) {
-    expect(parseArguments([value])).toMatchObject({
-      pullRequestUrl: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
-    });
-  }
-
-  for (const value of [
     'https://dev.azure.com/contoso/Fabrikam/_git/Storefront/pullrequest/492?_a=files',
     'dev.azure.com/contoso/Fabrikam/_git/Storefront/pullRequest/492',
   ]) {
@@ -397,13 +388,6 @@ test('parseArguments treats hash-prefixed PR marker values as review sources', (
   });
 });
 
-test('parseArguments treats GitLab MR marker values as review sources', () => {
-  expect(parseArguments(['mr', '23'])).toMatchObject({
-    pullRequestNumber: 23,
-    pullRequestProvider: 'gitlab',
-  });
-});
-
 test('parseArguments treats Azure DevOps PR marker values as review sources', () => {
   expect(parseArguments(['ado', '42'])).toMatchObject({
     pullRequestNumber: 42,
@@ -425,14 +409,6 @@ test('parseArguments accepts Azure DevOps pull request URLs', () => {
   });
 });
 
-test('parseArguments accepts nested GitLab merge request URLs', () => {
-  expect(
-    parseArguments(['https://gitlab.example.com/group/subgroup/project/-/merge_requests/23']),
-  ).toMatchObject({
-    pullRequestUrl: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
-  });
-});
-
 test('resolvePullRequestUrl builds GitHub PR URLs from the origin remote', async () => {
   await using directory = await createTemporaryDirectory('codiff-cli-');
   const repositoryPath = directory.path;
@@ -443,23 +419,6 @@ test('resolvePullRequestUrl builds GitHub PR URLs from the origin remote', async
 
   expect(resolvePullRequestUrl(repositoryPath, 75)).toBe(
     'https://github.com/nkzw-tech/codiff/pull/75',
-  );
-});
-
-test('resolvePullRequestUrl builds GitLab MR URLs from an arbitrary GitLab remote', async () => {
-  await using directory = await createTemporaryDirectory('codiff-cli-');
-  const repositoryPath = directory.path;
-
-  await git(repositoryPath, ['init']);
-  await git(repositoryPath, [
-    'remote',
-    'add',
-    'origin',
-    'git@gitlab.example.com:group/subgroup/project.git',
-  ]);
-
-  expect(resolvePullRequestUrl(repositoryPath, 23, 'gitlab')).toBe(
-    'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23',
   );
 });
 
@@ -612,23 +571,6 @@ test('packaged terminal helper resolves GitHub PR branches to canonical URLs', a
   ]);
 });
 
-test('packaged terminal helper forwards GitLab MR markers to Electron', async () => {
-  await using logger = await createFakeOpenLogger();
-
-  await execFileAsync(resolve('bin/codiff-app'), ['mr', '23'], {
-    env: logger.env,
-  });
-
-  expect(await logger.readArgs()).toEqual([
-    '-n',
-    resolve('bin/../../../..'),
-    '--args',
-    'mr',
-    '23',
-    process.cwd(),
-  ]);
-});
-
 test('packaged terminal helper forwards Azure DevOps PR markers to Electron', async () => {
   await using logger = await createFakeOpenLogger();
 
@@ -652,8 +594,6 @@ test('packaged terminal helper forwards review URLs copied from a review tab', a
     'https://github.com/nkzw-tech/codiff/pull/1728/files',
     'https://www.github.com/nkzw-tech/codiff/pull/1728?diff=split',
     'github.com/nkzw-tech/codiff/pull/1728',
-    'https://gitlab.example.com/group/subgroup/project/-/merge_requests/23/diffs#note_991',
-    'https://gitlab.example.com/group/subgroup/project/merge_requests/23',
     'https://dev.azure.com/contoso/Fabrikam/_git/Storefront/pullrequest/492?_a=files',
   ]) {
     await using logger = await createFakeOpenLogger();

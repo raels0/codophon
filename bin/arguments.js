@@ -103,7 +103,6 @@ const usageExamples = [
     command: 'codiff pr owner:feature',
     description: 'Review the open pull request for a branch.',
   },
-  { command: 'codiff mr 75', description: 'Review GitLab merge request !75.' },
   { command: 'codiff ado 75', description: 'Review Azure DevOps pull request #75.' },
   { command: 'codiff update', description: 'Update Codiff to the latest release.' },
   { command: 'codiff --plan plan.md', description: 'Edit a plan and wait for handoff.' },
@@ -223,11 +222,9 @@ const parsePullRequestNumberValue = (arg) =>
 const getReviewProviderMarker = (arg) =>
   /^(?:pr|pull-request)$/i.test(arg)
     ? 'github'
-    : /^(?:mr|merge-request)$/i.test(arg)
-      ? 'gitlab'
-      : /^(?:ado|azdo|azure|azure-devops)$/i.test(arg)
-        ? 'azure-devops'
-        : null;
+    : /^(?:ado|azdo|azure|azure-devops)$/i.test(arg)
+      ? 'azure-devops'
+      : null;
 
 // Store the canonical form so pasted review tabs, queries and anchors never reach the Git layer.
 const parsePullRequestUrlArgument = (arg) => parseReviewUrl(arg)?.url ?? null;

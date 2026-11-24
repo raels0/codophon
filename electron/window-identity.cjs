@@ -80,7 +80,7 @@ const resolveMergeBase = (repositoryRoot, baseRef, headRef) => {
 /** @param {Extract<ReviewSource, {type: 'pull-request'}>} source */
 const getPullRequestSourceKey = (source) => {
   const review = parseReviewUrl(source.url);
-  if (review?.provider === 'gitlab' || review?.provider === 'azure-devops') {
+  if (review?.provider === 'azure-devops') {
     return `pull-request:${review.provider}:${review.host}/${review.projectPath.toLowerCase()}#${
       review.number
     }`;

@@ -210,66 +210,6 @@ test('findReusableReviewCommentDraft skips read-only drafts and reuses whitespac
   ).toBe(activeDraft);
 });
 
-test('getReviewCommentsFromState carries GitLab discussion metadata through to review comments', () => {
-  const state = createPullRequestState();
-  state.reviewComments = [
-    {
-      author: { login: 'reviewer' },
-      body: 'Resolvable comment.',
-      canResolveThread: true,
-      filePath: 'src/a.ts',
-      id: 'gitlab:1',
-      lineNumber: 5,
-      side: 'additions',
-      threadId: 'discussion-1',
-    },
-    {
-      author: { login: 'reviewer' },
-      body: 'Resolved comment.',
-      filePath: 'src/a.ts',
-      id: 'gitlab:2',
-      isThreadResolved: true,
-      lineNumber: 6,
-      side: 'additions',
-      threadId: 'discussion-2',
-    },
-  ];
-  const comments = getReviewCommentsFromState(state);
-
-  expect(comments.find((comment) => comment.id === 'gitlab:1')).toMatchObject({
-    canResolveThread: true,
-    threadId: 'discussion-1',
-  });
-  expect(comments.find((comment) => comment.id === 'gitlab:2')).toMatchObject({
-    isThreadResolved: true,
-    threadId: 'discussion-2',
-  });
-});
-
-test('getReviewCommentsFromState preserves file-level GitLab anchors', () => {
-  const state = createPullRequestState();
-  state.reviewComments = [
-    {
-      anchor: 'file',
-      author: { login: 'reviewer' },
-      body: 'Review the file as a whole.',
-      filePath: 'src/a.ts',
-      id: 'gitlab:file',
-    },
-  ];
-
-  expect(getReviewCommentsFromState(state)).toEqual([
-    expect.objectContaining({
-      anchor: 'file',
-      body: 'Review the file as a whole.',
-      filePath: 'src/a.ts',
-      id: 'gitlab:file',
-      isReadOnly: true,
-      sectionId: 'src/a.ts:pull-request:1',
-    }),
-  ]);
-});
-
 test('getVisibleReviewComments hides outdated comments unless they are shown', () => {
   const comments = [
     createReviewComment({ id: 'github:1', isOutdated: true }),

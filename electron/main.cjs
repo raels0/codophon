@@ -1547,7 +1547,7 @@ ipcMain.handle('codiff:resolvePullRequestUrl', (event, value) => {
 
   const number = input.match(/^#?([1-9]\d*)$/);
   if (!number) {
-    throw new Error('Enter a pull request number or a GitHub or GitLab pull request link.');
+    throw new Error('Enter a pull request number or a GitHub or Azure DevOps pull request link.');
   }
 
   // Reuse the CLI resolver so a bare number follows the repository's preferred remote.

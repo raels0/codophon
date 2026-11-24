@@ -554,9 +554,6 @@ test('parseGitHubPullRequestUrl rejects values that are not GitHub pull requests
   expect(() => parseGitHubPullRequestUrl('https://github.com/nkzw-tech/codiff')).toThrow(
     'Codiff expected a GitHub pull request URL.',
   );
-  expect(() =>
-    parseGitHubPullRequestUrl('https://gitlab.example.com/group/project/-/merge_requests/3'),
-  ).toThrow('Codiff only supports GitHub pull request URLs.');
 });
 
 test('validateRepositoryPath returns normalized repository paths', () => {

@@ -1995,7 +1995,6 @@ export default function App({
     agentId: activeAgentBackend,
     agentLabel,
     codeEditingStore,
-    codeQualityFindings: state.codeQualityFindings,
     collapsed,
     comments: visibleReviewComments,
     commitMetadata,

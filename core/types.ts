@@ -69,47 +69,6 @@ export type PullRequestReviewStatus = {
   requestChanges?: PullRequestReviewActionStatus;
 };
 
-export type PullRequestMergeCheckStatus = 'failed' | 'neutral' | 'pending' | 'success';
-
-export type PullRequestMergeCheck = {
-  detail?: string;
-  label: string;
-  status: PullRequestMergeCheckStatus;
-  url?: string;
-};
-
-export type PullRequestMergeOptions = {
-  removeSourceBranch: boolean;
-  squash: boolean;
-};
-
-export type PullRequestCodeQualityFinding = {
-  description: string;
-  engineName?: string;
-  filePath: string;
-  fingerprint: string;
-  lineNumber: number;
-  severity: 'blocker' | 'critical' | 'info' | 'major' | 'minor' | 'unknown';
-  status: 'existing' | 'new' | 'resolved';
-  url?: string;
-};
-
-export type PullRequestMergeState = {
-  autoMergeEnabled: boolean;
-  canCancelAutoMerge: boolean;
-  canMerge: boolean;
-  canSetAutoMerge: boolean;
-  checks: ReadonlyArray<PullRequestMergeCheck>;
-  detailedStatus?: string;
-  forceRemoveSourceBranch: boolean;
-  mergeError?: string;
-  options: PullRequestMergeOptions;
-  reason?: string;
-  sha: string;
-  status: 'blocked' | 'checking' | 'closed' | 'merged' | 'ready' | 'waiting';
-  statusLabel: string;
-};
-
 export type ReviewSource =
   | {
       type: 'working-tree';
@@ -164,11 +123,10 @@ export type ReviewSource =
       draft?: boolean;
       headSha?: string;
       host?: string;
-      mergeState?: PullRequestMergeState;
       number?: number;
       owner?: string;
       projectPath?: string;
-      provider?: 'github' | 'gitlab' | 'azure-devops';
+      provider?: 'github' | 'azure-devops';
       repo?: string;
       reviewers?: ReadonlyArray<PullRequestReviewer>;
       reviewStatus?: PullRequestReviewStatus;
@@ -241,7 +199,6 @@ export type RepositoryHistory = {
 
 export type RepositoryState = {
   branch: string | null;
-  codeQualityFindings?: ReadonlyArray<PullRequestCodeQualityFinding>;
   commitMetadata?: CommitMetadata;
   files: ReadonlyArray<ChangedFile>;
   generalComments?: ReadonlyArray<PullRequestGeneralCommentThread>;

@@ -1974,16 +1974,6 @@ test('pull request descriptions render as provider-aware Markdown source context
       },
     },
     {
-      label: 'MR description',
-      source: {
-        description: '## Intent\n\nShip **review** context.',
-        number: 13,
-        provider: 'gitlab',
-        type: 'pull-request',
-        url: 'https://gitlab.example.com/group/project/-/merge_requests/13',
-      },
-    },
-    {
       label: 'Description',
       source: {
         description: '## Intent\n\nShip **review** context.',
@@ -2117,13 +2107,6 @@ test('title-only pull request source context renders as a collapsed static heade
       title: 'Title without a body',
       type: 'pull-request',
       url: 'https://github.com/nkzw-tech/codiff/pull/12',
-    },
-    {
-      number: 13,
-      provider: 'gitlab',
-      title: 'Merge request title only',
-      type: 'pull-request',
-      url: 'https://gitlab.example.com/group/project/-/merge_requests/13',
     },
   ];
 

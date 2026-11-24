@@ -15,12 +15,7 @@ import {
   updateReviewIdentityCollapsed,
   updateReviewIdentityViewed,
 } from '../lib/review-identity.ts';
-import type {
-  ChangedFile,
-  DefinitionSearchResult,
-  PullRequestCodeQualityFinding,
-  ReviewSource,
-} from '../types.ts';
+import type { ChangedFile, DefinitionSearchResult, ReviewSource } from '../types.ts';
 import { createChangedFile, createChangedFileWithPatch } from './helpers/fixtures.ts';
 import { renderReact, setInputValue, waitFor } from './helpers/react.tsx';
 import {
@@ -406,36 +401,6 @@ test('Markdown sections that cannot load are not fetched', async () => {
     <ReviewCodeViewHarness files={[unloadable]} onLoadSectionContents={onLoadSectionContents} />,
   );
   expect(onLoadSectionContents).not.toHaveBeenCalled();
-});
-
-test('Markdown outside the rendered viewport waits to load full revisions', async () => {
-  const files = ['first.md', 'later.md'].map((path) => {
-    const file = createChangedFile(path);
-    return {
-      ...file,
-      sections: file.sections.map((section) => ({ ...section, loadState: 'ready' as const })),
-    };
-  });
-  const laterItemId = `diff:${files[1].sections[0].id}`;
-  codeViewMock.unrenderedItemIds.add(laterItemId);
-  const onLoadSectionContents = vi.fn(async (file: ChangedFile) => ({
-    newFile: { contents: 'New paragraph.\n', name: file.path },
-    oldFile: { contents: 'Old paragraph.\n', name: file.path },
-  }));
-  const props = { files, onLoadSectionContents };
-  await using view = await renderReact(<ReviewCodeViewHarness {...props} />);
-  await waitFor(() => expect(view.container.querySelector('ins')?.textContent).toBe('New'));
-  expect(onLoadSectionContents.mock.calls.map(([file]) => file.path)).toEqual(['first.md']);
-
-  codeViewMock.unrenderedItemIds.delete(laterItemId);
-  await view.rerender(
-    <ReviewCodeViewHarness {...props} scrollTarget={{ path: 'later.md', request: 1 }} />,
-  );
-  await waitFor(() => expect(view.container.querySelectorAll('ins')).toHaveLength(2));
-  expect(onLoadSectionContents.mock.calls.map(([file]) => file.path)).toEqual([
-    'first.md',
-    'later.md',
-  ]);
 });
 
 test('deleted Markdown shows the removed document', async () => {
@@ -1251,7 +1216,7 @@ test('resolved review threads collapse inline, expand when focused, and can be r
       body: 'Please keep this explicit.',
       canResolveThread: true,
       filePath: file.path,
-      id: 'gitlab:99',
+      id: 'thread:99',
       isReadOnly: true,
       isThreadResolved: true,
       lineNumber: 1,
@@ -1264,7 +1229,7 @@ test('resolved review threads collapse inline, expand when focused, and can be r
       body: 'Resolved in the latest update.',
       canResolveThread: true,
       filePath: file.path,
-      id: 'gitlab:103',
+      id: 'thread:103',
       isReadOnly: true,
       isThreadResolved: true,
       lineNumber: 1,
@@ -1304,7 +1269,7 @@ test('resolved review threads collapse inline, expand when focused, and can be r
     <ReviewCodeViewHarness
       comments={comments}
       files={[file]}
-      focusCommentId="gitlab:103"
+      focusCommentId="thread:103"
       focusCommentRequest={1}
       onResolveThread={onResolveThread}
       supportsReviewCommentActions
@@ -1340,7 +1305,7 @@ test('resolving an open review thread collapses it in place', async () => {
     body: 'Please keep this explicit.',
     canResolveThread: true,
     filePath: file.path,
-    id: 'gitlab:99',
+    id: 'thread:99',
     isReadOnly: true,
     lineNumber: 1,
     sectionId: file.sections[0].id,
@@ -1385,7 +1350,7 @@ test('comment scroll targets navigate directly to their diff annotation', async 
     author: { login: 'reviewer' },
     body: 'Linked review comment.',
     filePath: file.path,
-    id: 'gitlab:99',
+    id: 'thread:99',
     isReadOnly: true,
     lineNumber: 1,
     sectionId: file.sections[0].id,
@@ -2652,50 +2617,6 @@ test('working-tree share comments support the Post comment button and Mod+Enter'
   expect(onSubmitComment).toHaveBeenCalledWith(comment.id);
 });
 
-test('file comments can be created for GitLab merge requests but not GitHub pull requests', async () => {
-  const file = createChangedFile('src/comment.ts');
-  const onCreateComment = vi.fn();
-  const gitLabSource = {
-    provider: 'gitlab',
-    type: 'pull-request',
-    url: 'https://gitlab.example.com/group/project/-/merge_requests/1',
-  } satisfies ReviewSource;
-  const gitHubSource = {
-    provider: 'github',
-    type: 'pull-request',
-    url: 'https://github.com/example/project/pull/1',
-  } satisfies ReviewSource;
-  await using view = await renderReact(
-    <ReviewCodeViewHarness
-      files={[file]}
-      onCreateComment={onCreateComment}
-      source={gitLabSource}
-      supportsReviewCommentActions
-    />,
-  );
-
-  const fileCommentButton = view.container.querySelector<HTMLButtonElement>(
-    '.codiff-file-comment-button',
-  );
-  expect(fileCommentButton).not.toBeNull();
-  expect(fileCommentButton?.classList.contains('codiff-button')).toBe(true);
-  await act(async () => fileCommentButton?.click());
-  expect(onCreateComment).toHaveBeenCalledWith({
-    anchor: 'file',
-    filePath: 'src/comment.ts',
-    sectionId: 'src/comment.ts:unstaged',
-  });
-  await view.rerender(
-    <ReviewCodeViewHarness
-      files={[file]}
-      onCreateComment={onCreateComment}
-      source={gitHubSource}
-      supportsReviewCommentActions
-    />,
-  );
-  expect(view.container.querySelector('.codiff-file-comment-button')).toBeNull();
-});
-
 test('file-level review comments render as measured file annotations', async () => {
   const file = createChangedFile('src/comment.ts');
   await using view = await renderReact(
@@ -2706,16 +2627,16 @@ test('file-level review comments render as measured file annotations', async () 
           author: { login: 'reviewer' },
           body: 'Review this file as a whole.',
           filePath: file.path,
-          id: 'gitlab:file',
+          id: 'thread:file',
           isReadOnly: true,
           sectionId: 'src/comment.ts:unstaged',
         },
       ]}
       files={[file]}
       source={{
-        provider: 'gitlab',
+        provider: 'azure-devops',
         type: 'pull-request',
-        url: 'https://gitlab.example.com/group/project/-/merge_requests/1',
+        url: 'https://dev.azure.com/acme/project/_git/repo/pullrequest/1',
       }}
       supportsReviewCommentActions
     />,
@@ -2737,65 +2658,11 @@ test('file-level review comments render as measured file annotations', async () 
   expect(item?.annotations).toContainEqual({
     lineNumber: 0,
     metadata: {
-      commentIds: ['gitlab:file'],
+      commentIds: ['thread:file'],
       type: 'review-comment',
     },
     side: 'additions',
   });
-});
-
-test('code quality findings render as additions annotations', async () => {
-  const file = createChangedFile('src/app.ts');
-  const finding = {
-    description: 'Avoid an unconditional storage lookup.',
-    engineName: 'eslint',
-    filePath: file.path,
-    fingerprint: 'code-quality-1',
-    lineNumber: 1,
-    severity: 'major',
-    status: 'new',
-  } satisfies PullRequestCodeQualityFinding;
-  await using view = await renderReact(
-    <ReviewCodeViewHarness
-      codeQualityFindings={[
-        finding,
-        { ...finding, fingerprint: 'resolved', status: 'resolved' },
-        { ...finding, filePath: 'src/other.ts', fingerprint: 'other-file' },
-        { ...finding, fingerprint: 'hidden-line', lineNumber: 99 },
-      ]}
-      files={[file]}
-    />,
-  );
-
-  const renderedFinding = view.container.querySelector<HTMLElement>('.code-quality-finding');
-  expect(renderedFinding?.dataset.severity).toBe('major');
-  expect(renderedFinding?.dataset.status).toBe('new');
-  expect(renderedFinding?.textContent).toContain('Code Quality');
-  expect(renderedFinding?.textContent).toContain('Major');
-  expect(renderedFinding?.textContent).toContain('New');
-  expect(renderedFinding?.textContent).toContain(finding.description);
-  expect(renderedFinding?.textContent).toContain('eslint');
-  const item = codeViewMock.lastItems.find(
-    (candidate) => candidate.id === 'diff:src/app.ts:unstaged',
-  ) as
-    | {
-        annotations?: ReadonlyArray<{
-          lineNumber: number;
-          metadata: { finding?: PullRequestCodeQualityFinding; type: string };
-          side: string;
-        }>;
-      }
-    | undefined;
-  expect(item?.annotations?.filter(({ metadata }) => metadata.type === 'code-quality')).toEqual([
-    {
-      lineNumber: 1,
-      metadata: {
-        finding,
-        type: 'code-quality',
-      },
-      side: 'additions',
-    },
-  ]);
 });
 
 test('Enter on a focused review control is not converted into a hunk comment', async () => {

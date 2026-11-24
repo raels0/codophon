@@ -246,28 +246,6 @@ test('window identities normalize pull request URLs copied from a review tab', a
       },
     })?.sourceKey,
   ).toBe('pull-request:nkzw-tech/codiff#8');
-  expect(
-    getWindowIdentity(directory.path, {
-      source: {
-        type: 'pull-request',
-        url: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/8/diffs',
-      },
-    })?.sourceKey,
-  ).toBe('pull-request:gitlab:gitlab.example.com/group/subgroup/project#8');
-});
-
-test('window identities normalize GitLab merge request sources', async () => {
-  await using directory = await createTemporaryDirectory('codiff-window-identity-');
-  await initRepository(directory.path);
-
-  expect(
-    getWindowIdentity(directory.path, {
-      source: {
-        type: 'pull-request',
-        url: 'https://gitlab.example.com/group/subgroup/project/-/merge_requests/8',
-      },
-    })?.sourceKey,
-  ).toBe('pull-request:gitlab:gitlab.example.com/group/subgroup/project#8');
 });
 
 test('window identity matching requires exact identity matches', () => {

@@ -2,14 +2,11 @@
 
 const { execFileSync } = require('node:child_process');
 
-/** @typedef {'github' | 'gitlab' | 'azure-devops'} ReviewProvider */
+/** @typedef {'github' | 'azure-devops'} ReviewProvider */
 
 // Reviews are usually pasted straight from a browser, so anything after the review number is a tab
 // (`/files`, `/changes`, `/diffs`), a query, or an anchor, and none of it identifies the review.
 const gitHubPullRequestPattern = /^\/([^/]+)\/([^/]+)\/pull\/([1-9]\d*)(?:\/.*)?$/;
-const gitLabMergeRequestPattern = /^\/(.+?)\/-\/merge_requests\/([1-9]\d*)(?:\/.*)?$/;
-// GitLab only introduced the `/-/` separator in 11.0; older instances and links still omit it.
-const legacyGitLabMergeRequestPattern = /^\/(.+?)\/merge_requests\/([1-9]\d*)(?:\/.*)?$/;
 const azureDevOpsPullRequestPattern =
   /^\/(.+?)\/_git\/([^/]+)\/pullrequests?\/([1-9]\d*)(?:\/.*)?$/i;
 const azureDevOpsGitRemotePattern = /^(.+)\/_git\/([^/]+)$/i;
@@ -215,20 +212,6 @@ const parseReviewUrl = (value) => {
     };
   }
 
-  const gitlab =
-    url.pathname.match(gitLabMergeRequestPattern) ??
-    url.pathname.match(legacyGitLabMergeRequestPattern);
-  const projectPath = gitlab ? stripGitSuffix(gitlab[1]) : '';
-  if (gitlab && projectPath) {
-    return {
-      host: url.host.toLowerCase(),
-      number: Number(gitlab[2]),
-      projectPath,
-      provider: /** @type {const} */ ('gitlab'),
-      url: `${url.protocol}//${url.host}/${projectPath}/-/merge_requests/${gitlab[2]}`,
-    };
-  }
-
   return null;
 };
 
@@ -246,11 +229,9 @@ const parseRemoteUrl = (value) => {
     if (azure) {
       return azure;
     }
-    return {
-      host,
-      projectPath,
-      provider: /** @type {'github' | 'gitlab'} */ (isGitHubHost(host) ? 'github' : 'gitlab'),
-    };
+    return isGitHubHost(host)
+      ? { host, projectPath, provider: /** @type {const} */ ('github') }
+      : null;
   }
 
   try {
@@ -264,13 +245,9 @@ const parseRemoteUrl = (value) => {
     if (azure) {
       return azure;
     }
-    return {
-      host,
-      projectPath,
-      provider: /** @type {'github' | 'gitlab'} */ (
-        isGitHubHost(url.hostname) ? 'github' : 'gitlab'
-      ),
-    };
+    return isGitHubHost(url.hostname)
+      ? { host, projectPath, provider: /** @type {const} */ ('github') }
+      : null;
   } catch {
     return null;
   }
@@ -338,7 +315,7 @@ const resolveReviewUrl = (repositoryPath, number, provider) => {
     remotes = readReviewRemotes(repositoryPath);
   } catch {
     throw new Error(
-      `Could not resolve review #${number}. Run codiff inside a Git repository or pass a full pull/merge request URL.`,
+      `Could not resolve review #${number}. Run codiff inside a Git repository or pass a full pull request URL.`,
     );
   }
 
@@ -351,13 +328,7 @@ const resolveReviewUrl = (repositoryPath, number, provider) => {
   if (!remote) {
     throw new Error(
       `Could not resolve ${
-        provider === 'gitlab'
-          ? 'MR'
-          : provider === 'azure-devops'
-            ? 'Azure DevOps PR'
-            : provider === 'github'
-              ? 'PR'
-              : 'review'
+        provider === 'azure-devops' ? 'Azure DevOps PR' : provider === 'github' ? 'PR' : 'review'
       } #${number} from this repository's remotes.`,
     );
   }
@@ -365,16 +336,13 @@ const resolveReviewUrl = (repositoryPath, number, provider) => {
   if (remote.provider === 'github') {
     return `https://github.com/${remote.projectPath}/pull/${number}`;
   }
-  if (remote.provider === 'azure-devops') {
-    return formatAzureDevOpsUrl(
-      remote.webHost,
-      remote.organization,
-      remote.project,
-      remote.repo,
-      number,
-    );
-  }
-  return `https://${remote.host}/${remote.projectPath}/-/merge_requests/${number}`;
+  return formatAzureDevOpsUrl(
+    remote.webHost,
+    remote.organization,
+    remote.project,
+    remote.repo,
+    number,
+  );
 };
 
 module.exports = {

@@ -173,14 +173,14 @@ test('marks a draft merge request as ready when the action is available', async 
       onSubmitReview={vi.fn()}
       reviewStatus={{
         markReady: {
-          reason: 'Mark merge request as ready',
+          reason: 'Mark pull request as ready',
         },
       }}
     />,
   );
 
   const markReady = view.container.querySelector<HTMLButtonElement>(
-    '[aria-label="Mark merge request as ready"]',
+    '[aria-label="Mark pull request as ready"]',
   );
   expect(markReady?.textContent).toContain('Mark ready');
   await act(async () => markReady?.click());
@@ -203,5 +203,5 @@ test('hides the mark ready action when it is unavailable', async () => {
     />,
   );
 
-  expect(view.container.querySelector('[aria-label="Mark merge request as ready"]')).toBeNull();
+  expect(view.container.querySelector('[aria-label="Mark pull request as ready"]')).toBeNull();
 });

@@ -5,7 +5,6 @@ import type {
   DiffSection,
   NarrativeWalkthrough,
   NarrativeWalkthroughResult,
-  PullRequestCodeQualityFinding,
   PullRequestExistingReviewComment,
   ReviewAssistantContext,
   ReviewAssistantTurn,
@@ -17,11 +16,6 @@ export type WalkthroughError = Extract<NarrativeWalkthroughResult, { status: 'un
 export type ReviewCommentAnnotationMetadata = {
   commentIds: ReadonlyArray<string>;
   type: 'review-comment';
-};
-
-export type CodeQualityAnnotationMetadata = {
-  finding: PullRequestCodeQualityFinding;
-  type: 'code-quality';
 };
 
 type MarkdownPreviewAnnotationMetadata = {
@@ -46,7 +40,6 @@ type WalkthroughHeaderAnnotationMetadata = {
 };
 
 export type ReviewAnnotationMetadata =
-  | CodeQualityAnnotationMetadata
   | ImagePreviewAnnotationMetadata
   | MarkdownPreviewAnnotationMetadata
   | ReviewCommentAnnotationMetadata
