@@ -138,9 +138,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
       'opencode-session': {
         type: 'string',
       },
-      'pi-session': {
-        type: 'string',
-      },
       'plan-file': {
         type: 'string',
       },
@@ -256,7 +253,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
   const envCodexSessionId = useEnvironment ? process.env.CODIFF_CODEX_SESSION_ID || '' : '';
   const envClaudeSessionId = useEnvironment ? process.env.CODIFF_CLAUDE_SESSION_ID || '' : '';
   const envOpenCodeSessionId = useEnvironment ? process.env.CODIFF_OPENCODE_SESSION_ID || '' : '';
-  const envPiSessionId = useEnvironment ? process.env.CODIFF_PI_SESSION_ID || '' : '';
   const envPlanFilePath = useEnvironment ? process.env.CODIFF_PLAN_FILE || '' : '';
   const envPlanResultFilePath = useEnvironment ? process.env.CODIFF_PLAN_RESULT_FILE || '' : '';
   const envAgentBackend = useEnvironment ? process.env.CODIFF_AGENT_BACKEND || '' : '';
@@ -279,10 +275,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
     (typeof values['opencode-session'] === 'string' ? values['opencode-session'] : '') ||
     envOpenCodeSessionId ||
     undefined;
-  const piSessionId =
-    (typeof values['pi-session'] === 'string' ? values['pi-session'] : '') ||
-    envPiSessionId ||
-    undefined;
   const planFilePath = requestedPlanFilePath || envPlanFilePath || undefined;
   const planResultFilePath =
     (typeof values['plan-result-file'] === 'string' ? values['plan-result-file'] : '') ||
@@ -291,10 +283,7 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
   const rawAgentBackend =
     (typeof values.agent === 'string' ? values.agent : '') || envAgentBackend || '';
   const agentBackend =
-    rawAgentBackend === 'codex' ||
-    rawAgentBackend === 'claude' ||
-    rawAgentBackend === 'opencode' ||
-    rawAgentBackend === 'pi'
+    rawAgentBackend === 'codex' || rawAgentBackend === 'claude' || rawAgentBackend === 'opencode'
       ? rawAgentBackend
       : undefined;
   const walkthroughContextPath =
@@ -337,7 +326,6 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
       ...(claudeSessionId ? { claudeSessionId } : {}),
       ...(codexSessionId ? { codexSessionId } : {}),
       ...(opencodeSessionId ? { opencodeSessionId } : {}),
-      ...(piSessionId ? { piSessionId } : {}),
       ...(planFilePath ? { planFile: resolve(planFilePath) } : {}),
       ...(planResultFilePath ? { planResultFile: resolve(planResultFilePath) } : {}),
       repositoryPathProvided,

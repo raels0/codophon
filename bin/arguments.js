@@ -8,7 +8,7 @@ const { parseReviewUrl, resolveReviewUrl } = reviewSource;
 
 export const flagDefinitions = [
   {
-    argument: '<codex|claude|opencode|pi>',
+    argument: '<codex|claude|opencode>',
     description: 'Override the agent backend for this session.',
     name: 'agent',
     type: 'string',
@@ -52,12 +52,6 @@ export const flagDefinitions = [
     argument: '<id>',
     description: 'Attach OpenCode session metadata to a walkthrough.',
     name: 'opencode-session',
-    type: 'string',
-  },
-  {
-    argument: '<id>',
-    description: 'Attach Pi session metadata to a walkthrough.',
-    name: 'pi-session',
     type: 'string',
   },
   {
@@ -300,7 +294,6 @@ export const parseArguments = (args) => {
     typeof values['claude-session'] === 'string' ? values['claude-session'] : null;
   const opencodeSessionId =
     typeof values['opencode-session'] === 'string' ? values['opencode-session'] : null;
-  const piSessionId = typeof values['pi-session'] === 'string' ? values['pi-session'] : null;
   const planFilePath = typeof values.plan === 'string' ? values.plan : null;
   // `--completions` without a value parses as `true`; keep it as an empty shell
   // so the command can tell "no shell given" apart from "flag not used".
@@ -311,10 +304,7 @@ export const parseArguments = (args) => {
         ? ''
         : null;
   const agentBackend =
-    values.agent === 'codex' ||
-    values.agent === 'claude' ||
-    values.agent === 'opencode' ||
-    values.agent === 'pi'
+    values.agent === 'codex' || values.agent === 'claude' || values.agent === 'opencode'
       ? values.agent
       : null;
   let pullRequestBranch = null;
@@ -419,7 +409,6 @@ export const parseArguments = (args) => {
     ...(claudeSessionId ? { claudeSessionId } : {}),
     ...(codexSessionId ? { codexSessionId } : {}),
     ...(opencodeSessionId ? { opencodeSessionId } : {}),
-    ...(piSessionId ? { piSessionId } : {}),
     ...(planFilePath ? { planFilePath: resolve(planFilePath) } : {}),
     ...(branchRef ? { branchRef } : {}),
     ...(range ? { range } : {}),

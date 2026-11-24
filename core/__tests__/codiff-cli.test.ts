@@ -1432,51 +1432,6 @@ test('Claude skill launcher uses the session cwd and forwards --agent claude', a
   ]);
 });
 
-test('Pi skill launcher resolves the current session and forwards --agent pi', async () => {
-  await using logger = await createFakeCommandLogger('codiff-pi-launcher-', 'codiff');
-  const home = join(logger.directory, 'home');
-  const repositoryPath = join(logger.directory, 'repo');
-  const sessionId = '019e5e57-e7d6-7392-9ad1-ad959319d2fb';
-  const sessionDirectory = join(home, '.pi', 'agent', 'sessions', 'encoded-repo');
-  const sessionPath = join(sessionDirectory, `2026-06-10_${sessionId}.jsonl`);
-  const walkthroughFile = join(logger.directory, 'walkthrough.json');
-
-  await mkdir(repositoryPath, { recursive: true });
-  const realRepositoryPath = await realpath(repositoryPath);
-  await mkdir(sessionDirectory, { recursive: true });
-  await writeFile(walkthroughFile, '{}');
-  await writeFile(
-    sessionPath,
-    `${JSON.stringify({ cwd: realRepositoryPath, id: sessionId, type: 'session' })}\n`,
-  );
-  await truncate(sessionPath, 17 * 1024 * 1024);
-
-  await execFileAsync(
-    process.execPath,
-    [resolve('pi/skills/codiff/scripts/open-codiff.mjs'), '--file', walkthroughFile, 'HEAD'],
-    {
-      cwd: repositoryPath,
-      env: {
-        ...logger.env,
-        CODIFF_COMMAND: logger.commandPath,
-        PI_HOME: join(home, '.pi'),
-      },
-    },
-  );
-
-  expect(await logger.readArgs()).toEqual([
-    '-w',
-    '--agent',
-    'pi',
-    '--walkthrough-file',
-    walkthroughFile,
-    '--pi-session',
-    sessionId,
-    'HEAD',
-    realRepositoryPath,
-  ]);
-});
-
 test('OpenCode skill launcher links the project session from a repository subdirectory', async () => {
   await using logger = await createFakeCommandLogger('codiff-opencode-launcher-', 'codiff');
   const repositoryPath = join(logger.directory, 'repo');
@@ -1641,7 +1596,7 @@ test('codiff-app prints help text and exits 0', async () => {
   expect(stdout).toContain('Usage:');
   expect(stdout).toContain('--help');
   expect(stdout).toContain('--opencode-session <id>');
-  expect(stdout).not.toContain('--agent <codex|claude|opencode|pi>Override');
+  expect(stdout).not.toContain('--agent <codex|claude|opencode>Override');
   expect(stdout).toContain('\u001b[1;34mUsage:\u001b[0m');
   expect(stdout).toContain('\u001b[90mShow this help message and exit.\u001b[0m');
 });

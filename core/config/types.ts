@@ -1,7 +1,7 @@
 export type CodiffDiffStyle = 'split' | 'unified';
 export type CodiffTheme = 'system' | 'light' | 'dark';
 export type CodiffReviewTheme = 'neutral' | 'blue-amber';
-export type CodiffAgentBackend = 'codex' | 'claude' | 'opencode' | 'pi';
+export type CodiffAgentBackend = 'codex' | 'claude' | 'opencode';
 
 export type AgentPromptId =
   | 'ask'
@@ -34,7 +34,6 @@ export type CodiffSettings = {
   openAIModel: string;
   openAIReasoningEffort: string;
   opencodeModel: string;
-  piModel: string;
   renderMarkdownAs: 'preview' | 'source';
   reviewCommentsPrefix: string;
   reviewTheme: CodiffReviewTheme;

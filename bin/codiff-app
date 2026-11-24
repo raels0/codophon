@@ -195,7 +195,7 @@ show_help() {
   printf '  %-38s%s%s%s\n' "update" "$gray" "Update Codiff to the latest release." "$reset"
   printf '\n'
   printf '%s\n' "${blue_bold}Options:${reset}"
-  printf '  %-38s%s%s%s\n' "--agent <codex|claude|opencode|pi>" "$gray" "Override the agent backend for this session." "$reset"
+  printf '  %-38s%s%s%s\n' "--agent <codex|claude|opencode>" "$gray" "Override the agent backend for this session." "$reset"
   printf '  %-38s%s%s%s\n' "--branch <ref>" "$gray" "Review the current branch against a target branch." "$reset"
   printf '  %-38s%s%s%s\n' "--commit <ref>" "$gray" "Review a specific commit." "$reset"
   printf '  %-38s%s%s%s\n' "--codex-session <id>" "$gray" "Attach Codex session metadata to a walkthrough." "$reset"
@@ -203,7 +203,6 @@ show_help() {
   printf '  %-38s%s%s%s\n' "--completions <bash|fish|zsh>" "$gray" "Print a shell completion script, then exit." "$reset"
   printf '  %-38s%s%s%s\n' "--help, -h" "$gray" "Show this help message and exit." "$reset"
   printf '  %-38s%s%s%s\n' "--opencode-session <id>" "$gray" "Attach OpenCode session metadata to a walkthrough." "$reset"
-  printf '  %-38s%s%s%s\n' "--pi-session <id>" "$gray" "Attach Pi session metadata to a walkthrough." "$reset"
   printf '  %-38s%s%s%s\n' "--plan <file>" "$gray" "Edit a Markdown plan and wait until it is handed back." "$reset"
   printf '  %-38s%s%s%s\n' "--version, -v" "$gray" "Show version number and exit." "$reset"
   printf '  %-38s%s%s%s\n' "--walkthrough, -w" "$gray" "Start an LLM walkthrough; use HEAD when there are no local changes." "$reset"
@@ -297,7 +296,6 @@ repository_path=""
 codex_session_id=""
 claude_session_id=""
 opencode_session_id=""
-pi_session_id=""
 agent_backend=""
 branch_ref=""
 commit_ref=""
@@ -313,7 +311,6 @@ plan_result_file_path=""
 expect_codex_session=0
 expect_claude_session=0
 expect_opencode_session=0
-expect_pi_session=0
 expect_agent=0
 expect_branch_ref=0
 expect_commit_ref=0
@@ -410,11 +407,6 @@ for arg in "$@"; do
     continue
   fi
 
-  if [ "$expect_pi_session" -eq 1 ]; then
-    pi_session_id="$arg"
-    expect_pi_session=0
-    continue
-  fi
 
   if [ "$expect_agent" -eq 1 ]; then
     agent_backend="$arg"
@@ -519,12 +511,6 @@ for arg in "$@"; do
       ;;
     --opencode-session=*)
       opencode_session_id="${arg#--opencode-session=}"
-      ;;
-    --pi-session)
-      expect_pi_session=1
-      ;;
-    --pi-session=*)
-      pi_session_id="${arg#--pi-session=}"
       ;;
     --agent)
       expect_agent=1
@@ -713,9 +699,6 @@ open_codiff() {
   fi
   if [ -n "$codex_session_id" ]; then
     set -- --codex-session "$codex_session_id" "$@"
-  fi
-  if [ -n "$pi_session_id" ]; then
-    set -- --pi-session "$pi_session_id" "$@"
   fi
 
   # There is no `open` outside macOS, so start the packaged executable directly.

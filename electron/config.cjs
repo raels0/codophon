@@ -157,11 +157,9 @@ const normalizeDiffStyle = (diffStyle) =>
 /** @param {unknown} position @returns {'left' | 'right'} */
 const normalizeSidebarPosition = (position) => (position === 'right' ? 'right' : 'left');
 
-/** @param {unknown} backend @returns {'codex' | 'claude' | 'opencode' | 'pi'} */
+/** @param {unknown} backend @returns {'codex' | 'claude' | 'opencode'} */
 const normalizeAgentBackend = (backend) =>
-  backend === 'codex' || backend === 'claude' || backend === 'opencode' || backend === 'pi'
-    ? backend
-    : 'codex';
+  backend === 'codex' || backend === 'claude' || backend === 'opencode' ? backend : 'codex';
 
 /** @param {unknown} family @returns {string} */
 const normalizeCodeFontFamily = (family) => (typeof family === 'string' ? family.trim() : '');
@@ -316,8 +314,6 @@ const mergeConfig = (raw) => {
         typeof rawSettings.opencodeModel === 'string'
           ? rawSettings.opencodeModel
           : defaults.settings.opencodeModel,
-      piModel:
-        typeof rawSettings.piModel === 'string' ? rawSettings.piModel : defaults.settings.piModel,
       renderMarkdownAs: rawSettings.renderMarkdownAs === 'source' ? 'source' : 'preview',
       reviewCommentsPrefix:
         typeof rawSettings.reviewCommentsPrefix === 'string'

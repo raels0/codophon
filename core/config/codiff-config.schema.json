@@ -16,9 +16,9 @@
       "properties": {
         "agentBackend": {
           "type": "string",
-          "enum": ["codex", "claude", "opencode", "pi"],
+          "enum": ["codex", "claude", "opencode"],
           "default": "codex",
-          "description": "Which agent CLI powers review assistance and walkthroughs. 'codex' uses the OpenAI Codex CLI; 'claude' uses the Claude Code CLI; 'opencode' uses the OpenCode CLI; 'pi' uses the Pi CLI."
+          "description": "Which agent CLI powers review assistance and walkthroughs. 'codex' uses the OpenAI Codex CLI; 'claude' uses the Claude Code CLI; 'opencode' uses the OpenCode CLI."
         },
         "checkForUpdates": {
           "type": "boolean",
@@ -84,11 +84,6 @@
           "default": "opencode-default",
           "description": "The OpenCode model to use for review assistance, walkthroughs, and the managed /codiff command when agentBackend is 'opencode'. Use 'opencode-default' to preserve OpenCode's configured default, or a provider-qualified model id such as 'anthropic/claude-sonnet-4-6'."
         },
-        "piModel": {
-          "type": "string",
-          "default": "pi-default",
-          "description": "The Pi model to use for review assistance and walkthroughs when agentBackend is 'pi'."
-        },
         "renderMarkdownAs": {
           "type": "string",
           "enum": ["preview", "source"],
@@ -134,13 +129,34 @@
           "description": "Replacements for Codiff's default writing guidance. Omit a key to use its default. Output schemas and review evidence rules are unchanged.",
           "additionalProperties": false,
           "properties": {
-            "ask": { "type": "string", "maxLength": 16000 },
-            "commitMessage": { "type": "string", "maxLength": 16000 },
-            "walkthroughDesign": { "type": "string", "maxLength": 16000 },
-            "walkthroughRevision": { "type": "string", "maxLength": 16000 },
-            "walkthroughStops": { "type": "string", "maxLength": 16000 },
-            "walkthroughSummary": { "type": "string", "maxLength": 16000 },
-            "walkthroughTitles": { "type": "string", "maxLength": 16000 }
+            "ask": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "commitMessage": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "walkthroughDesign": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "walkthroughRevision": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "walkthroughStops": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "walkthroughSummary": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "walkthroughTitles": {
+              "type": "string",
+              "maxLength": 16000
+            }
           }
         },
         "walkthroughPrompt": {
@@ -161,7 +177,17 @@
       "additionalProperties": false,
       "properties": {
         "commandBar": {
-          "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
           "default": ["Mod+Shift+p", "Mod+k"],
           "description": "Open the command palette. Accepts a single combo or a list of aliases."
         },
@@ -186,12 +212,32 @@
           "description": "Focus the file filter search input in the sidebar."
         },
         "nextHunk": {
-          "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
           "default": ["Ctrl+ArrowDown", "j"],
           "description": "Jump to the next hunk or review comment. Accepts a single combo or a list of aliases."
         },
         "prevHunk": {
-          "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
           "default": ["Ctrl+ArrowUp", "k"],
           "description": "Jump to the previous hunk or review comment. Accepts a single combo or a list of aliases."
         },

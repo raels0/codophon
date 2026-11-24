@@ -371,21 +371,18 @@ export type WalkthroughContext = {
       | 'claude-session'
       | 'claude-session-excerpt'
       | 'opencode-session'
-      | 'opencode-session-excerpt'
-      | 'pi-session'
-      | 'pi-session-excerpt';
+      | 'opencode-session-excerpt';
   };
   validation?: ReadonlyArray<string>;
   version: 1;
 };
 
 export type CodiffLaunchOptions = {
-  agentBackend?: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentBackend?: 'codex' | 'claude' | 'opencode';
   applyUpdate?: boolean;
   claudeSessionId?: string;
   codexSessionId?: string;
   opencodeSessionId?: string;
-  piSessionId?: string;
   /** Exact Markdown file opened by the blocking plan handoff. */
   planFile?: string;
   /** Result file used to resume the waiting agent process. */
@@ -547,7 +544,7 @@ export type WalkthroughDesignOverview = {
 };
 
 export type NarrativeWalkthrough = {
-  agent: 'codex' | 'claude' | 'opencode' | 'pi';
+  agent: 'codex' | 'claude' | 'opencode';
   chapters: ReadonlyArray<WalkthroughChapter>;
   /**
    * When present, the diff is a committable staging set: Codiff adds a commit
@@ -580,7 +577,7 @@ export type NarrativeWalkthroughResult =
       walkthrough: NarrativeWalkthrough;
     }
   | {
-      code?: 'CODEX_NOT_FOUND' | 'CLAUDE_NOT_FOUND' | 'OPENCODE_NOT_FOUND' | 'PI_NOT_FOUND';
+      code?: 'CODEX_NOT_FOUND' | 'CLAUDE_NOT_FOUND' | 'OPENCODE_NOT_FOUND';
       reason: string;
       status: 'unavailable';
     };
@@ -687,7 +684,7 @@ export type ReviewAssistantResult =
       status: 'ready';
     }
   | {
-      code?: 'CODEX_NOT_FOUND' | 'CLAUDE_NOT_FOUND' | 'OPENCODE_NOT_FOUND' | 'PI_NOT_FOUND';
+      code?: 'CODEX_NOT_FOUND' | 'CLAUDE_NOT_FOUND' | 'OPENCODE_NOT_FOUND';
       context?: ReviewAssistantContext;
       reason: string;
       status: 'unavailable';
@@ -764,7 +761,7 @@ export type DiffImageContentResult =
 export type CodiffTheme = 'system' | 'light' | 'dark';
 
 export type CodiffPreferences = {
-  agentBackend: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentBackend: 'codex' | 'claude' | 'opencode';
   claudeModel: string;
   codeFontFamily: string;
   codeFontSize: number;
@@ -776,7 +773,6 @@ export type CodiffPreferences = {
   openAIModel: string;
   openAIReasoningEffort: string;
   opencodeModel: string;
-  piModel: string;
   renderMarkdownAs: 'preview' | 'source';
   reviewCommentsPrefix: string;
   reviewTheme: CodiffReviewTheme;

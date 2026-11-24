@@ -3,11 +3,9 @@
 const codex = require('./codex.cjs');
 const claude = require('./claude.cjs');
 const opencode = require('./opencode.cjs');
-const pi = require('./pi.cjs');
 const { readCodexSessionContext } = require('./codex-session-context.cjs');
 const { readClaudeSessionContext } = require('./claude-session-context.cjs');
 const { readOpenCodeSessionContext } = require('./opencode-session-context.cjs');
-const { readPiSessionContext } = require('./pi-session-context.cjs');
 
 /**
  * @typedef {import('../core/types.ts').WalkthroughContext} WalkthroughContext
@@ -31,7 +29,7 @@ const { readPiSessionContext } = require('./pi-session-context.cjs');
  *   timeoutMs?: number;
  * }} AgentOptions
  * @typedef {{
- *   id: 'codex' | 'claude' | 'opencode' | 'pi';
+ *   id: 'codex' | 'claude' | 'opencode';
  *   label: string;
  *   cliName: string;
  *   cliPathEnvVar: string;
@@ -39,7 +37,7 @@ const { readPiSessionContext } = require('./pi-session-context.cjs');
  *   models: ReadonlyArray<{id: string; label: string}>;
  *   defaultModel: string;
  *   fallbackModel: string;
- *   modelSettingKey: 'openAIModel' | 'claudeModel' | 'opencodeModel' | 'piModel';
+ *   modelSettingKey: 'openAIModel' | 'claudeModel' | 'opencodeModel';
  *   normalizeModel: (value: unknown) => string;
  *   notFoundCode: string;
  *   isAvailable: () => boolean;
@@ -53,13 +51,13 @@ const { readPiSessionContext } = require('./pi-session-context.cjs');
  *     options?: AgentOptions,
  *   ) => Promise<string>;
  *   readSessionContext: (sessionId: string | undefined) => Promise<WalkthroughContext | null> | WalkthroughContext | null;
- *   sessionLaunchOptionKey: 'codexSessionId' | 'claudeSessionId' | 'opencodeSessionId' | 'piSessionId';
+ *   sessionLaunchOptionKey: 'codexSessionId' | 'claudeSessionId' | 'opencodeSessionId';
  * }} Agent
  */
 
 const DEFAULT_AGENT_BACKEND = 'codex';
-/** @type {ReadonlyArray<'codex' | 'claude' | 'opencode' | 'pi'>} */
-const AGENT_BACKENDS = Object.freeze(['codex', 'claude', 'opencode', 'pi']);
+/** @type {ReadonlyArray<'codex' | 'claude' | 'opencode'>} */
+const AGENT_BACKENDS = Object.freeze(['codex', 'claude', 'opencode']);
 
 /**
  * @param {() => string} getCommand
@@ -139,39 +137,16 @@ const createOpenCodeAgent = () => ({
   sessionLaunchOptionKey: 'opencodeSessionId',
 });
 
-/** @returns {Agent} */
-const createPiAgent = () => ({
-  id: 'pi',
-  label: 'Pi',
-  cliName: 'pi',
-  cliPathEnvVar: 'CODIFF_PI_PATH',
-  defaultTimeoutMs: pi.PI_TIMEOUT_MS,
-  models: pi.PI_MODELS,
-  defaultModel: pi.DEFAULT_PI_MODEL,
-  fallbackModel: pi.FALLBACK_PI_MODEL,
-  modelSettingKey: 'piModel',
-  normalizeModel: pi.normalizePiModel,
-  notFoundCode: pi.PI_NOT_FOUND_CODE,
-  isAvailable: () => canResolveCommand(pi.getPiCommand, pi.isPiNotFoundError),
-  isNotFoundError: pi.isPiNotFoundError,
-  run: pi.runPi,
-  readSessionContext: readPiSessionContext,
-  sessionLaunchOptionKey: 'piSessionId',
-});
-
-/** @type {Record<'codex' | 'claude' | 'opencode' | 'pi', () => Agent>} */
+/** @type {Record<'codex' | 'claude' | 'opencode', () => Agent>} */
 const AGENT_FACTORIES = {
   claude: createClaudeAgent,
   codex: createCodexAgent,
   opencode: createOpenCodeAgent,
-  pi: createPiAgent,
 };
 
-/** @param {unknown} value @returns {'codex' | 'claude' | 'opencode' | 'pi'} */
+/** @param {unknown} value @returns {'codex' | 'claude' | 'opencode'} */
 const normalizeAgentBackend = (value) =>
-  value === 'codex' || value === 'claude' || value === 'opencode' || value === 'pi'
-    ? value
-    : DEFAULT_AGENT_BACKEND;
+  value === 'codex' || value === 'claude' || value === 'opencode' ? value : DEFAULT_AGENT_BACKEND;
 
 /** @param {unknown} backendId @returns {Agent} */
 const getAgent = (backendId) => AGENT_FACTORIES[normalizeAgentBackend(backendId)]();
@@ -193,7 +168,7 @@ const getAgentMenuModels = (agent, selectedModel, models = agent.models) =>
 /**
  * Select the first installed backend without launching a CLI process.
  * @param {(agent: Agent) => boolean} [isAvailable]
- * @returns {'codex' | 'claude' | 'opencode' | 'pi'}
+ * @returns {'codex' | 'claude' | 'opencode'}
  */
 const detectInitialAgentBackend = (isAvailable = (agent) => agent.isAvailable()) =>
   listAgents().find(isAvailable)?.id ?? DEFAULT_AGENT_BACKEND;

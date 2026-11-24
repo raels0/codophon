@@ -60,12 +60,6 @@ test('lists every bundled skill with its installation target', () => {
       targets: [{ sourceSubdir: 'claude/skills/codiff', targetSubdir: '.claude/skills/codiff' }],
     },
     {
-      agentLabel: 'Pi',
-      id: 'pi',
-      label: 'Pi Skill',
-      targets: [{ sourceSubdir: 'pi/skills/codiff', targetSubdir: '.pi/agent/skills/codiff' }],
-    },
-    {
       agentLabel: 'OpenCode',
       files: [
         {
@@ -95,14 +89,9 @@ test('builds an Install Skill submenu that routes each agent action', () => {
   const browserWindow = {};
 
   expect(menuItem.label).toBe('Install Skill');
-  expect(menuItem.submenu.map((item) => item.label)).toEqual([
-    'Codex',
-    'Claude Code',
-    'Pi',
-    'OpenCode',
-  ]);
+  expect(menuItem.submenu.map((item) => item.label)).toEqual(['Codex', 'Claude Code', 'OpenCode']);
 
-  menuItem.submenu[3].click({}, browserWindow);
+  menuItem.submenu[2].click({}, browserWindow);
   expect(install).toHaveBeenCalledWith(expect.objectContaining({ id: 'opencode' }), browserWindow);
 });
 
@@ -110,7 +99,6 @@ test('keeps skill instructions identical outside agent integration details', asy
   const paths = [
     'codex/skills/codiff/SKILL.md',
     'claude/skills/codiff/SKILL.md',
-    'pi/skills/codiff/SKILL.md',
     'opencode/skills/codiff/SKILL.md',
   ];
   const documents = await Promise.all(paths.map((path) => readFile(path, 'utf8')));

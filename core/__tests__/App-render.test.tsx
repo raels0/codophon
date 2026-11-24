@@ -186,7 +186,6 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
     openAIModel: defaultSettings.openAIModel,
     openAIReasoningEffort: defaultSettings.openAIReasoningEffort,
     opencodeModel: defaultSettings.opencodeModel,
-    piModel: defaultSettings.piModel,
     renderMarkdownAs: defaultSettings.renderMarkdownAs,
     reviewCommentsPrefix: defaultSettings.reviewCommentsPrefix,
     reviewTheme: defaultSettings.reviewTheme,
@@ -4457,47 +4456,6 @@ test('history filter matches commits by author name', async () => {
     expect(historySubjects()).toContain('Update docs');
     expect(historySubjects()).not.toContain('Fix parser');
   });
-});
-
-test('Pi not-found walkthrough errors show the agent recovery panel', async () => {
-  window.codiff = createCodiffMock({
-    getLaunchOptions: vi.fn(async () => ({
-      agentBackend: 'pi' as const,
-      repositoryPathProvided: true,
-      walkthrough: true,
-    })),
-    getNarrativeWalkthrough: vi.fn(async () => ({
-      code: 'PI_NOT_FOUND' as const,
-      reason: 'Pi CLI was not found.',
-      status: 'unavailable' as const,
-    })),
-    getRepositoryState: vi.fn(async () => ({
-      ...repositoryState,
-      files: [createChangedFile('src/app.ts')],
-    })),
-  });
-
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
-
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
-  await waitFor(() => {
-    expect(container.textContent).toContain('Pi CLI not found');
-  });
-  expect(container.textContent).toContain('Pi CLI was not found.');
-  expect(container.textContent).toContain('Review Files');
 });
 
 test('the design overview explains the implementation and links to its diff even in Support', async () => {

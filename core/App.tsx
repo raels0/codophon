@@ -1852,8 +1852,7 @@ export default function App({
     !walkthroughLoading &&
     (walkthroughError?.code === 'CODEX_NOT_FOUND' ||
       walkthroughError?.code === 'CLAUDE_NOT_FOUND' ||
-      walkthroughError?.code === 'OPENCODE_NOT_FOUND' ||
-      walkthroughError?.code === 'PI_NOT_FOUND');
+      walkthroughError?.code === 'OPENCODE_NOT_FOUND');
   const markInitialContentReady = useInitialWindowReveal(
     configLoaded &&
       Boolean(
@@ -1873,7 +1872,6 @@ export default function App({
     claude: codiffConfig.settings.claudeModel,
     codex: codiffConfig.settings.openAIModel,
     opencode: codiffConfig.settings.opencodeModel,
-    pi: codiffConfig.settings.piModel,
   }[activeAgentBackend];
   const settingsDialog = agentSettings ? (
     <AgentSettingsDialog
@@ -2374,7 +2372,6 @@ export default function App({
                 agentLabel={agentLabel}
                 onShowFiles={() => setSidebarMode('tree')}
                 reason={walkthroughError?.reason}
-                title={walkthroughError?.code === 'PI_NOT_FOUND' ? 'Pi CLI not found' : undefined}
               />
             </div>
           </div>

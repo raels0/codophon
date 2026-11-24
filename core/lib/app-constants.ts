@@ -17,7 +17,6 @@ const AGENT_LABELS: Record<CodiffAgentBackend, string> = {
   claude: 'Claude Code',
   codex: 'Codex',
   opencode: 'OpenCode',
-  pi: 'Pi',
 };
 
 export const getAgentLabel = (backend: CodiffAgentBackend): string =>

@@ -48,7 +48,7 @@ const isNarrativeWalkthrough = (value) => {
   return (
     walkthrough &&
     typeof walkthrough === 'object' &&
-    ['claude', 'codex', 'opencode', 'pi'].includes(walkthrough.agent) &&
+    ['claude', 'codex', 'opencode'].includes(walkthrough.agent) &&
     walkthrough.kind === 'narrative' &&
     walkthrough.version === 4 &&
     typeof walkthrough.focus === 'string' &&

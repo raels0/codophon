@@ -10,7 +10,7 @@ const {
   normalizeAgentBackend,
 } = require('../agent.cjs') as {
   detectInitialAgentBackend: (
-    isAvailable?: (agent: { id: 'codex' | 'claude' | 'opencode' | 'pi' }) => boolean,
+    isAvailable?: (agent: { id: 'codex' | 'claude' | 'opencode' }) => boolean,
   ) => string;
   getAgent: (backendId: unknown) => {
     id: string;
@@ -36,13 +36,12 @@ test('normalizes unknown agent backends to the default', () => {
   expect(normalizeAgentBackend('claude')).toBe('claude');
   expect(normalizeAgentBackend('codex')).toBe('codex');
   expect(normalizeAgentBackend('opencode')).toBe('opencode');
-  expect(normalizeAgentBackend('pi')).toBe('pi');
   expect(normalizeAgentBackend('gpt')).toBe('codex');
   expect(normalizeAgentBackend(undefined)).toBe('codex');
 });
 
 test('lists all agent backends', () => {
-  expect(listAgents().map((agent) => agent.id)).toEqual(['codex', 'claude', 'opencode', 'pi']);
+  expect(listAgents().map((agent) => agent.id)).toEqual(['codex', 'claude', 'opencode']);
 });
 
 test('detects the first available agent backend in priority order', () => {
@@ -78,17 +77,6 @@ test('resolves the Claude Code agent with its session wiring', () => {
   expect(agent.modelSettingKey).toBe('claudeModel');
   expect(agent.sessionLaunchOptionKey).toBe('claudeSessionId');
   expect(agent.notFoundCode).toBe('CLAUDE_NOT_FOUND');
-});
-
-test('resolves the Pi agent with its session wiring', () => {
-  const agent = getAgent('pi');
-  expect(agent.id).toBe('pi');
-  expect(agent.label).toBe('Pi');
-  expect(agent.modelSettingKey).toBe('piModel');
-  expect(agent.sessionLaunchOptionKey).toBe('piSessionId');
-  expect(agent.notFoundCode).toBe('PI_NOT_FOUND');
-  expect(typeof agent.run).toBe('function');
-  expect(typeof agent.readSessionContext).toBe('function');
 });
 
 test('resolves the OpenCode agent with its runtime wiring', () => {

@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * @typedef {'codex' | 'claude' | 'opencode' | 'pi'} AgentSkillId
+ * @typedef {'codex' | 'claude' | 'opencode'} AgentSkillId
  * @typedef {{
  *   legacyManagedMarkers?: ReadonlyArray<string>;
  *   managedMarker: string;
@@ -30,12 +30,6 @@ const AGENT_SKILLS = Object.freeze([
     id: 'claude',
     label: 'Claude Code Skill',
     targets: [{ sourceSubdir: 'claude/skills/codiff', targetSubdir: '.claude/skills/codiff' }],
-  },
-  {
-    agentLabel: 'Pi',
-    id: 'pi',
-    label: 'Pi Skill',
-    targets: [{ sourceSubdir: 'pi/skills/codiff', targetSubdir: '.pi/agent/skills/codiff' }],
   },
   {
     agentLabel: 'OpenCode',

@@ -46,7 +46,6 @@ const { createWalkthroughCommit } = require('./walkthrough-commit.cjs');
 const { readKeyboardLayout, watchKeyboardLayout } = require('./keyboard-layout.cjs');
 const { diagnoseWalkthroughMismatch } = require('./walkthrough-diagnosis.cjs');
 const { readCommitMessageReply } = require('./walkthrough-commit-message.cjs');
-const { normalizePiModel } = require('./pi.cjs');
 const {
   detectInitialAgentBackend,
   getAgent,
@@ -220,13 +219,13 @@ const readInitialRepositoryStateWithConfig = (repositoryPath, launchOptions) =>
 const resolveWindowAgent = (webContentsId) => {
   const override = windowLaunchOptions.get(webContentsId)?.agentBackend;
   return getAgent(
-    override === 'codex' || override === 'claude' || override === 'opencode' || override === 'pi'
+    override === 'codex' || override === 'claude' || override === 'opencode'
       ? override
       : config.settings.agentBackend,
   );
 };
 
-/** @param {'codex' | 'claude' | 'opencode' | 'pi'} agentId */
+/** @param {'codex' | 'claude' | 'opencode'} agentId */
 const skillInstallerFor = (agentId) => skillInstallers.get(agentId);
 const { getTerminalHelperStatus, installTerminalHelper } = createTerminalHelper({
   app,
@@ -398,7 +397,6 @@ const updateConfig = (nextConfig) => {
       opencodeModel: normalizeOpenCodeModel(
         nextConfig.settings?.opencodeModel ?? config.settings.opencodeModel,
       ),
-      piModel: normalizePiModel(nextConfig.settings?.piModel ?? config.settings.piModel),
     },
   };
   writeConfig(updatedConfig);
@@ -409,7 +407,7 @@ const updateConfig = (nextConfig) => {
   Menu.setApplicationMenu(buildApplicationMenu());
 };
 
-/** @param {'codex' | 'claude' | 'opencode' | 'pi'} backend */
+/** @param {'codex' | 'claude' | 'opencode'} backend */
 const selectAgentBackend = (backend) => {
   const agentBackend = normalizeAgentBackend(backend);
   if (config.settings.agentBackend === agentBackend) {
@@ -1391,7 +1389,6 @@ if (squirrelStartup || !lock) {
     config.settings.openAIModel = normalizeOpenAIModel(config.settings.openAIModel);
     config.settings.opencodeModel = normalizeOpenCodeModel(config.settings.opencodeModel);
     config.settings.claudeModel = normalizeClaudeModel(config.settings.claudeModel);
-    config.settings.piModel = normalizePiModel(config.settings.piModel);
     config.settings.agentBackend = shouldDetectInitialAgent
       ? detectInitialAgentBackend()
       : normalizeAgentBackend(config.settings.agentBackend);
@@ -1441,7 +1438,6 @@ if (squirrelStartup || !lock) {
           codeFontSize: normalizeCodeFontSize(nextConfig.settings.codeFontSize),
           openAIModel: normalizeOpenAIModel(nextConfig.settings.openAIModel),
           opencodeModel: normalizeOpenCodeModel(nextConfig.settings.opencodeModel),
-          piModel: normalizePiModel(nextConfig.settings.piModel),
         },
       };
       updater?.setUpdatesEnabled(config.settings.checkForUpdates);

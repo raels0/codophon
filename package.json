@@ -23,8 +23,7 @@
     "core",
     "dist",
     "electron",
-    "opencode",
-    "pi"
+    "opencode"
   ],
   "type": "module",
   "main": "./electron/main.cjs",

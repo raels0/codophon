@@ -49,7 +49,6 @@ import {
 import claudeIconUrl from '../../assets/claude.svg';
 import codexIconUrl from '../../assets/codex.svg';
 import opencodeIconUrl from '../../assets/opencode.svg';
-import piIconUrl from '../../assets/pi.svg';
 import { getShortcutLabel, matchesShortcut } from '../../config/keymap.ts';
 import type { CodiffDiffStyle, CodiffKeymap } from '../../config/types.ts';
 import type {
@@ -446,7 +445,7 @@ function IdentityReviewAvatar({ identity }: { identity: GitIdentity | null }) {
   );
 }
 
-function AgentAvatar({ agentId }: { agentId: 'codex' | 'claude' | 'opencode' | 'pi' }) {
+function AgentAvatar({ agentId }: { agentId: 'codex' | 'claude' | 'opencode' }) {
   return (
     <img
       alt=""
@@ -457,14 +456,12 @@ function AgentAvatar({ agentId }: { agentId: 'codex' | 'claude' | 'opencode' | '
   );
 }
 
-const agentIconUrl = (agentId: 'codex' | 'claude' | 'opencode' | 'pi') => {
-  return agentId === 'pi'
-    ? piIconUrl
-    : agentId === 'opencode'
-      ? opencodeIconUrl
-      : agentId === 'claude'
-        ? claudeIconUrl
-        : codexIconUrl;
+const agentIconUrl = (agentId: 'codex' | 'claude' | 'opencode') => {
+  return agentId === 'opencode'
+    ? opencodeIconUrl
+    : agentId === 'claude'
+      ? claudeIconUrl
+      : codexIconUrl;
 };
 
 const canAskCodexForComment = (comment: ReviewComment) =>
@@ -1553,7 +1550,7 @@ function ReviewCommentEditor({
   onUpdateComment,
   supportsReviewCommentActions,
 }: {
-  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentId: 'codex' | 'claude' | 'opencode';
   agentLabel: string;
   comment: ReviewComment;
   displayName: string;
@@ -2151,7 +2148,7 @@ function ReviewCommentThreadGroup({
   onUpdateComment,
   supportsReviewCommentActions,
 }: {
-  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentId: 'codex' | 'claude' | 'opencode';
   agentLabel: string;
   comments: ReadonlyArray<ReviewComment>;
   focusCommentId: string | null;
@@ -2326,7 +2323,7 @@ function ReviewAnnotation({
   onUpdateComment,
   supportsReviewCommentActions,
 }: {
-  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentId: 'codex' | 'claude' | 'opencode';
   agentLabel: string;
   annotation: DiffLineAnnotation<ReviewCommentAnnotationMetadata>;
   comments: ReadonlyArray<ReviewComment>;
@@ -2822,7 +2819,7 @@ export function ReviewCodeView({
   wordWrap,
 }: {
   activeSearchMatch: DiffSearchMatch | null;
-  agentId: 'codex' | 'claude' | 'opencode' | 'pi';
+  agentId: 'codex' | 'claude' | 'opencode';
   agentLabel: string;
   allowViewedToggle?: boolean;
   blocks?: ReadonlyArray<ReviewDiffBlock>;
