@@ -10,7 +10,7 @@ type Anchor = Pick<
 >;
 type Question = Anchor & { body: string; version?: string };
 
-const storageKey = (source: PullRequestSource) => `codiff:review-brief:v1:${source.url}`;
+const storageKey = (source: PullRequestSource) => `codophon:review-brief:v1:${source.url}`;
 const unsavedQuestions = new Map<string, ReadonlyArray<Question>>();
 
 export const clearReviewBriefQuestions = (source: PullRequestSource) => {

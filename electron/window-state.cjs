@@ -8,7 +8,7 @@ const MIN_WINDOW_WIDTH = 480;
 const MIN_WINDOW_HEIGHT = 320;
 const MIN_OVERLAP = 100;
 
-const getDefaultConfigDir = () => join(homedir(), '.codiff');
+const getDefaultConfigDir = () => join(homedir(), '.codophon');
 
 /**
  * @typedef {{

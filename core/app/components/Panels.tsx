@@ -16,12 +16,12 @@ import {
   type ReactNode,
 } from 'react';
 import { matchesShortcut } from '../../config/keymap.ts';
-import type { CodiffKeymap } from '../../config/types.ts';
+import type { CodophonKeymap } from '../../config/types.ts';
 import type { RepositoryLoadError, ReviewComment } from '../../lib/app-types.ts';
 import { buildReviewCommentsMarkdown } from '../../lib/review-comments.ts';
 import type {
   ChangedFile,
-  CodiffUpdateStatus,
+  CodophonUpdateStatus,
   PullRequestReviewEvent,
   PullRequestReviewStatus,
 } from '../../types.ts';
@@ -94,7 +94,7 @@ export function RepositoryChangeBanner({
   );
 }
 
-export type { CodiffUpdateStatus as UpdateStatus } from '../../types.ts';
+export type { CodophonUpdateStatus as UpdateStatus } from '../../types.ts';
 
 export function UpdatePill({
   onDismiss,
@@ -103,7 +103,7 @@ export function UpdatePill({
 }: {
   onDismiss: () => void;
   onOpen: () => void;
-  status: CodiffUpdateStatus;
+  status: CodophonUpdateStatus;
 }) {
   const { availableVersion, currentVersion } = status;
   if (!availableVersion) {
@@ -115,7 +115,7 @@ export function UpdatePill({
       <Button
         className="update-pill available"
         onClick={onOpen}
-        title={`Codiff ${availableVersion} is available (you have ${currentVersion}). Opens the release page.`}
+        title={`Codophon ${availableVersion} is available (you have ${currentVersion}). Opens the release page.`}
         type="button"
       >
         <span>Update available</span>
@@ -185,7 +185,7 @@ export function FirstRunPanel({
       <strong>Open a Git repository</strong>
       <p>
         Install the terminal helper, then run{' '}
-        <code className="walkthrough-inline-code">codiff</code> from a Git repository in Terminal.
+        <code className="walkthrough-inline-code">codophon</code> from a Git repository in Terminal.
       </p>
       <p>
         You can also choose <span className="empty-panel-menu-path">File → Open Folder…</span> to
@@ -211,8 +211,8 @@ export function RepositoryLoadErrorPanel({ error }: { error: RepositoryLoadError
       <>
         <strong>No Git repository found</strong>
         <p>
-          Codiff was opened outside a Git repository. Run{' '}
-          <code className="walkthrough-inline-code">codiff</code> from inside a repo, or choose{' '}
+          Codophon was opened outside a Git repository. Run{' '}
+          <code className="walkthrough-inline-code">codophon</code> from inside a repo, or choose{' '}
           <span className="empty-panel-menu-path">File → Open Folder…</span> to open one.
         </p>
       </>
@@ -268,7 +268,7 @@ export function DiffSearchPanel({
 }: {
   activeIndex: number;
   focusRequest: number;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   matchCount: number;
   onChange: (query: string) => void;
   onClose: () => void;

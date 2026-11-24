@@ -63,7 +63,7 @@ const createPullRequestState = (): RepositoryState => ({
   root: '/repo',
   source: {
     type: 'pull-request',
-    url: 'https://github.com/nkzw-tech/codiff/pull/1',
+    url: 'https://github.com/raels0/codophon/pull/1',
   },
 });
 

@@ -26,7 +26,7 @@ export function CopyCodeButton({ className, code }: { className?: string; code: 
   return (
     <button
       aria-label={label}
-      className={`codiff-copy-path-button codiff-copy-code-button${copied ? ' copied' : ''}${className ? ` ${className}` : ''}`}
+      className={`codophon-copy-path-button codophon-copy-code-button${copied ? ' copied' : ''}${className ? ` ${className}` : ''}`}
       onClick={(event) => void handleClick(event)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -37,9 +37,9 @@ export function CopyCodeButton({ className, code }: { className?: string; code: 
       type="button"
     >
       {copied ? (
-        <Check aria-hidden className="codiff-copy-path-icon check" size={16} weight="bold" />
+        <Check aria-hidden className="codophon-copy-path-icon check" size={16} weight="bold" />
       ) : (
-        <LucideCopy aria-hidden className="codiff-copy-path-icon" size={16} strokeWidth={2.25} />
+        <LucideCopy aria-hidden className="codophon-copy-path-icon" size={16} strokeWidth={2.25} />
       )}
     </button>
   );

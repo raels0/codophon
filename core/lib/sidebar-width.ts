@@ -1,4 +1,4 @@
-const SIDEBAR_WIDTH_STORAGE_KEY = 'codiff:sidebar-width';
+const SIDEBAR_WIDTH_STORAGE_KEY = 'codophon:sidebar-width';
 
 export const SIDEBAR_COLLAPSE_THRESHOLD = 80;
 export const SIDEBAR_DEFAULT_WIDTH = 292;

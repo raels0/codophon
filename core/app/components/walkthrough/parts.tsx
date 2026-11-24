@@ -35,9 +35,9 @@ export function ImportancePill({ importance }: { importance: WalkthroughStop['im
 
 export function WalkthroughLineCount({ added, deleted }: { added: number; deleted: number }) {
   return (
-    <span className="codiff-line-count">
-      <span className="codiff-line-count-added">+{added}</span>
-      {deleted > 0 ? <span className="codiff-line-count-deleted">−{deleted}</span> : null}
+    <span className="codophon-line-count">
+      <span className="codophon-line-count-added">+{added}</span>
+      {deleted > 0 ? <span className="codophon-line-count-deleted">−{deleted}</span> : null}
     </span>
   );
 }

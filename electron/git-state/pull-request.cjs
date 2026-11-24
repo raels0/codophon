@@ -13,6 +13,7 @@ const {
   getFingerprint,
   getImageMimeType,
   git,
+  readRepositoryRoot,
   gitOrEmpty,
   summarizeContent,
   validateRepositoryPath,
@@ -43,7 +44,7 @@ const { parseReviewUrl } = require('../review-source.cjs');
 
 const GH_NOT_FOUND_CODE = 'GH_NOT_FOUND';
 const GH_NOT_FOUND_MESSAGE =
-  'GitHub support requires gh. Install gh, authenticate it, and verify `gh --version` works in Terminal. Codiff searches PATH, ~/.local/bin/gh, /opt/homebrew/bin/gh, and /usr/local/bin/gh. If gh is installed somewhere else, quit Codiff, then launch it with `CODIFF_GH_PATH=/absolute/path/to/gh codiff`.';
+  'GitHub support requires gh. Install gh, authenticate it, and verify `gh --version` works in Terminal. Codophon searches PATH, ~/.local/bin/gh, /opt/homebrew/bin/gh, and /usr/local/bin/gh. If gh is installed somewhere else, quit Codophon, then launch it with `CODOPHON_GH_PATH=/absolute/path/to/gh codophon`.';
 
 /** @param {string} [detail] */
 const createGhNotFoundError = (detail) =>
@@ -53,19 +54,19 @@ const createGhNotFoundError = (detail) =>
 
 /**
  * A Dock or Spotlight launch gives the app a minimal PATH that omits the
- * directories Homebrew and manual installs use, and later `codiff` invocations
+ * directories Homebrew and manual installs use, and later `codophon` invocations
  * hand their arguments to that first process rather than replacing it, so `gh`
- * has to be located the same way the other CLIs Codiff shells out to are.
+ * has to be located the same way the other CLIs Codophon shells out to are.
  */
 const getGhCommand = () => {
-  const ghPath = process.env.CODIFF_GH_PATH?.trim();
+  const ghPath = process.env.CODOPHON_GH_PATH?.trim();
   if (ghPath) {
     if (isExecutableFile(ghPath)) {
       return ghPath;
     }
 
     throw createGhNotFoundError(
-      `CODIFF_GH_PATH is set to ${JSON.stringify(ghPath)}, but that file is not executable.`,
+      `CODOPHON_GH_PATH is set to ${JSON.stringify(ghPath)}, but that file is not executable.`,
     );
   }
 
@@ -91,11 +92,11 @@ const getGhCommand = () => {
 const parseGitHubPullRequestUrl = (value) => {
   const parsed = parseReviewUrl(value);
   if (!parsed) {
-    throw new Error('Codiff expected a GitHub pull request URL.');
+    throw new Error('Codophon expected a GitHub pull request URL.');
   }
 
   if (parsed.provider !== 'github') {
-    throw new Error('Codiff only supports GitHub pull request URLs.');
+    throw new Error('Codophon only supports GitHub pull request URLs.');
   }
 
   return {
@@ -254,9 +255,9 @@ const selectPullRequestRemote = async (repoRoot, pullRequest, expectedHeadSha) =
 
 /** @param {PullRequestReference} pullRequest @param {GitHubPullRequestMetadata} metadata */
 const createPullRequestHistoryFetchRefspecs = (pullRequest, metadata) => [
-  `+refs/pull/${pullRequest.number}/head:refs/codiff/pull-requests/${pullRequest.number}/head`,
+  `+refs/pull/${pullRequest.number}/head:refs/codophon/pull-requests/${pullRequest.number}/head`,
   ...(metadata.base?.ref
-    ? [`+refs/heads/${metadata.base.ref}:refs/codiff/pull-requests/${pullRequest.number}/base`]
+    ? [`+refs/heads/${metadata.base.ref}:refs/codophon/pull-requests/${pullRequest.number}/base`]
     : []),
 ];
 
@@ -471,7 +472,7 @@ const readGitHubImageFile = async (repoRoot, repository, ref, path) => {
   }
 
   if (buffer.length > IMAGE_FILE_LIMIT) {
-    throw new Error(`Image is ${formatBytes(buffer.length)}, so Codiff skipped rendering it.`);
+    throw new Error(`Image is ${formatBytes(buffer.length)}, so Codophon skipped rendering it.`);
   }
 
   return bufferToImageRevision(path, buffer);
@@ -681,7 +682,7 @@ const normalizeGitHubPullRequestCommit = (commit) => normalizeGitHubCommit(commi
 
 /** @param {string} launchPath @param {Extract<ReviewSource, {type: 'pull-request'}>} source @param {number} [limit] */
 const listPullRequestHistory = async (launchPath, source, limit = 200) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(source.url);
   const [metadata, commits] = await Promise.all([
     readPullRequestMetadata(repoRoot, pullRequest),
@@ -796,8 +797,8 @@ const resolvePullRequestContentRefs = async (repoRoot, pullRequest, metadata, se
     return null;
   }
 
-  const headRef = `refs/codiff/pull-requests/${pullRequest.number}/head`;
-  const baseRef = `refs/codiff/pull-requests/${pullRequest.number}/base`;
+  const headRef = `refs/codophon/pull-requests/${pullRequest.number}/head`;
+  const baseRef = `refs/codophon/pull-requests/${pullRequest.number}/base`;
   const headSha = metadata.head?.sha;
   const baseSha = metadata.base?.sha;
   const localHead = (
@@ -841,7 +842,7 @@ const BINARY_DIFF_MARKER = /^Binary files .* differ/m;
 
 /**
  * Build a diff section for a pull request file. When the full base and head
- * contents are available the section carries `oldFile`/`newFile` so Codiff
+ * contents are available the section carries `oldFile`/`newFile` so Codophon
  * renders a recomputed diff with expandable unmodified context (matching commits
  * and the working tree). Otherwise it falls back to the GitHub patch.
  *
@@ -898,7 +899,7 @@ const createPullRequestSection = (pullRequest, file, patch, oldFile, newFile) =>
 
 /** @param {string} launchPath @param {Extract<ReviewSource, {type: 'pull-request'}>} source @returns {Promise<RepositoryState>} */
 const readPullRequestState = async (launchPath, source) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(source.url);
 
   const [metadata, apiFiles, diff, reviewComments, viewedFiles] = await Promise.all([
@@ -1006,7 +1007,7 @@ const readPullRequestState = async (launchPath, source) => {
  */
 const readPullRequestImageContent = async (launchPath, source, requestedPath) => {
   try {
-    const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+    const repoRoot = await readRepositoryRoot(launchPath);
     const path = validateRepositoryPath(requestedPath);
     const pullRequest = parseGitHubPullRequestUrl(source.url);
 
@@ -1035,7 +1036,7 @@ const readPullRequestImageContent = async (launchPath, source, requestedPath) =>
 
     if (!oldImage && !newImage) {
       return {
-        reason: 'Codiff could not load either side of this image.',
+        reason: 'Codophon could not load either side of this image.',
         status: 'unavailable',
       };
     }
@@ -1047,7 +1048,7 @@ const readPullRequestImageContent = async (launchPath, source, requestedPath) =>
     };
   } catch (error) {
     return {
-      reason: error instanceof Error ? error.message : 'Codiff could not load this image.',
+      reason: error instanceof Error ? error.message : 'Codophon could not load this image.',
       status: 'unavailable',
     };
   }
@@ -1097,7 +1098,7 @@ const hasPendingPullRequestReview = async (repoRoot, pullRequest) => {
 
 /** @param {string} launchPath @param {SubmitPullRequestCommentRequest} request */
 const submitPullRequestComment = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(request.source.url);
   const metadata = await readPullRequestMetadata(repoRoot, pullRequest);
   await selectPullRequestRemote(repoRoot, pullRequest, metadata.head?.sha);
@@ -1136,7 +1137,7 @@ const submitPullRequestComment = async (launchPath, request) => {
 
 /** @param {string} launchPath @param {SubmitPullRequestReviewRequest} request */
 const submitPullRequestReview = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(request.source.url);
   const metadata = await readPullRequestMetadata(repoRoot, pullRequest);
   await selectPullRequestRemote(repoRoot, pullRequest, metadata.head?.sha);
@@ -1156,7 +1157,7 @@ const submitPullRequestReview = async (launchPath, request) => {
 
 /** @param {string} launchPath @param {SetPullRequestFileViewedRequest} request */
 const setPullRequestFileViewed = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const pullRequest = parseGitHubPullRequestUrl(request.source.url);
   validateRepositoryPath(request.path);
   if (typeof request.viewed !== 'boolean') {

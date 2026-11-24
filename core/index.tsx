@@ -8,9 +8,9 @@ import { trackKeyboardLayout } from './config/keyboard-layout.ts';
 import type {} from './global.d.ts';
 import { preloadCodeView } from './lib/code-view-options.ts';
 
-const initialLaunchOptions = await window.codiff.getLaunchOptions();
+const initialLaunchOptions = await window.codophon.getLaunchOptions();
 preloadCodeView();
-const initialConfig = await window.codiff.getConfig().catch(createDefaultConfig);
+const initialConfig = await window.codophon.getConfig().catch(createDefaultConfig);
 
 // Reading the layout is asynchronous, so it starts here rather than blocking
 // the first paint. Shortcuts resolve against US key positions until it lands.

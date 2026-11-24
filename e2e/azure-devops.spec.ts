@@ -69,7 +69,7 @@ const createPullRequest = (workspace: string, repo: Repo) => {
         .filter(Boolean)
         .map((line) => JSON.parse(line) as { body: string; method: string; uri: string }),
     env: {
-      CODIFF_AZ_PATH: resolve('e2e/fake-az.mjs'),
+      CODOPHON_AZ_PATH: resolve('e2e/fake-az.mjs'),
       FAKE_AZ_LOG: log,
       FAKE_AZ_STATE: state,
       FAKE_GIT_REMOTE: server.path,

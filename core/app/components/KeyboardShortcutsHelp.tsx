@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { getShortcutLabel } from '../../config/keymap.ts';
-import type { CodiffKeymap } from '../../config/types.ts';
+import type { CodophonKeymap } from '../../config/types.ts';
 import { Button } from './Button.tsx';
 
 type ShortcutDescriptor = {
-  action: keyof CodiffKeymap;
+  action: keyof CodophonKeymap;
   label: string;
 };
 
@@ -59,7 +59,7 @@ export function KeyboardShortcutsHelp({
   open,
   visible,
 }: {
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   onClose: () => void;
   open: boolean;
   visible: boolean;

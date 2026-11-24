@@ -159,7 +159,7 @@ const createReviewAssistantContext = async (state, request) => {
       if (file.sections.length && file.sections.every((section) => section.binary))
         throw new Error('Binary file contents cannot be read as text.');
       if (file.sections.some((section) => section.loadState === 'too-large')) {
-        throw new Error('This file exceeds Codiff’s text-file size limit.');
+        throw new Error('This file exceeds Codophon’s text-file size limit.');
       }
       text = commits
         ? await git(state.root, [
@@ -211,7 +211,7 @@ const createReviewAssistantContext = async (state, request) => {
       text = content.contents;
     }
     if (text.length > MANUAL_TEXT_FILE_LIMIT * 2)
-      throw new Error('This text exceeds Codiff’s review-context size limit.');
+      throw new Error('This text exceeds Codophon’s review-context size limit.');
     if (cachedChars + text.length <= MANUAL_TEXT_FILE_LIMIT) {
       documents.set(key, text);
       cachedChars += text.length;

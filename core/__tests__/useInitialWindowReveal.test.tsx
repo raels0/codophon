@@ -7,7 +7,7 @@ import { renderReact } from './helpers/react.tsx';
 let frames: Map<number, FrameRequestCallback>;
 let nextFrame: number;
 const originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
-const originalCodiff = window.codiff;
+const originalCodophon = window.codophon;
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -33,12 +33,12 @@ beforeEach(() => {
       };
     },
   );
-  window.codiff = { markWindowReady: vi.fn() } as unknown as Window['codiff'];
+  window.codophon = { markWindowReady: vi.fn() } as unknown as Window['codophon'];
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  window.codiff = originalCodiff;
+  window.codophon = originalCodophon;
   if (originalFonts) {
     Object.defineProperty(document, 'fonts', originalFonts);
   } else {
@@ -51,7 +51,7 @@ function View({ loading = false, ready }: { loading?: boolean; ready: boolean })
   return (
     <main className="review">
       {loading ? (
-        <div className="codiff-readonly-markdown-loading">Loading…</div>
+        <div className="codophon-readonly-markdown-loading">Loading…</div>
       ) : ready ? (
         'Content'
       ) : (
@@ -82,19 +82,19 @@ test('reveals once after content, fonts, and a completed layout frame', async ()
     </StrictMode>,
   );
   await paint();
-  expect(window.codiff.markWindowReady).not.toHaveBeenCalled();
+  expect(window.codophon.markWindowReady).not.toHaveBeenCalled();
   await view.rerender(
     <StrictMode>
       <View ready />
     </StrictMode>,
   );
   await paint();
-  expect(window.codiff.markWindowReady).not.toHaveBeenCalled();
+  expect(window.codophon.markWindowReady).not.toHaveBeenCalled();
   await act(async () => fonts.resolve());
   await paint();
-  expect(window.codiff.markWindowReady).not.toHaveBeenCalled();
+  expect(window.codophon.markWindowReady).not.toHaveBeenCalled();
   await finishPaint();
-  expect(window.codiff.markWindowReady).toHaveBeenCalledOnce();
+  expect(window.codophon.markWindowReady).toHaveBeenCalledOnce();
   await view.rerender(
     <StrictMode>
       <View ready={false} />
@@ -107,7 +107,7 @@ test('reveals once after content, fonts, and a completed layout frame', async ()
   );
   await paint();
   await finishPaint();
-  expect(window.codiff.markWindowReady).toHaveBeenCalledOnce();
+  expect(window.codophon.markWindowReady).toHaveBeenCalledOnce();
 });
 
 test('a view replaced while its fonts load cannot reveal stale content', async () => {
@@ -118,7 +118,7 @@ test('a view replaced while its fonts load cannot reveal stale content', async (
   await act(async () => fonts.resolve());
   await paint();
   await finishPaint();
-  expect(window.codiff.markWindowReady).not.toHaveBeenCalled();
+  expect(window.codophon.markWindowReady).not.toHaveBeenCalled();
 });
 
 test('a visible Markdown preview finishes loading before the window is revealed', async () => {
@@ -129,11 +129,11 @@ test('a visible Markdown preview finishes loading before the window is revealed'
     await using view = await renderReact(<View loading ready />);
     await paint();
     await finishPaint();
-    expect(window.codiff.markWindowReady).not.toHaveBeenCalled();
+    expect(window.codophon.markWindowReady).not.toHaveBeenCalled();
     await view.rerender(<View ready />);
     await paint();
     await finishPaint();
-    expect(window.codiff.markWindowReady).toHaveBeenCalledOnce();
+    expect(window.codophon.markWindowReady).toHaveBeenCalledOnce();
   } finally {
     measure.mockRestore();
   }

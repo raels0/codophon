@@ -35,7 +35,7 @@ export function ReviewBriefDialog({ onClose, questions, source, warning }: Props
       return;
     }
     let active = true;
-    void window.codiff.getReviewBriefComments(source).then(
+    void window.codophon.getReviewBriefComments(source).then(
       (comments) => {
         if (active) {
           setPosted({ comments, status: 'ready' });

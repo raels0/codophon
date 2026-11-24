@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { matchesShortcut } from '../../config/keymap.ts';
-import type { CodiffKeymap } from '../../config/types.ts';
+import type { CodophonKeymap } from '../../config/types.ts';
 import { isNativeInputTarget } from '../../lib/keyboard.ts';
 
 type UseAppKeyboardShortcutsOptions = {
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   navigateHunks: (direction: 1 | -1) => void;
   onFocusFileFilter: () => void;
   onOpenDiffSearch: () => void;

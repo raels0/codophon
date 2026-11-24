@@ -55,10 +55,10 @@ const createHarness = () => {
 
 test('only syncs whole-file transitions as walkthrough hunks are reviewed', async () => {
   const setPullRequestFileViewed = vi.fn(async () => {});
-  window.codiff = {
+  window.codophon = {
     getRepositoryState: vi.fn(async () => repository),
     setPullRequestFileViewed,
-  } as unknown as Window['codiff'];
+  } as unknown as Window['codophon'];
   const harness = createHarness();
   await using _view = await renderReact(<harness.Harness />);
   const first = getWalkthroughReviewIdentity(file, [`${file.sections[0].id}:h1`]);
@@ -96,7 +96,10 @@ test('serializes rapid checkbox changes and waits for them before refreshing', a
     .mockReturnValueOnce(first.promise)
     .mockReturnValueOnce(second.promise);
   const getRepositoryState = vi.fn(async () => repository);
-  window.codiff = { getRepositoryState, setPullRequestFileViewed } as unknown as Window['codiff'];
+  window.codophon = {
+    getRepositoryState,
+    setPullRequestFileViewed,
+  } as unknown as Window['codophon'];
   const harness = createHarness();
   await using _view = await renderReact(<harness.Harness />);
   const viewed = { [file.path]: file.fingerprint };
@@ -119,7 +122,7 @@ test('failed queued saves restore confirmed progress while preserving other file
   const setPullRequestFileViewed = vi.fn(async () => {
     throw new Error('Offline');
   });
-  window.codiff = { setPullRequestFileViewed } as unknown as Window['codiff'];
+  window.codophon = { setPullRequestFileViewed } as unknown as Window['codophon'];
   const harness = createHarness();
   await using _view = await renderReact(<harness.Harness />);
   const viewed = { [file.path]: file.fingerprint };
@@ -139,10 +142,10 @@ test('failed queued saves restore confirmed progress while preserving other file
 test('a stale refresh keeps checkbox changes made while the lookup is in flight', async () => {
   const lookup = Promise.withResolvers<RepositoryState>();
   const getRepositoryState = vi.fn(() => lookup.promise);
-  window.codiff = {
+  window.codophon = {
     getRepositoryState,
     setPullRequestFileViewed: vi.fn(async () => {}),
-  } as unknown as Window['codiff'];
+  } as unknown as Window['codophon'];
   const harness = createHarness();
   await using _view = await renderReact(<harness.Harness />);
   const refresh = harness.getSync().getRepositoryState(source);
@@ -157,7 +160,7 @@ test('does not sync local reviews or Azure DevOps, or roll back a different PR',
   using alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
   const pending = Promise.withResolvers<void>();
   const setPullRequestFileViewed = vi.fn(() => pending.promise);
-  window.codiff = { setPullRequestFileViewed } as unknown as Window['codiff'];
+  window.codophon = { setPullRequestFileViewed } as unknown as Window['codophon'];
   const harness = createHarness();
   await using _view = await renderReact(<harness.Harness />);
   for (const localSource of [

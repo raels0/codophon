@@ -7,10 +7,12 @@ const {
   fileSort,
   generatedDirectoryPathspecExcludes,
   generatedDirectoryPathspecs,
-  getFingerprint,
+  createWorkingTreeChangedFile,
+  gitOrEmpty,
   getGravatarHash,
   getWhitespaceDiffArgs,
   git,
+  readRepositoryRoot,
   MAX_UNTRACKED_INITIAL_ITEMS,
   parseStatus,
   readFileStat,
@@ -216,7 +218,7 @@ const listUntrackedItems = async (repoRoot) => {
  * @returns {Promise<RepositoryState>}
  */
 const readWorkingTreeState = async (launchPath, options = {}) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const shouldUsePatchOnly = options.eagerContents === false;
   const [trackedStatus, untrackedItems, stagedPatches, unstagedPatches] = await Promise.all([
     git(repoRoot, ['status', '--porcelain=v1', '-z', '-uno']),
@@ -252,26 +254,7 @@ const readWorkingTreeState = async (launchPath, options = {}) => {
       );
     }
 
-    const fingerprint = getFingerprint(
-      `${item.status}\n${item.oldPath || ''}\n${sections
-        .map(
-          (section) =>
-            `${section.loadState || 'ready'}\n${section.binary ? 'binary' : 'text'}\n${
-              section.patch
-            }\n${section.summary?.reason || ''}\n${section.summary?.fingerprint || ''}\n${
-              section.oldFile?.contents || ''
-            }\n${section.newFile?.contents || ''}`,
-        )
-        .join('\n')}`,
-    );
-
-    files.push({
-      fingerprint,
-      oldPath: item.oldPath,
-      path: item.path,
-      sections,
-      status: item.status,
-    });
+    files.push(createWorkingTreeChangedFile(item, sections));
   }
 
   return {
@@ -308,7 +291,7 @@ const getStatusItemForPath = async (repoRoot, path) => {
 
 /** @param {string} launchPath @param {DiffSectionContentRequest} request */
 const readDiffSectionContent = async (launchPath, request) => {
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const path = validateRepositoryPath(request.path);
   if (request.kind === 'commit' || request.source?.type === 'commit') {
     throw new Error('Lazy loading commit diffs is not supported.');
@@ -328,7 +311,7 @@ const readDiffSectionContent = async (launchPath, request) => {
  */
 const readDiffImageContent = async (launchPath, request) => {
   try {
-    const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+    const repoRoot = await readRepositoryRoot(launchPath);
     const path = validateRepositoryPath(request.path);
     if (request.kind === 'commit' || request.source?.type === 'commit') {
       throw new Error('Commit image diffs are loaded through the commit reader.');
@@ -351,7 +334,7 @@ const readDiffImageContent = async (launchPath, request) => {
 
     if (!oldImage && !newImage) {
       return {
-        reason: 'Codiff could not load either side of this image.',
+        reason: 'Codophon could not load either side of this image.',
         status: 'unavailable',
       };
     }
@@ -363,18 +346,9 @@ const readDiffImageContent = async (launchPath, request) => {
     };
   } catch (error) {
     return {
-      reason: error instanceof Error ? error.message : 'Codiff could not load this image.',
+      reason: error instanceof Error ? error.message : 'Codophon could not load this image.',
       status: 'unavailable',
     };
-  }
-};
-
-/** @param {string} repoRoot @param {ReadonlyArray<string>} args */
-const gitOrEmpty = async (repoRoot, args) => {
-  try {
-    return await git(repoRoot, args);
-  } catch {
-    return '';
   }
 };
 

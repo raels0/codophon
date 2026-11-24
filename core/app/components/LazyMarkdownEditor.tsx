@@ -11,7 +11,7 @@ export const preloadMarkdownEditor = () =>
 const Editor = lazy(preloadMarkdownEditor);
 export function MarkdownEditor(props: ComponentProps<typeof Editor>) {
   return (
-    <Suspense fallback={<div className="codiff-readonly-markdown-loading">Loading…</div>}>
+    <Suspense fallback={<div className="codophon-readonly-markdown-loading">Loading…</div>}>
       <Editor {...props} />
     </Suspense>
   );

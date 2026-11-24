@@ -599,7 +599,7 @@ const normalizeNarrativeWalkthrough = (input, files, facts = {}, hunkIdByAlias =
   // A commit composer only makes sense for a live staging set — never a past
   // commit, branch, or pull request. For working trees, always expose the
   // composer even when the agent did not draft a message, so the reviewer can
-  // complete the whole workflow in Codiff.
+  // complete the whole workflow in Codophon.
   if (/** @type {{type?: string}} */ (result.source).type === 'working-tree') {
     /** @type {Record<string, unknown>} */
     const commit = {};
@@ -740,7 +740,7 @@ const buildPromptInput = (state) => {
           ? {
               generated: true,
               generatedReason:
-                'Generated-like file; Codiff exposes each changed section as one synthetic hunk.',
+                'Generated-like file; Codophon exposes each changed section as one synthetic hunk.',
             }
           : {}),
         oldPath: file.oldPath,
@@ -819,7 +819,7 @@ const buildCustomPromptInput = (customPrompt) => {
     ? `Custom walkthrough instructions:
 ${prompt}
 
-Use these instructions to customize language, tone, and review detail. If they conflict with the JSON schema, repository digest, hunk ids, or review-order constraints above, keep Codiff's constraints and the digest as the source of truth.
+Use these instructions to customize language, tone, and review detail. If they conflict with the JSON schema, repository digest, hunk ids, or review-order constraints above, keep Codophon's constraints and the digest as the source of truth.
 `
     : '';
 };
@@ -943,8 +943,8 @@ const buildWalkthroughSizingGuidance = (state) => {
           ? 'Use at most 3 story chapters'
           : `Use 2-${MAX_WALKTHROUGH_CHAPTERS} story chapters`;
   return `Coverage contract:
-- The digest has ${fileCount} files and ${hunkCount} reviewable hunks. Put the highest-leverage review path in chapters[]; Codiff preserves everything else as support.
-- Digest hunk ids are compact request-local aliases like h1 and h2. Return those aliases exactly; Codiff maps them back to stable live-diff ids.
+- The digest has ${fileCount} files and ${hunkCount} reviewable hunks. Put the highest-leverage review path in chapters[]; Codophon preserves everything else as support.
+- Digest hunk ids are compact request-local aliases like h1 and h2. Return those aliases exactly; Codophon maps them back to stable live-diff ids.
 - Use each hunk's own bounded patch excerpt to associate its alias with its exact change. An empty excerpt or an ellipsis means code was omitted.
 - Define chapters[] in display order. Inside each chapter, define stops[] in display order.
 - Use stable item ids like s1, s2, ... for main stops. Do not invent hunk ids.
@@ -959,9 +959,9 @@ Grouping contract:
 - For 1-4 total hunks, usually write 1-2 stops. Similar same-file hunks should usually be one stop with multiple hunkIds, not separate chapters or stops.
 - Split distant same-file hunks into separate consecutive stops when they deserve separate prose. Do not make a chapter-sized stop.
 - Do not group a whole large file into one stop when its hunks implement distinct workflows, state transitions, or submission paths.
-- Put hunkIds in the exact display order you want Codiff to render. Out-of-line and cross-file order is allowed when it improves reviewer comprehension.
-- Do not provide added/deleted counts, status, oldPath, section ids, display labels, path, repo, source, generatedAt, agent, or meta; Codiff computes those.
-- Leave secondary, mechanical, docs-only, generated, styling, fixture, and repeated-pattern hunks out of chapters[]. Codiff automatically places every unreferenced hunk in support.
+- Put hunkIds in the exact display order you want Codophon to render. Out-of-line and cross-file order is allowed when it improves reviewer comprehension.
+- Do not provide added/deleted counts, status, oldPath, section ids, display labels, path, repo, source, generatedAt, agent, or meta; Codophon computes those.
+- Leave secondary, mechanical, docs-only, generated, styling, fixture, and repeated-pattern hunks out of chapters[]. Codophon automatically places every unreferenced hunk in support.
 - For working-tree sources, include commit.title and commit.body by default unless there are no commit-worthy files. Put the subject line in commit.title, not as the first line of commit.body.
 `;
 };
@@ -978,7 +978,7 @@ const buildNarrativeWalkthroughRequest = (
   return {
     hunkIdByAlias,
     partialEvidence,
-    prompt: `You are authoring Codiff's narrative walkthrough JSON.
+    prompt: `You are authoring Codophon's narrative walkthrough JSON.
 
 Return JSON only. Do not inspect the repository or run shell commands; use only the optional conversation context and repository digest below.
 Keep the walkthrough self-contained. Do not include external citations, URLs, images, or clickable diagram links; use local diff hunk IDs for evidence.

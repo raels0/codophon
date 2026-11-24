@@ -8,7 +8,7 @@ import { buildReviewCommentsMarkdown } from '../../lib/review-comments.ts';
 import { isReviewIdentityViewed } from '../../lib/review-identity.ts';
 import type {
   ChangedFile,
-  CodiffPreferences,
+  CodophonPreferences,
   OpenReviewSourceKind,
   RepositoryState,
 } from '../../types.ts';
@@ -25,11 +25,11 @@ type UseAppCommandsOptions = {
   onOpenSelectedFile: () => void;
   onOpenShortcutsHelp: () => void;
   onRefreshRepository: () => void;
-  onSetReviewTheme: (theme: CodiffPreferences['reviewTheme']) => void;
+  onSetReviewTheme: (theme: CodophonPreferences['reviewTheme']) => void;
   onToggleSidebar: () => void;
   onToggleViewed: (file: ChangedFile, isViewed: boolean, reviewIdentity: ReviewIdentity) => void;
   onToggleWordWrap: () => void;
-  preferencesRef: RefObject<CodiffPreferences>;
+  preferencesRef: RefObject<CodophonPreferences>;
   reviewCommentsRef: RefObject<ReadonlyArray<ReviewComment>>;
   stateRef: RefObject<RepositoryState | null>;
   viewedRef: RefObject<Record<string, string>>;
@@ -91,7 +91,7 @@ export function useAppCommands({
       }),
       registry.register({
         execute: () => {
-          void window.codiff.openRepositoryFolder().catch(() => {});
+          void window.codophon.openRepositoryFolder().catch(() => {});
         },
         id: 'open-folder',
         title: 'Open Folder',
@@ -209,7 +209,9 @@ export function useAppCommands({
       }),
       registry.register({
         execute: () => {
-          void window.codiff.setShowOutdated(!preferencesRef.current.showOutdated).catch(() => {});
+          void window.codophon
+            .setShowOutdated(!preferencesRef.current.showOutdated)
+            .catch(() => {});
         },
         id: 'toggle-outdated-comments',
         title: 'Toggle Outdated Comments',
@@ -219,7 +221,7 @@ export function useAppCommands({
           preferencesRef.current.diffStyle === 'split' ? 'Switch to Unified' : 'Switch to Split',
         execute: () => {
           const nextDiffStyle = preferencesRef.current.diffStyle === 'split' ? 'unified' : 'split';
-          void window.codiff.setDiffStyle(nextDiffStyle).catch(() => {});
+          void window.codophon.setDiffStyle(nextDiffStyle).catch(() => {});
         },
         id: 'toggle-diff-layout',
         title: 'Toggle Diff Layout',
@@ -252,28 +254,28 @@ export function useAppCommands({
       }),
       registry.register({
         execute: () => {
-          void window.codiff.increaseCodeFontSize().catch(() => {});
+          void window.codophon.increaseCodeFontSize().catch(() => {});
         },
         id: 'increase-code-font-size',
         title: 'Increase Code Font Size',
       }),
       registry.register({
         execute: () => {
-          void window.codiff.decreaseCodeFontSize().catch(() => {});
+          void window.codophon.decreaseCodeFontSize().catch(() => {});
         },
         id: 'decrease-code-font-size',
         title: 'Decrease Code Font Size',
       }),
       registry.register({
         execute: () => {
-          void window.codiff.resetCodeFontSize().catch(() => {});
+          void window.codophon.resetCodeFontSize().catch(() => {});
         },
         id: 'reset-code-font-size',
         title: 'Reset Code Font Size',
       }),
       registry.register({
         execute: () => {
-          void window.codiff.openConfigFile().catch(() => {});
+          void window.codophon.openConfigFile().catch(() => {});
         },
         id: 'open-config-file',
         title: 'Open Config File',

@@ -1,10 +1,10 @@
 ---
-description: Author and open a Codiff walkthrough
+description: Author and open a Codophon walkthrough
 agent: build
-{{CODIFF_OPENCODE_MODEL}}
+{{CODOPHON_OPENCODE_MODEL}}
 ---
 
-<!-- codiff-managed-opencode-command:v1 -->
+<!-- codophon-managed-opencode-command:v1 -->
 <!-- Reinstall the OpenCode integration instead of editing this file. -->
 
-Use the `codiff` skill to author and open a narrative walkthrough for the current repository.
+Use the `codophon` skill to author and open a narrative walkthrough for the current repository.

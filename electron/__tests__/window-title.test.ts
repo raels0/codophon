@@ -26,7 +26,7 @@ const root = '/Users/reviewer/Documents/GitHub/MyCoolRepo';
 
 test('titles windows with the repository and selected source', () => {
   expect(getRepositoryWindowTitle({ root, source: { type: 'working-tree' } })).toBe(
-    'MyCoolRepo · Codiff',
+    'MyCoolRepo · Codophon',
   );
   expect(
     getRepositoryWindowTitle({
@@ -37,28 +37,28 @@ test('titles windows with the repository and selected source', () => {
         url: 'https://github.com/framer/MyCoolRepo/pull/1337',
       },
     }),
-  ).toBe('MyCoolRepo/1337 · Codiff');
+  ).toBe('MyCoolRepo/1337 · Codophon');
   expect(
     getRepositoryWindowTitle({
       root,
       source: { type: 'pull-request', url: 'https://github.com/framer/MyCoolRepo/pull/1338' },
     }),
-  ).toBe('MyCoolRepo/1338 · Codiff');
+  ).toBe('MyCoolRepo/1338 · Codophon');
   expect(
     getRepositoryWindowTitle({
       root,
       source: { ref: 'feature/new-title', type: 'branch-working-tree' },
     }),
-  ).toBe('MyCoolRepo/feature/new-title · Codiff');
+  ).toBe('MyCoolRepo/feature/new-title · Codophon');
   expect(getRepositoryWindowTitle({ root, source: { ref: 'a1b2c3d4', type: 'commit' } })).toBe(
-    'MyCoolRepo/a1b2c3d · Codiff',
+    'MyCoolRepo/a1b2c3d · Codophon',
   );
   expect(
     getRepositoryWindowTitle({
       root,
       source: { base: 'main', head: 'feature', symmetric: true, type: 'range' },
     }),
-  ).toBe('MyCoolRepo/main...feature · Codiff');
+  ).toBe('MyCoolRepo/main...feature · Codophon');
 });
 
 test('restores the repository title after the renderer loads', async () => {
@@ -72,8 +72,8 @@ test('restores the repository title after the renderer loads', async () => {
   const state = { root, source: { type: 'working-tree' } } as const;
 
   target.setTitle(getRepositoryWindowTitle(state));
-  target.setTitle('Codiff');
+  target.setTitle('Codophon');
   await restoreRepositoryWindowTitleAfterLoad(target, Promise.resolve(state));
 
-  expect(title).toBe('MyCoolRepo · Codiff');
+  expect(title).toBe('MyCoolRepo · Codophon');
 });

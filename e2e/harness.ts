@@ -70,7 +70,11 @@ export class Codophon {
 
   static async launch(home: string, request: LaunchRequest, env: Record<string, string> = {}) {
     const app = await _electron.launch({
-      args: [root, encodeLaunchRequest(request)],
+      args: [
+        `--user-data-dir=${join(home, 'electron-profile')}`,
+        root,
+        encodeLaunchRequest(request),
+      ],
       cwd: root,
       env: {
         ...(process.env as Record<string, string>),
@@ -81,13 +85,13 @@ export class Codophon {
       },
     });
     const page = await app.firstWindow();
-    await page.locator('.codiff-file-header, .empty-state, .walkthrough').first().waitFor();
+    await page.locator('.codophon-file-header, .empty-state, .walkthrough').first().waitFor();
     return new Codophon(app, page);
   }
 
   /** The diff card for a file. */
   file(path: string) {
-    return this.page.locator('.codiff-file-header', { hasText: path });
+    return this.page.locator('.codophon-file-header', { hasText: path });
   }
 
   /** The sidebar tree row for a file, by repository path. */
@@ -103,7 +107,7 @@ export class Codophon {
   /** The position of a file among the rendered diffs, in review order. */
   async fileIndex(path: string) {
     const headers = await this.page
-      .locator('.codiff-file-header:not(.codiff-source-description-header) .codiff-file-path')
+      .locator('.codophon-file-header:not(.codophon-source-description-header) .codophon-file-path')
       .allTextContents();
     const index = headers.findIndex((text) => text.trim() === path);
     if (index === -1) {
@@ -150,9 +154,9 @@ export class Codophon {
 /** Configure the fake Claude Code CLI as the agent; returns the env and its call log. */
 export const useFakeAgent = (home: string) => {
   const log = join(home, 'fake-agent.jsonl');
-  mkdirSync(join(home, '.codiff'), { recursive: true });
+  mkdirSync(join(home, '.codophon'), { recursive: true });
   writeFileSync(
-    join(home, '.codiff/codiff.jsonc'),
+    join(home, '.codophon/codophon.jsonc'),
     JSON.stringify({ settings: { agentBackend: 'claude' } }),
   );
   writeFileSync(log, '');
@@ -162,7 +166,7 @@ export const useFakeAgent = (home: string) => {
         .split('\n')
         .filter(Boolean)
         .map((line) => JSON.parse(line) as { args: Array<string>; prompt: string }),
-    env: { CODIFF_CLAUDE_PATH: join(root, 'e2e/fake-agent.mjs'), FAKE_AGENT_LOG: log },
+    env: { CODOPHON_CLAUDE_PATH: join(root, 'e2e/fake-agent.mjs'), FAKE_AGENT_LOG: log },
   };
 };
 

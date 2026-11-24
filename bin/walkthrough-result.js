@@ -40,13 +40,13 @@ export const waitForWalkthroughResult = async (
 
     if (childExit && childExit.code !== 0) {
       throw new Error(
-        `Codiff exited before checking the walkthrough${
+        `Codophon exited before checking the walkthrough${
           childExit.signal ? ` (${childExit.signal})` : ` (code ${childExit.code})`
         }.`,
       );
     }
     if (Date.now() - startedAt >= timeoutMs) {
-      throw new Error(`Codiff did not check the walkthrough within ${timeoutMs / 1000} seconds.`);
+      throw new Error(`Codophon did not check the walkthrough within ${timeoutMs / 1000} seconds.`);
     }
 
     await new Promise((resolveWait) => setTimeout(resolveWait, pollIntervalMs));

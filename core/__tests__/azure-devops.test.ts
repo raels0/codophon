@@ -34,7 +34,7 @@ type AzCall = {
 const withFakeAzureDevOps = async (
   callback: (repo: string, readCalls: () => Promise<ReadonlyArray<AzCall>>) => Promise<void>,
 ) => {
-  await using directory = await createTemporaryDirectory('codiff-azure-devops-');
+  await using directory = await createTemporaryDirectory('codophon-azure-devops-');
   const repo = join(directory.path, 'repo');
   const fakeAzPath = join(directory.path, 'az.cjs');
   const callsPath = join(directory.path, 'calls.jsonl');
@@ -59,7 +59,7 @@ const method = (methodIndex >= 0 ? args[methodIndex + 1] : 'GET').toUpperCase();
 const bodyIndex = args.indexOf('--body');
 const bodyArgument = bodyIndex >= 0 ? args[bodyIndex + 1] : '';
 const body = bodyArgument.startsWith('@') ? readFileSync(bodyArgument.slice(1), 'utf8') : bodyArgument;
-appendFileSync(process.env.CODIFF_AZ_TEST_CALLS, JSON.stringify({ args, body }) + '\\n');
+appendFileSync(process.env.CODOPHON_AZ_TEST_CALLS, JSON.stringify({ args, body }) + '\\n');
 if (method === 'POST' && uri.includes('/threads/') && uri.includes('/comments')) {
   process.stdout.write(JSON.stringify({
     author: { displayName: 'Ada', uniqueName: 'ada@contoso.com' },
@@ -94,11 +94,11 @@ if (method === 'PUT' && uri.includes('/reviewers/')) {
   process.exit(0);
 }
 if (uri.includes('/threads?')) {
-  process.stdout.write(process.env.CODIFF_AZ_TEST_THREADS || JSON.stringify({ value: [] }));
+  process.stdout.write(process.env.CODOPHON_AZ_TEST_THREADS || JSON.stringify({ value: [] }));
   process.exit(0);
 }
 if (uri.includes('/pullRequests/492?')) {
-  process.stdout.write(process.env.CODIFF_AZ_TEST_METADATA || JSON.stringify({
+  process.stdout.write(process.env.CODOPHON_AZ_TEST_METADATA || JSON.stringify({
     createdBy: { displayName: 'Ada' },
     lastMergeSourceCommit: { commitId: 'abc' },
     targetRefName: 'refs/heads/main',
@@ -112,10 +112,10 @@ process.exit(0);
   );
   await chmod(fakeAzPath, 0o755);
   await using _environment = createTemporaryEnvironment({
-    CODIFF_AZ_PATH: process.execPath,
-    CODIFF_AZ_TEST_CALLS: callsPath,
-    CODIFF_AZ_TEST_METADATA: undefined,
-    CODIFF_AZ_TEST_THREADS: undefined,
+    CODOPHON_AZ_PATH: process.execPath,
+    CODOPHON_AZ_TEST_CALLS: callsPath,
+    CODOPHON_AZ_TEST_METADATA: undefined,
+    CODOPHON_AZ_TEST_THREADS: undefined,
     NODE_OPTIONS: `--require=${JSON.stringify(fakeAzPath)}`,
     SHELL: undefined,
   });
@@ -163,7 +163,7 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
   });
 
   test('launches Windows Azure CLI through bundled Python without a command shell', async () => {
-    await using directory = await createTemporaryDirectory('codiff-az-windows-');
+    await using directory = await createTemporaryDirectory('codophon-az-windows-');
     const wbin = join(directory.path, 'wbin');
     await mkdir(wbin);
     const python = join(directory.path, 'python.exe');
@@ -207,7 +207,7 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
         const target = await git('rev-parse', 'HEAD');
         await writeFile(join(repo, 'base.txt'), 'uncommitted local change\n');
         await using _metadata = createTemporaryEnvironment({
-          CODIFF_AZ_TEST_METADATA: JSON.stringify({
+          CODOPHON_AZ_TEST_METADATA: JSON.stringify({
             lastMergeSourceCommit: { commitId: head },
             lastMergeTargetCommit: { commitId: target },
             title: 'Review feature',
@@ -242,7 +242,7 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
         expect(await git('rev-parse', 'HEAD')).toBe(target);
         expect(await readFile(join(repo, 'base.txt'), 'utf8')).toBe('uncommitted local change\n');
         await using _advancedTarget = createTemporaryEnvironment({
-          CODIFF_AZ_TEST_METADATA: JSON.stringify({
+          CODOPHON_AZ_TEST_METADATA: JSON.stringify({
             lastMergeSourceCommit: { commitId: head },
             lastMergeTargetCommit: { commitId: head },
             title: 'Review feature',
@@ -289,12 +289,12 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
         await execFileAsync('git', ['init', consumer]);
         await git(consumer, 'remote', 'add', 'origin', 'git@ssh.dev.azure.com:v3/org/project/repo');
         const ssh = join(dirname(repo), 'ssh');
-        await writeFile(ssh, '#!/bin/sh\nexec git upload-pack "$CODIFF_TEST_REMOTE"\n');
+        await writeFile(ssh, '#!/bin/sh\nexec git upload-pack "$CODOPHON_TEST_REMOTE"\n');
         await chmod(ssh, 0o755);
         const fetchHead = join(consumer, '.git', 'FETCH_HEAD');
         await writeFile(fetchHead, 'existing fetch marker\n');
         await using _transport = createTemporaryEnvironment({
-          CODIFF_TEST_REMOTE: repo,
+          CODOPHON_TEST_REMOTE: repo,
           GIT_SSH_COMMAND: `"${ssh}"`,
           GIT_SSH_VARIANT: 'ssh',
         });
@@ -354,7 +354,7 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
       const mine = { id: 'user-1' };
       const url = 'https://dev.azure.com/contoso/Fabrikam/_git/Storefront/pullrequest/492';
       await using _threads = createTemporaryEnvironment({
-        CODIFF_AZ_TEST_THREADS: JSON.stringify({
+        CODOPHON_AZ_TEST_THREADS: JSON.stringify({
           value: [
             {
               comments: [
@@ -456,19 +456,19 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
   });
 
   test('resolves the Azure CLI from an explicit override', async () => {
-    await using directory = await createTemporaryDirectory('codiff-az-command-');
+    await using directory = await createTemporaryDirectory('codophon-az-command-');
     const fakeAz = join(directory.path, 'az');
     await writeFile(fakeAz, '#!/bin/sh\nexit 0\n');
     await chmod(fakeAz, 0o755);
-    await using _environment = createTemporaryEnvironment({ CODIFF_AZ_PATH: fakeAz });
+    await using _environment = createTemporaryEnvironment({ CODOPHON_AZ_PATH: fakeAz });
     expect(getAzCommand()).toBe(fakeAz);
   });
 
   test('rejects invalid explicit Azure CLI overrides', async () => {
     await using _environment = createTemporaryEnvironment({
-      CODIFF_AZ_PATH: '/tmp/codiff-missing-az',
+      CODOPHON_AZ_PATH: '/tmp/codophon-missing-az',
     });
-    expect(() => getAzCommand()).toThrow('CODIFF_AZ_PATH');
+    expect(() => getAzCommand()).toThrow('CODOPHON_AZ_PATH');
     try {
       getAzCommand();
     } catch (error) {
@@ -479,11 +479,11 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
   test.skipIf(process.platform !== 'win32')(
     'does not execute the MSI Unix shell script on Windows',
     async () => {
-      await using directory = await createTemporaryDirectory('codiff-az-path-');
+      await using directory = await createTemporaryDirectory('codophon-az-path-');
       await writeFile(join(directory.path, 'az'), '#!/bin/sh\n');
       await writeFile(join(directory.path, 'az.cmd'), '@echo off\n');
       await using _environment = createTemporaryEnvironment({
-        CODIFF_AZ_PATH: undefined,
+        CODOPHON_AZ_PATH: undefined,
         PATH: directory.path,
       });
       expect(getAzCommand()).toBe(join(directory.path, 'az.cmd'));
@@ -611,7 +611,7 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
   test.skipIf(process.platform === 'win32')(
     'authenticates az from the login shell environment when the app inherited none',
     async () => {
-      await using directory = await createTemporaryDirectory('codiff-az-login-env-');
+      await using directory = await createTemporaryDirectory('codophon-az-login-env-');
       const repo = join(directory.path, 'repo');
       const fakeAz = join(directory.path, 'az');
       const fakeShell = join(directory.path, 'fake-login-shell');
@@ -646,7 +646,7 @@ printf '%s' '{"authenticatedUser":{"id":"user-1"}}'
 
       await using _environment = createTemporaryEnvironment({
         AZURE_DEVOPS_EXT_PAT: undefined,
-        CODIFF_AZ_PATH: fakeAz,
+        CODOPHON_AZ_PATH: fakeAz,
         SHELL: fakeShell,
       });
 

@@ -59,7 +59,7 @@ const request = {
 } satisfies DefinitionSearchRequest;
 
 test('finds a likely definition in the deterministic example repository', async () => {
-  await using directory = await createTemporaryDirectory('codiff-definitions-');
+  await using directory = await createTemporaryDirectory('codophon-definitions-');
   createDefinitionNavigationRepository(directory.path);
 
   const result = await findDefinitions(directory.path, request);
@@ -81,7 +81,7 @@ test('finds a likely definition in the deterministic example repository', async 
 });
 
 test('marks historical snapshot candidates as unsafe for editor fallback', async () => {
-  await using directory = await createTemporaryDirectory('codiff-definitions-history-');
+  await using directory = await createTemporaryDirectory('codophon-definitions-history-');
   createDefinitionNavigationRepository(directory.path);
 
   const result = await findDefinitions(directory.path, {
@@ -102,7 +102,7 @@ test('marks historical snapshot candidates as unsafe for editor fallback', async
 test.each(['additions', 'deletions'] as const)(
   'searches the Azure PR %s snapshot rather than synthetic GitHub refs',
   async (side) => {
-    await using directory = await createTemporaryDirectory('codiff-definitions-azure-');
+    await using directory = await createTemporaryDirectory('codophon-definitions-azure-');
     createDefinitionNavigationRepository(directory.path);
     const sha = execFileSync('git', ['-C', directory.path, 'rev-parse', 'HEAD'], {
       encoding: 'utf8',

@@ -5,14 +5,14 @@ import type {
   AgentPromptModule,
   AgentPromptOverrides,
   AgentSettingsSection,
-  CodiffAgentBackend,
+  CodophonAgentBackend,
 } from '../../config/types.ts';
 import { getAgentLabel } from '../../lib/app-constants.ts';
 import { Button } from './Button.tsx';
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-function ModelPicker({ backend, selected }: { backend: CodiffAgentBackend; selected: string }) {
+function ModelPicker({ backend, selected }: { backend: CodophonAgentBackend; selected: string }) {
   const [catalog, setCatalog] = useState<AgentModelCatalog>();
   const [query, setQuery] = useState('');
   const [revision, setRevision] = useState(0);
@@ -22,7 +22,7 @@ function ModelPicker({ backend, selected }: { backend: CodiffAgentBackend; selec
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    void window.codiff.getAgentModelCatalog?.(revision > 0).then(
+    void window.codophon.getAgentModelCatalog?.(revision > 0).then(
       (result) => {
         if (active) {
           setCatalog(result);
@@ -108,7 +108,7 @@ function ModelPicker({ backend, selected }: { backend: CodiffAgentBackend; selec
                       }
                       setSaving(true);
                       setSelectionError('');
-                      void window.codiff
+                      void window.codophon
                         .selectAgentModel?.(backend, id)
                         .catch((error_: unknown) => setSelectionError(message(error_)))
                         .finally(() => setSaving(false));
@@ -144,7 +144,7 @@ function PromptEditor({ overrides }: { overrides: AgentPromptOverrides }) {
 
   useEffect(() => {
     let active = true;
-    void window.codiff.getAgentPrompts?.().then(
+    void window.codophon.getAgentPrompts?.().then(
       (result) => {
         if (active) {
           setModules(result);
@@ -168,7 +168,7 @@ function PromptEditor({ overrides }: { overrides: AgentPromptOverrides }) {
     setSaving(true);
     setStatus('');
     setError('');
-    void window.codiff
+    void window.codophon
       .setAgentPrompt?.(selected, text)
       .then((result) => {
         setLastSave({ base: overrides, result });
@@ -182,7 +182,7 @@ function PromptEditor({ overrides }: { overrides: AgentPromptOverrides }) {
   return (
     <>
       <p>
-        Edit writing guidance for each task. Codiff still supplies review context and enforces the
+        Edit writing guidance for each task. Codophon still supplies review context and enforces the
         response format.
       </p>
       {module ? (
@@ -253,7 +253,7 @@ export function AgentSettingsDialog({
   onClose,
   overrides,
 }: {
-  backend: CodiffAgentBackend;
+  backend: CodophonAgentBackend;
   configuredModel: string;
   initialSection: AgentSettingsSection;
   onClose: () => void;

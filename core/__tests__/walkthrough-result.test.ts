@@ -8,7 +8,7 @@ import { createTemporaryDirectory } from './helpers/resources.ts';
 const options = { pollIntervalMs: 2, timeoutMs: 100 };
 
 test('walkthrough result waiting returns once the app reports', async () => {
-  await using directory = await createTemporaryDirectory('codiff-walkthrough-result-');
+  await using directory = await createTemporaryDirectory('codophon-walkthrough-result-');
   const resultPath = join(directory.path, 'result.txt');
 
   const result = waitForWalkthroughResult(resultPath, new EventEmitter(), options);
@@ -20,7 +20,7 @@ test('walkthrough result waiting returns once the app reports', async () => {
 });
 
 test('walkthrough result waiting returns why the file cannot be applied', async () => {
-  await using directory = await createTemporaryDirectory('codiff-walkthrough-result-');
+  await using directory = await createTemporaryDirectory('codophon-walkthrough-result-');
   const resultPath = join(directory.path, 'result.txt');
   await writeFile(
     resultPath,
@@ -34,22 +34,22 @@ test('walkthrough result waiting returns why the file cannot be applied', async 
 });
 
 test('walkthrough result waiting fails when the app never reports', async () => {
-  await using directory = await createTemporaryDirectory('codiff-walkthrough-result-');
+  await using directory = await createTemporaryDirectory('codophon-walkthrough-result-');
 
   await expect(
     waitForWalkthroughResult(join(directory.path, 'result.txt'), new EventEmitter(), {
       ...options,
       timeoutMs: 10,
     }),
-  ).rejects.toThrow('Codiff did not check the walkthrough within 0.01 seconds.');
+  ).rejects.toThrow('Codophon did not check the walkthrough within 0.01 seconds.');
 });
 
 test('walkthrough result waiting fails when the app exits without reporting', async () => {
-  await using directory = await createTemporaryDirectory('codiff-walkthrough-result-');
+  await using directory = await createTemporaryDirectory('codophon-walkthrough-result-');
   const child = new EventEmitter();
 
   const result = waitForWalkthroughResult(join(directory.path, 'result.txt'), child, options);
   child.emit('exit', 1, null);
 
-  await expect(result).rejects.toThrow('Codiff exited before checking the walkthrough (code 1).');
+  await expect(result).rejects.toThrow('Codophon exited before checking the walkthrough (code 1).');
 });

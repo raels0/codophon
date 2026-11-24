@@ -6,14 +6,14 @@ const { parseReviewUrl } = require('../review-source.cjs');
 const { readWalkthroughContext } = require('../walkthrough-context.cjs');
 
 /**
- * What the `codiff` CLI asks the app to open. The CLI does all argument parsing and passes this
+ * What the `codophon` CLI asks the app to open. The CLI does all argument parsing and passes this
  * to Electron as one `--launch=` argument, so the app never re-parses a command line and the
  * request survives `open --args` and single-instance handoff unchanged.
  *
- * @typedef {import('../../core/types.ts').CodiffLaunchOptions} CodiffLaunchOptions
+ * @typedef {import('../../core/types.ts').CodophonLaunchOptions} CodophonLaunchOptions
  * @typedef {import('../../core/types.ts').ReviewSource} ReviewSource
  * @typedef {{
- *   agentBackend?: CodiffLaunchOptions['agentBackend'];
+ *   agentBackend?: CodophonLaunchOptions['agentBackend'];
  *   claudeSessionId?: string;
  *   codexSessionId?: string;
  *   opencodeSessionId?: string;
@@ -53,7 +53,7 @@ const decodeLaunchRequest = (argv) => {
 
 /**
  * @param {LaunchRequest} request
- * @returns {CodiffLaunchOptions}
+ * @returns {CodophonLaunchOptions}
  */
 const toLaunchOptions = (request) => {
   const provider =
@@ -104,7 +104,7 @@ const readLaunch = (argv, cwd = process.cwd()) => {
  * working directory. The CLI always names a repository, so it never takes this path.
  *
  * @param {string} launchPath
- * @param {CodiffLaunchOptions} launchOptions
+ * @param {CodophonLaunchOptions} launchOptions
  * @param {string} lastRepositoryPath
  */
 const getInitialRepositoryPath = (launchPath, launchOptions, lastRepositoryPath) =>

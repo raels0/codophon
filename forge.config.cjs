@@ -10,10 +10,6 @@ const entitlementsPath = join(__dirname, 'electron/entitlements.plist');
 const iconPath = existsSync(join(__dirname, 'electron/icons/icon.icns'))
   ? './electron/icons/icon'
   : undefined;
-const macIconAssetName = 'Icon';
-const macAssetCatalogPath = existsSync(join(__dirname, 'electron/icons/Assets.car'))
-  ? './electron/icons/Assets.car'
-  : undefined;
 const walkthroughDiffRuntimePath = 'core/lib/narrative-walkthrough-diff.js';
 const osxNotarize =
   process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID
@@ -32,21 +28,21 @@ const osxNotarize =
  * @typedef {Omit<import('@electron-forge/shared-types').ForgePackagerOptions, 'osxNotarize' | 'osxSign'> & {
  *   osxNotarize?: Record<string, unknown>;
  *   osxSign?: Record<string, unknown>;
- * }} CodiffPackagerConfig
+ * }} CodophonPackagerConfig
  * @typedef {{
  *   arch?: Array<ForgeArch>;
  *   config?: Record<string, unknown>;
  *   enabled?: boolean;
  *   name: string;
  *   platforms?: Array<ForgePlatform> | null;
- * }} CodiffMakerConfig
+ * }} CodophonMakerConfig
  * @typedef {Omit<ForgeConfig, 'makers' | 'packagerConfig'> & {
- *   makers: Array<CodiffMakerConfig>;
- *   packagerConfig: CodiffPackagerConfig;
- * }} CodiffForgeConfig
+ *   makers: Array<CodophonMakerConfig>;
+ *   packagerConfig: CodophonPackagerConfig;
+ * }} CodophonForgeConfig
  */
 
-/** @type {CodiffForgeConfig} */
+/** @type {CodophonForgeConfig} */
 module.exports = {
   hooks: {
     packageAfterCopy: async (_forgeConfig, buildPath) => {
@@ -55,23 +51,6 @@ module.exports = {
 
       await mkdir(dirname(destination), { recursive: true });
       await copyFile(source, destination);
-    },
-    prePackage: async (forgeConfig, platform) => {
-      if (platform !== 'darwin' || !macAssetCatalogPath) {
-        return;
-      }
-
-      forgeConfig.packagerConfig.extendInfo = {
-        ...(typeof forgeConfig.packagerConfig.extendInfo === 'object'
-          ? forgeConfig.packagerConfig.extendInfo
-          : {}),
-        CFBundleIconName: macIconAssetName,
-      };
-      const extraResource = forgeConfig.packagerConfig.extraResource;
-      forgeConfig.packagerConfig.extraResource = [
-        ...(Array.isArray(extraResource) ? extraResource : extraResource ? [extraResource] : []),
-        macAssetCatalogPath,
-      ];
     },
   },
   makers: [
@@ -86,13 +65,13 @@ module.exports = {
     },
   ],
   packagerConfig: {
-    appBundleId: 'dev.nkzw-tech.codiff',
-    appCopyright: 'Copyright (c) 2026-current Nakazawa Tech',
+    appBundleId: 'com.github.raels0.codophon',
+    appCopyright: 'Copyright (c) 2026 Nakazawa Tech and Codophon contributors',
     asar: false,
     download: {
       cacheRoot: electronCachePath,
     },
-    executableName: 'codiff',
+    executableName: 'codophon',
     ...(iconPath ? { icon: iconPath } : {}),
     ignore: [
       /^\/\.DS_Store$/,
@@ -105,6 +84,10 @@ module.exports = {
       /^\/\.vite-hooks(?:$|\/)/,
       /^\/\.vscode(?:$|\/)/,
       /^\/README\.md$/,
+      /^\/e2e(?:$|\/)/,
+      /^\/test-results(?:$|\/)/,
+      /^\/playwright/,
+      /\/__tests__(?:$|\/)/,
       /^\/coverage(?:$|\/)/,
       /^\/docs(?:$|\/)/,
       /^\/forge\.config\.cjs$/,
@@ -116,20 +99,23 @@ module.exports = {
       /^\/tsconfig/,
       /^\/vite\.config\./,
     ],
-    name: 'Codiff',
+    name: 'Codophon',
     ...(osxNotarize ? { osxNotarize } : {}),
-    osxSign: {
-      continueOnError: false,
-      hardenedRuntime: true,
-      identity: process.env.APPLE_SIGNING_IDENTITY,
-      optionsForFile: () => ({
-        entitlements: entitlementsPath,
-      }),
-    },
+    osxSign:
+      process.env.CODOPHON_UNSIGNED_BUILD === '1'
+        ? undefined
+        : {
+            continueOnError: false,
+            hardenedRuntime: true,
+            identity: process.env.APPLE_SIGNING_IDENTITY,
+            optionsForFile: () => ({
+              entitlements: entitlementsPath,
+            }),
+          },
     protocols: [
       {
-        name: 'Codiff',
-        schemes: ['codiff'],
+        name: 'Codophon',
+        schemes: ['codophon'],
       },
     ],
   },

@@ -108,7 +108,7 @@ export const getRepositoryLoadError = (error: unknown): RepositoryLoadError => {
     ? {
         kind: 'not-a-repository',
         message:
-          'Codiff was opened outside a Git repository. Run `codiff` from inside a repo, or choose File → Open Folder… to open one.',
+          'Codophon was opened outside a Git repository. Run `codophon` from inside a repo, or choose File → Open Folder… to open one.',
       }
     : {
         kind: 'generic',

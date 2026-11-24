@@ -46,24 +46,24 @@ const validState = {
 const primaryDisplay = { workArea: { height: 900, width: 1440, x: 0, y: 0 } };
 
 test('readWindowState returns null when file does not exist', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   expect(readWindowState(directory.path)).toBeNull();
 });
 
 test('readWindowState returns null for corrupt JSON', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   await writeFile(join(directory.path, 'window-state.json'), '{not valid json');
   expect(readWindowState(directory.path)).toBeNull();
 });
 
 test('readWindowState returns null for invalid fields', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   await writeFile(join(directory.path, 'window-state.json'), JSON.stringify({ x: 'not a number' }));
   expect(readWindowState(directory.path)).toBeNull();
 });
 
 test('readWindowState returns null when width is below minimum', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   await writeFile(
     join(directory.path, 'window-state.json'),
     JSON.stringify({ ...validState, width: 479 }),
@@ -72,7 +72,7 @@ test('readWindowState returns null when width is below minimum', async () => {
 });
 
 test('readWindowState returns null when height is below minimum', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   await writeFile(
     join(directory.path, 'window-state.json'),
     JSON.stringify({ ...validState, height: 319 }),
@@ -81,13 +81,13 @@ test('readWindowState returns null when height is below minimum', async () => {
 });
 
 test('readWindowState returns valid state', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   await writeFile(join(directory.path, 'window-state.json'), JSON.stringify(validState));
   expect(readWindowState(directory.path)).toEqual(validState);
 });
 
 test('readWindowState defaults isMaximized and isFullScreen to false when missing', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   const { isMaximized: _, isFullScreen: __, ...partial } = validState;
   await writeFile(join(directory.path, 'window-state.json'), JSON.stringify(partial));
   const result = readWindowState(directory.path);
@@ -96,14 +96,14 @@ test('readWindowState defaults isMaximized and isFullScreen to false when missin
 });
 
 test('writeWindowState creates directory and file', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   const nested = join(directory.path, 'nested');
   writeWindowState(validState, nested);
   expect(readWindowState(nested)).toEqual(validState);
 });
 
 test('write then read preserves small window dimensions and display state', async () => {
-  await using directory = await createTemporaryDirectory('codiff-ws-');
+  await using directory = await createTemporaryDirectory('codophon-ws-');
   const state = {
     ...validState,
     height: 320,

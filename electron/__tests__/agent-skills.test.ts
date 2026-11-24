@@ -51,32 +51,32 @@ test('lists every bundled skill with its installation target', () => {
       agentLabel: 'Codex',
       id: 'codex',
       label: 'Codex Skill',
-      targets: [{ sourceSubdir: 'skills/codiff', targetSubdir: '.codex/skills/codiff' }],
+      targets: [{ sourceSubdir: 'skills/codophon', targetSubdir: '.codex/skills/codophon' }],
     },
     {
       agentLabel: 'Claude Code',
       id: 'claude',
       label: 'Claude Code Skill',
-      targets: [{ sourceSubdir: 'skills/codiff', targetSubdir: '.claude/skills/codiff' }],
+      targets: [{ sourceSubdir: 'skills/codophon', targetSubdir: '.claude/skills/codophon' }],
     },
     {
       agentLabel: 'OpenCode',
       files: [
         {
           legacyManagedMarkers: [
-            '<!-- Managed by Codiff. Reinstall the OpenCode integration instead of editing this file. -->',
+            '<!-- Managed by Codophon. Reinstall the OpenCode integration instead of editing this file. -->',
           ],
-          managedMarker: '<!-- codiff-managed-opencode-command:v1 -->',
+          managedMarker: '<!-- codophon-managed-opencode-command:v1 -->',
           sourceSubdir: 'skills/opencode-command.md',
-          targetSubdir: '.config/opencode/commands/codiff.md',
+          targetSubdir: '.config/opencode/commands/codophon.md',
         },
       ],
       id: 'opencode',
       label: 'OpenCode Skill',
       targets: [
         {
-          sourceSubdir: 'skills/codiff',
-          targetSubdir: '.config/opencode/skills/codiff',
+          sourceSubdir: 'skills/codophon',
+          targetSubdir: '.config/opencode/skills/codophon',
         },
       ],
     },
@@ -96,13 +96,13 @@ test('builds an Install Skill submenu that routes each agent action', () => {
 });
 
 test('installs the OpenCode skill into its global skills directory', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-skill-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-skill-');
   const home = join(directory.path, 'home');
   const root = join(directory.path, 'app');
-  const source = join(root, 'skills/codiff');
-  const target = join(home, '.config/opencode/skills/codiff');
+  const source = join(root, 'skills/codophon');
+  const target = join(home, '.config/opencode/skills/codophon');
   const commandSource = join(root, 'skills/opencode-command.md');
-  const commandTarget = join(home, '.config/opencode/commands/codiff.md');
+  const commandTarget = join(home, '.config/opencode/commands/codophon.md');
   const skill = listAgentSkills().find(({ id }) => id === 'opencode');
   let model = 'anthropic/claude-sonnet-4-6';
 
@@ -110,7 +110,7 @@ test('installs the OpenCode skill into its global skills directory', async () =>
   await mkdir(join(root, 'opencode/commands'), { recursive: true });
   await writeFile(
     commandSource,
-    '---\n{{MODEL}}\n---\n<!-- codiff-managed-opencode-command:v1 -->\nRun Codiff.\n',
+    '---\n{{MODEL}}\n---\n<!-- codophon-managed-opencode-command:v1 -->\nRun Codophon.\n',
   );
   expect(skill).toBeDefined();
   const installer = createSkillInstaller({
@@ -141,21 +141,21 @@ test('installs the OpenCode skill into its global skills directory', async () =>
 });
 
 test('does not replace a user-authored OpenCode command', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-command-conflict-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-command-conflict-');
   const home = join(directory.path, 'home');
   const root = join(directory.path, 'app');
-  const source = join(root, 'skills/codiff');
+  const source = join(root, 'skills/codophon');
   const commandSource = join(root, 'skills/opencode-command.md');
-  const commandTarget = join(home, '.config/opencode/commands/codiff.md');
+  const commandTarget = join(home, '.config/opencode/commands/codophon.md');
   const skill = listAgentSkills().find(({ id }) => id === 'opencode');
 
   await mkdir(source, { recursive: true });
   await mkdir(join(root, 'opencode/commands'), { recursive: true });
   await mkdir(join(home, '.config/opencode/commands'), { recursive: true });
-  await writeFile(commandSource, '<!-- codiff-managed-opencode-command:v1 -->\nRun Codiff.\n');
+  await writeFile(commandSource, '<!-- codophon-managed-opencode-command:v1 -->\nRun Codophon.\n');
   await writeFile(
     commandTarget,
-    '<!-- This user-authored file mentions Managed by Codiff. -->\nMy custom Codiff command.\n',
+    '<!-- This user-authored file mentions Managed by Codophon. -->\nMy custom Codophon command.\n',
   );
   expect(skill).toBeDefined();
   const installer = createSkillInstaller({
@@ -171,23 +171,23 @@ test('does not replace a user-authored OpenCode command', async () => {
   });
 
   await expect(installer.install()).resolves.toBe(false);
-  await expect(readFile(commandTarget, 'utf8')).resolves.toContain('My custom Codiff command.');
-  await expect(lstat(join(home, '.config/opencode/skills/codiff'))).rejects.toMatchObject({
+  await expect(readFile(commandTarget, 'utf8')).resolves.toContain('My custom Codophon command.');
+  await expect(lstat(join(home, '.config/opencode/skills/codophon'))).rejects.toMatchObject({
     code: 'ENOENT',
   });
 });
 
 test('replaces a dangling skill symlink on reinstall', async () => {
-  await using directory = await createTemporaryDirectory('codiff-dangling-skill-');
+  await using directory = await createTemporaryDirectory('codophon-dangling-skill-');
   const home = join(directory.path, 'home');
   const root = join(directory.path, 'app');
-  const source = join(root, 'skills/codiff');
-  const target = join(home, '.claude/skills/codiff');
+  const source = join(root, 'skills/codophon');
+  const target = join(home, '.claude/skills/codophon');
   const skill = listAgentSkills().find(({ id }) => id === 'claude');
 
   await mkdir(source, { recursive: true });
   await mkdir(join(home, '.claude/skills'), { recursive: true });
-  await symlink(join(directory.path, 'old-app/claude/skills/codiff'), target);
+  await symlink(join(directory.path, 'old-app/claude/skills/codophon'), target);
   expect(skill).toBeDefined();
   const installer = createSkillInstaller({
     app: {
@@ -206,11 +206,11 @@ test('replaces a dangling skill symlink on reinstall', async () => {
 });
 
 test('replaces a dangling terminal helper symlink on reinstall', async () => {
-  await using directory = await createTemporaryDirectory('codiff-dangling-helper-');
+  await using directory = await createTemporaryDirectory('codophon-dangling-helper-');
   const home = join(directory.path, 'home');
   const root = join(directory.path, 'app');
-  const source = join(root, 'bin/codiff.js');
-  const target = join(home, '.local/bin/codiff');
+  const source = join(root, 'bin/codophon.js');
+  const target = join(home, '.local/bin/codophon');
 
   const fs = require('node:fs') as typeof import('node:fs');
   const accessSync = fs.accessSync;
@@ -235,7 +235,7 @@ test('replaces a dangling terminal helper symlink on reinstall', async () => {
     await mkdir(join(root, 'bin'), { recursive: true });
     await writeFile(source, '');
     await mkdir(join(home, '.local/bin'), { recursive: true });
-    await symlink(join(directory.path, 'old-app/bin/codiff.js'), target);
+    await symlink(join(directory.path, 'old-app/bin/codophon.js'), target);
     const helper = createTerminalHelper({
       app: { getPath: () => home, isPackaged: false },
       dialog: { showMessageBox: async () => {} },

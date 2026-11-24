@@ -57,7 +57,7 @@ const createEditorOpener = ({
   const getEditorCommands = (absolutePath, context = {}) => {
     /** @type {Array<EditorCommand>} */
     const commands = [];
-    const customEditor = process.env.CODIFF_EDITOR || getEditorCommand();
+    const customEditor = process.env.CODOPHON_EDITOR || getEditorCommand();
     if (customEditor) {
       const [command, ...args] = parseEditorCommand(customEditor);
       if (command) {

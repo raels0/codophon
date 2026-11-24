@@ -25,8 +25,8 @@ test('forwards repeated real progress events while the request is current', () =
   reportProgress('response-received');
 
   expect(send.mock.calls).toEqual([
-    ['codiff:walkthroughProgress', { phase: 'response-received' }],
-    ['codiff:walkthroughProgress', { phase: 'response-received' }],
+    ['codophon:walkthroughProgress', { phase: 'response-received' }],
+    ['codophon:walkthroughProgress', { phase: 'response-received' }],
   ]);
 
   destroyed = true;

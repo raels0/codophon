@@ -86,20 +86,19 @@ export const flagDefinitions = [
 ];
 
 const usageExamples = [
-  { command: 'codiff', description: 'Review staged and unstaged changes.' },
-  { command: 'codiff /path/to/repo', description: 'Review changes in a specific repository.' },
-  { command: 'codiff main', description: 'Review the current branch against main.' },
-  { command: 'codiff a1b2c3d', description: 'Review a specific commit.' },
-  { command: "codiff '#75'", description: 'Review pull request #75.' },
-  { command: 'codiff pr 75', description: 'Review pull request #75 (alternate syntax).' },
+  { command: 'codophon', description: 'Review staged and unstaged changes.' },
+  { command: 'codophon /path/to/repo', description: 'Review changes in a specific repository.' },
+  { command: 'codophon main', description: 'Review the current branch against main.' },
+  { command: 'codophon a1b2c3d', description: 'Review a specific commit.' },
+  { command: "codophon '#75'", description: 'Review pull request #75.' },
+  { command: 'codophon pr 75', description: 'Review pull request #75 (alternate syntax).' },
   {
-    command: 'codiff pr owner:feature',
+    command: 'codophon pr owner:feature',
     description: 'Review the open pull request for a branch.',
   },
-  { command: 'codiff ado 75', description: 'Review Azure DevOps pull request #75.' },
-  { command: 'codiff --plan plan.md', description: 'Edit a plan and wait for handoff.' },
-  { command: 'codiff -w', description: 'Walk through local changes, or HEAD when clean.' },
-  { command: 'codiff -w a1b2c3d', description: 'Generate a narrative walkthrough for a commit.' },
+  { command: 'codophon ado 75', description: 'Review Azure DevOps pull request #75.' },
+  { command: 'codophon -w', description: 'Walk through local changes, or HEAD when clean.' },
+  { command: 'codophon -w a1b2c3d', description: 'Generate a narrative walkthrough for a commit.' },
 ];
 
 const parseArgsOptions = Object.fromEntries(
@@ -125,9 +124,9 @@ export const formatHelpText = (version) => {
   const examplePad = Math.max(...usageExamples.map(({ command }) => command.length)) + 2;
 
   const lines = [
-    `${blueBold(`codiff v${version}`)} ${gray('A fast local diff viewer.')}`,
+    `${blueBold(`codophon v${version}`)} ${gray('A fast local diff viewer.')}`,
     '',
-    `${blueBold('Usage:')} ${gray('codiff [options] [<ref> | <pr> | <url>] [path]')}`,
+    `${blueBold('Usage:')} ${gray('codophon [options] [<ref> | <pr> | <url>] [path]')}`,
     '',
     blueBold('Options:'),
     ...flagLines.map(

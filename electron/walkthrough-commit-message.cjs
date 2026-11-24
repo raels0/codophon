@@ -65,7 +65,7 @@ const buildCommitMessagePrompt = (
   request,
   agentLabel = 'Codex',
   prompts,
-) => `You are ${agentLabel} inside Codiff, helping a reviewer write a git commit message.
+) => `You are ${agentLabel} inside Codophon, helping a reviewer write a git commit message.
 
 The reviewer is committing only a SUBSET of the working tree — the files listed under "selectedFiles" below. They started from a drafted commit message that described the whole change, then narrowed the selection, so the message may now over- or under-describe what is actually being committed.
 

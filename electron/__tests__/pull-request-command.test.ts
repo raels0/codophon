@@ -32,22 +32,22 @@ const { GH_NOT_FOUND_CODE, getGhCommand, submitPullRequestReview } =
 const execFileAsync = promisify(execFile);
 
 test('resolves the GitHub CLI from an explicit override', async () => {
-  await using directory = await createTemporaryDirectory('codiff-gh-command-');
+  await using directory = await createTemporaryDirectory('codophon-gh-command-');
   const fakeGh = join(directory.path, 'gh');
   await writeFile(fakeGh, '#!/bin/sh\nexit 0\n');
   await chmod(fakeGh, 0o755);
 
-  await using _environment = createTemporaryEnvironment({ CODIFF_GH_PATH: fakeGh });
+  await using _environment = createTemporaryEnvironment({ CODOPHON_GH_PATH: fakeGh });
 
   expect(getGhCommand()).toBe(fakeGh);
 });
 
 test('rejects invalid explicit GitHub CLI overrides', async () => {
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GH_PATH: '/tmp/codiff-missing-gh',
+    CODOPHON_GH_PATH: '/tmp/codophon-missing-gh',
   });
 
-  expect(() => getGhCommand()).toThrow('CODIFF_GH_PATH');
+  expect(() => getGhCommand()).toThrow('CODOPHON_GH_PATH');
   try {
     getGhCommand();
   } catch (error) {
@@ -56,7 +56,7 @@ test('rejects invalid explicit GitHub CLI overrides', async () => {
 });
 
 test('falls back to a standard install directory when gh is off PATH', async () => {
-  await using directory = await createTemporaryDirectory('codiff-gh-fallback-');
+  await using directory = await createTemporaryDirectory('codophon-gh-fallback-');
   const localBin = join(directory.path, '.local/bin');
   const emptyBin = join(directory.path, 'empty-bin');
   const fallbackGh = join(localBin, 'gh');
@@ -66,7 +66,7 @@ test('falls back to a standard install directory when gh is off PATH', async () 
   await chmod(fallbackGh, 0o755);
 
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GH_PATH: undefined,
+    CODOPHON_GH_PATH: undefined,
     HOME: directory.path,
     PATH: emptyBin,
   });
@@ -75,7 +75,7 @@ test('falls back to a standard install directory when gh is off PATH', async () 
 });
 
 test('reports a missing GitHub CLI when the resolved executable cannot be spawned', async () => {
-  await using directory = await createTemporaryDirectory('codiff-gh-unspawnable-');
+  await using directory = await createTemporaryDirectory('codophon-gh-unspawnable-');
   const repo = join(directory.path, 'repo');
   const fakeGh = join(directory.path, 'gh');
 
@@ -87,16 +87,16 @@ test('reports a missing GitHub CLI when the resolved executable cannot be spawne
     'remote',
     'add',
     'origin',
-    'git@github.com:nkzw-tech/codiff.git',
+    'git@github.com:raels0/codophon.git',
   ]);
 
   // Executable enough to pass resolution, but its interpreter is missing, so
   // the spawn itself fails the same way a deleted `gh` would.
-  await writeFile(fakeGh, '#!/codiff-missing-interpreter\n');
+  await writeFile(fakeGh, '#!/codophon-missing-interpreter\n');
   await chmod(fakeGh, 0o755);
 
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GH_PATH: fakeGh,
+    CODOPHON_GH_PATH: fakeGh,
     SHELL: undefined,
   });
 
@@ -108,14 +108,14 @@ test('reports a missing GitHub CLI when the resolved executable cannot be spawne
       source: {
         provider: 'github',
         type: 'pull-request',
-        url: 'https://github.com/nkzw-tech/codiff/pull/12',
+        url: 'https://github.com/raels0/codophon/pull/12',
       },
     }),
   ).rejects.toThrow('GitHub support requires gh');
 });
 
 test('reaches the GitHub CLI when it is not on PATH', async () => {
-  await using directory = await createTemporaryDirectory('codiff-gh-off-path-');
+  await using directory = await createTemporaryDirectory('codophon-gh-off-path-');
   const repo = join(directory.path, 'repo');
   const pathBin = join(directory.path, 'path-bin');
   const fakeGh = join(directory.path, 'gh');
@@ -129,7 +129,7 @@ test('reaches the GitHub CLI when it is not on PATH', async () => {
     'remote',
     'add',
     'origin',
-    'git@github.com:nkzw-tech/codiff.git',
+    'git@github.com:raels0/codophon.git',
   ]);
 
   // A PATH carrying only the commands this test itself needs reproduces how the
@@ -145,9 +145,9 @@ test('reaches the GitHub CLI when it is not on PATH', async () => {
   await writeFile(
     fakeGh,
     `#!/bin/sh
-printf '%s | %s\\n' "$*" "$(cat)" >> "$CODIFF_GITHUB_COMMAND_TEST_CALLS"
+printf '%s | %s\\n' "$*" "$(cat)" >> "$CODOPHON_GITHUB_COMMAND_TEST_CALLS"
 for arg in "$@"; do
-  if [ "$arg" = 'repos/nkzw-tech/codiff/pulls/12' ]; then
+  if [ "$arg" = 'repos/raels0/codophon/pulls/12' ]; then
     printf '%s' '{"head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}'
     exit 0
   fi
@@ -158,8 +158,8 @@ printf '%s' '{}'
   await chmod(fakeGh, 0o755);
 
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GH_PATH: fakeGh,
-    CODIFF_GITHUB_COMMAND_TEST_CALLS: callsPath,
+    CODOPHON_GH_PATH: fakeGh,
+    CODOPHON_GITHUB_COMMAND_TEST_CALLS: callsPath,
     PATH: pathBin,
     SHELL: undefined,
   });
@@ -171,20 +171,20 @@ printf '%s' '{}'
     source: {
       provider: 'github',
       type: 'pull-request',
-      url: 'https://github.com/nkzw-tech/codiff/pull/12',
+      url: 'https://github.com/raels0/codophon/pull/12',
     },
   });
 
   const calls = (await readFile(callsPath, 'utf8')).trim().split('\n');
   expect(calls).toEqual([
-    'api repos/nkzw-tech/codiff/pulls/12 | ',
-    'api -X POST repos/nkzw-tech/codiff/pulls/12/reviews --input - | ' +
+    'api repos/raels0/codophon/pulls/12 | ',
+    'api -X POST repos/raels0/codophon/pulls/12/reviews --input - | ' +
       '{"body":"General feedback.","comments":[],"event":"COMMENT"}',
   ]);
 });
 
 test('authenticates gh from the login shell environment when the app inherited none', async () => {
-  await using directory = await createTemporaryDirectory('codiff-gh-login-env-');
+  await using directory = await createTemporaryDirectory('codophon-gh-login-env-');
   const repo = join(directory.path, 'repo');
   const fakeGh = join(directory.path, 'gh');
   const fakeShell = join(directory.path, 'fake-login-shell');
@@ -197,10 +197,10 @@ test('authenticates gh from the login shell environment when the app inherited n
     'remote',
     'add',
     'origin',
-    'git@github.com:nkzw-tech/codiff.git',
+    'git@github.com:raels0/codophon.git',
   ]);
 
-  // A GUI-launched Codiff keeps launchd's minimal environment: no GH_TOKEN,
+  // A GUI-launched Codophon keeps launchd's minimal environment: no GH_TOKEN,
   // even when the user's login shell exports one. This gh fails auth exactly
   // the way the real one does when the token never reaches it.
   await writeFile(
@@ -217,7 +217,7 @@ if [ "$GH_TOKEN" != 'from-login-shell' ]; then
   exit 4
 fi
 for arg in "$@"; do
-  if [ "$arg" = 'repos/nkzw-tech/codiff/pulls/12' ]; then
+  if [ "$arg" = 'repos/raels0/codophon/pulls/12' ]; then
     printf '%s' '{"head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}'
     exit 0
   fi
@@ -228,7 +228,7 @@ printf '%s' '{}'
   await Promise.all([chmod(fakeShell, 0o755), chmod(fakeGh, 0o755)]);
 
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GH_PATH: fakeGh,
+    CODOPHON_GH_PATH: fakeGh,
     GH_TOKEN: undefined,
     GITHUB_TOKEN: undefined,
     SHELL: fakeShell,
@@ -241,13 +241,13 @@ printf '%s' '{}'
     source: {
       provider: 'github',
       type: 'pull-request',
-      url: 'https://github.com/nkzw-tech/codiff/pull/12',
+      url: 'https://github.com/raels0/codophon/pull/12',
     },
   });
 });
 
 test('prefers the process environment over the login shell for gh', async () => {
-  await using directory = await createTemporaryDirectory('codiff-gh-env-precedence-');
+  await using directory = await createTemporaryDirectory('codophon-gh-env-precedence-');
   const repo = join(directory.path, 'repo');
   const fakeGh = join(directory.path, 'gh');
   const fakeShell = join(directory.path, 'fake-login-shell');
@@ -260,7 +260,7 @@ test('prefers the process environment over the login shell for gh', async () => 
     'remote',
     'add',
     'origin',
-    'git@github.com:nkzw-tech/codiff.git',
+    'git@github.com:raels0/codophon.git',
   ]);
 
   await writeFile(
@@ -277,7 +277,7 @@ if [ "$GH_TOKEN" != 'from-process' ]; then
   exit 4
 fi
 for arg in "$@"; do
-  if [ "$arg" = 'repos/nkzw-tech/codiff/pulls/12' ]; then
+  if [ "$arg" = 'repos/raels0/codophon/pulls/12' ]; then
     printf '%s' '{"head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}'
     exit 0
   fi
@@ -288,7 +288,7 @@ printf '%s' '{}'
   await Promise.all([chmod(fakeShell, 0o755), chmod(fakeGh, 0o755)]);
 
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GH_PATH: fakeGh,
+    CODOPHON_GH_PATH: fakeGh,
     GH_TOKEN: 'from-process',
     GITHUB_TOKEN: undefined,
     SHELL: fakeShell,
@@ -301,7 +301,7 @@ printf '%s' '{}'
     source: {
       provider: 'github',
       type: 'pull-request',
-      url: 'https://github.com/nkzw-tech/codiff/pull/12',
+      url: 'https://github.com/raels0/codophon/pull/12',
     },
   });
 });

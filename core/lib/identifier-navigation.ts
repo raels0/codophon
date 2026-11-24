@@ -14,7 +14,7 @@ const identifierContainedPattern = /[$_\p{ID_Start}][$\u200C\u200D\p{ID_Continue
 // This is intentionally language-agnostic. The modifier treatment is an
 // affordance, not a claim that every highlighted token resolves, so keep the
 // exclusions to common declaration/control-flow words that are never useful
-// navigation targets across Codiff's most common languages.
+// navigation targets across Codophon's most common languages.
 const commonKeywords = new Set([
   'abstract',
   'as',
@@ -83,8 +83,8 @@ const commonKeywords = new Set([
   'yield',
 ]);
 
-const identifierNavigationAttribute = 'data-codiff-identifier';
-const definitionModifierAttribute = 'data-codiff-definition-mode';
+const identifierNavigationAttribute = 'data-codophon-identifier';
+const definitionModifierAttribute = 'data-codophon-definition-mode';
 const nonCodeScopePattern = /^(comment|string)(\.|$)/;
 const nonCodeTokenColors = new Set(
   [dunkelTheme, lichtTheme].flatMap((theme) =>
@@ -121,7 +121,7 @@ const wrapIdentifierNavigationText = (root: ShadowRoot) => {
         const parent = node.parentElement;
         return node.textContent &&
           identifierContainedPattern.test(node.textContent) &&
-          !parent?.closest(`[${identifierNavigationAttribute}], mark.codiff-search-mark`) &&
+          !parent?.closest(`[${identifierNavigationAttribute}], mark.codophon-search-mark`) &&
           !isNonCodeSyntaxToken(parent)
           ? NodeFilter.FILTER_ACCEPT
           : NodeFilter.FILTER_REJECT;

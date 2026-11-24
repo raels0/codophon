@@ -1,41 +1,18 @@
 import { chmod, readFile, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { beforeEach, expect, test, vi } from 'vite-plus/test';
 import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-import { createCommandTransport } from './helpers/command-transport.ts';
-
-type CommandTransport = ReturnType<typeof createCommandTransport>['transport'];
-
-const require = createRequire(import.meta.url);
-const {
+import {
   CLAUDE_NOT_FOUND_CODE,
   DEFAULT_CLAUDE_MODEL,
   getClaudeCommand,
   normalizeClaudeModel,
   runClaude,
-} = require('../claude.cjs') as {
-  CLAUDE_NOT_FOUND_CODE: string;
-  DEFAULT_CLAUDE_MODEL: string;
-  getClaudeCommand: () => string;
-  normalizeClaudeModel: (value: unknown) => string;
-  runClaude: (
-    repoRoot: string,
-    prompt: string,
-    schema: unknown,
-    outputName?: string,
-    timeoutMessage?: string,
-    options?: {
-      commandTransport?: CommandTransport;
-      model?: string;
-      onProgress?: (phase: string) => void;
-      timeoutMs?: number;
-    },
-  ) => Promise<string>;
-};
+} from '../claude.cjs';
+import { createCommandTransport } from './helpers/command-transport.ts';
 
 // Spawning Claude resolves the login shell environment, so tests either
 // provide their own fake shell or run without one.
@@ -69,10 +46,10 @@ test('maps legacy pinned Claude model ids to CLI aliases', () => {
 
 test('rejects invalid explicit Claude CLI overrides', async () => {
   await using _environment = createTemporaryEnvironment({
-    CODIFF_CLAUDE_PATH: '/tmp/codiff-missing-claude',
+    CODOPHON_CLAUDE_PATH: '/tmp/codophon-missing-claude',
   });
 
-  expect(() => getClaudeCommand()).toThrow('CODIFF_CLAUDE_PATH');
+  expect(() => getClaudeCommand()).toThrow('CODOPHON_CLAUDE_PATH');
   try {
     getClaudeCommand();
   } catch (error) {
@@ -81,10 +58,10 @@ test('rejects invalid explicit Claude CLI overrides', async () => {
 });
 
 test('runs Claude Code headless as a read-only structured-output call', async () => {
-  await using directory = await createTemporaryDirectory('codiff-claude-');
+  await using directory = await createTemporaryDirectory('codophon-claude-');
   const fakeClaudePath = join(directory.path, 'claude');
   const argsPath = join(directory.path, 'args.txt');
-  await using _environment = createTemporaryEnvironment({ CODIFF_CLAUDE_PATH: fakeClaudePath });
+  await using _environment = createTemporaryEnvironment({ CODOPHON_CLAUDE_PATH: fakeClaudePath });
 
   await writeFile(
     fakeClaudePath,
@@ -228,6 +205,24 @@ test('maps Claude structured output deltas to response progress', async () => {
   ]);
 });
 
+test('preserves UTF-8 text split across CLI output chunks', async () => {
+  const { transport } = createCommandTransport(({ close, stdin, stdout }) => {
+    stdin.on('finish', () => {
+      const output = Buffer.from(JSON.stringify({ result: 'café' }));
+      const split = output.indexOf('é') + 1;
+      stdout(output.subarray(0, split));
+      stdout(output.subarray(split));
+      close();
+    });
+  });
+
+  await expect(
+    runClaude('/repo', 'prompt', {}, undefined, undefined, {
+      commandTransport: transport,
+    }),
+  ).resolves.toBe('café');
+});
+
 test('supports per-call Claude Code timeouts', async () => {
   const { transport } = createCommandTransport(() => {});
   vi.useFakeTimers();
@@ -267,9 +262,9 @@ test('surfaces a helpful message when Claude Code is not logged in', async () =>
 });
 
 test('authenticates Claude Code from the login shell environment when the app inherited none', async () => {
-  await using directory = await createTemporaryDirectory('codiff-claude-login-env-');
+  await using directory = await createTemporaryDirectory('codophon-claude-login-env-');
   const fakeShell = join(directory.path, 'fake-login-shell');
-  // A GUI-launched Codiff keeps launchd's minimal environment: no
+  // A GUI-launched Codophon keeps launchd's minimal environment: no
   // ANTHROPIC_API_KEY, even when the user's login shell exports one.
   await writeFile(
     fakeShell,
@@ -305,7 +300,7 @@ ANTHROPIC_API_KEY='from-login-shell' exec /bin/sh -c "$4"
 });
 
 test('prefers the process environment over the login shell for Claude Code', async () => {
-  await using directory = await createTemporaryDirectory('codiff-claude-env-precedence-');
+  await using directory = await createTemporaryDirectory('codophon-claude-env-precedence-');
   const fakeShell = join(directory.path, 'fake-login-shell');
   await writeFile(
     fakeShell,

@@ -10,7 +10,7 @@ const RELEASES_URL = `https://github.com/${RELEASES_REPOSITORY}/releases`;
 const CHECK_INTERVAL_MS = 20 * 60 * 60 * 1000;
 
 /**
- * @typedef {import('../core/types.ts').CodiffUpdateStatus} UpdateStatus
+ * @typedef {import('../core/types.ts').CodophonUpdateStatus} UpdateStatus
  * @typedef {{ checkedAt: number; dismissedVersion?: string; latestVersion?: string }} ReleaseState
  */
 
@@ -36,7 +36,7 @@ const fetchLatestVersion = async () => {
   const response = await fetch(
     `https://api.github.com/repos/${RELEASES_REPOSITORY}/releases/latest`,
     {
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'codiff-release-check' },
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'codophon-release-check' },
     },
   );
   if (!response.ok) {

@@ -8,7 +8,7 @@ const {
 } = require('../narrative-walkthrough.cjs');
 
 /**
- * @typedef {import('../../core/types.ts').CodiffLaunchOptions} CodiffLaunchOptions
+ * @typedef {import('../../core/types.ts').CodophonLaunchOptions} CodophonLaunchOptions
  * @typedef {import('../../core/types.ts').NarrativeWalkthrough} NarrativeWalkthrough
  * @typedef {import('../../core/types.ts').RepositoryState} RepositoryState
  * @typedef {import('../../core/types.ts').ReviewSource} ReviewSource
@@ -17,9 +17,9 @@ const {
 /**
  * @param {{
  *   hasWindows: () => boolean;
- *   openWindow: (repositoryPath: string, launchOptions: CodiffLaunchOptions, state?: Promise<RepositoryState>) => {webContents: {id: number}};
+ *   openWindow: (repositoryPath: string, launchOptions: CodophonLaunchOptions, state?: Promise<RepositoryState>) => {webContents: {id: number}};
  *   quit: () => void;
- *   readRepositoryState: (repositoryPath: string, launchOptions: CodiffLaunchOptions) => Promise<RepositoryState>;
+ *   readRepositoryState: (repositoryPath: string, launchOptions: CodophonLaunchOptions) => Promise<RepositoryState>;
  * }} options
  */
 const createWalkthroughLaunchController = ({
@@ -64,7 +64,7 @@ const createWalkthroughLaunchController = ({
     getInitialRepositoryState: (webContentsId, source) =>
       getInitialSnapshot(webContentsId, source)?.state,
     hasPending: () => pendingChecks > 0,
-    /** @param {string} repositoryPath @param {CodiffLaunchOptions} launchOptions */
+    /** @param {string} repositoryPath @param {CodophonLaunchOptions} launchOptions */
     open: async (repositoryPath, launchOptions) => {
       const { walkthroughFile, walkthroughResultFile } = launchOptions;
       if (!walkthroughFile || !walkthroughResultFile) {

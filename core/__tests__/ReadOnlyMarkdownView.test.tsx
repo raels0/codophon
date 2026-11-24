@@ -46,7 +46,7 @@ test('the design overview renders raw Mermaid with the shared diagram viewer', a
     />,
   );
   await waitFor(() =>
-    expect(view.container.querySelector('img.codiff-mermaid-diagram')).not.toBeNull(),
+    expect(view.container.querySelector('img.codophon-mermaid-diagram')).not.toBeNull(),
   );
   expect(view.container.querySelector('figcaption')?.textContent).toBe('Request routing');
   expect(mermaid.render).toHaveBeenCalledWith(expect.any(String), code);
@@ -62,7 +62,7 @@ const renderDiagram = async (code: string) => {
     />,
   );
   await waitFor(() => {
-    expect(view.container.querySelector('img.codiff-mermaid-diagram')).not.toBe(null);
+    expect(view.container.querySelector('img.codophon-mermaid-diagram')).not.toBe(null);
   });
   return view;
 };
@@ -84,7 +84,7 @@ const dispatch = (element: Element, event: Event) =>
   });
 
 const getTransform = (container: HTMLElement) =>
-  container.querySelector<HTMLImageElement>('img.codiff-mermaid-diagram')?.style.transform;
+  container.querySelector<HTMLImageElement>('img.codophon-mermaid-diagram')?.style.transform;
 
 const pointer = (type: string, clientX: number, clientY: number, button = 0) =>
   new PointerEvent(type, {
@@ -142,7 +142,7 @@ test('ReadOnlyMarkdownView copies the code inside a collapsible block', async ()
     />,
   );
 
-  const button = view.container.querySelector<HTMLButtonElement>('.codiff-copy-code-button');
+  const button = view.container.querySelector<HTMLButtonElement>('.codophon-copy-code-button');
   expect(button).not.toBe(null);
 
   button?.click();
@@ -162,7 +162,7 @@ test('ReadOnlyMarkdownView omits the copy button for collapsibles without code',
     />,
   );
 
-  expect(view.container.querySelector('.codiff-copy-code-button')).toBe(null);
+  expect(view.container.querySelector('.codophon-copy-code-button')).toBe(null);
 });
 
 test('nested collapsibles copy only the code belonging to their own level', async () => {
@@ -184,7 +184,7 @@ test('nested collapsibles copy only the code belonging to their own level', asyn
   );
 
   const details = view.container.querySelectorAll('details');
-  const buttons = view.container.querySelectorAll<HTMLButtonElement>('.codiff-copy-code-button');
+  const buttons = view.container.querySelectorAll<HTMLButtonElement>('.codophon-copy-code-button');
   expect(details).toHaveLength(2);
   expect(details[0]?.contains(details[1] ?? null)).toBe(true);
   expect(buttons).toHaveLength(2);
@@ -277,7 +277,7 @@ test('ReadOnlyMarkdownView renders mermaid fences as diagram images', async () =
   );
 
   await waitFor(() => {
-    const image = view.container.querySelector<HTMLImageElement>('img.codiff-mermaid-diagram');
+    const image = view.container.querySelector<HTMLImageElement>('img.codophon-mermaid-diagram');
     expect(image?.getAttribute('src')).toMatch(/^data:image\/svg\+xml;charset=utf-8,/);
     expect(decodeURIComponent(image?.getAttribute('src') ?? '')).toContain('view-->image');
     expect(image?.getAttribute('width')).toBe('200');
@@ -300,7 +300,7 @@ test('ReadOnlyMarkdownView renders mermaid fences inside collapsibles', async ()
   );
 
   await waitFor(() => {
-    expect(view.container.querySelector('details img.codiff-mermaid-diagram')).not.toBe(null);
+    expect(view.container.querySelector('details img.codophon-mermaid-diagram')).not.toBe(null);
   });
 });
 
@@ -317,27 +317,27 @@ test('ReadOnlyMarkdownView shows the code and an error note when a diagram fails
   );
 
   await waitFor(() => {
-    expect(view.container.querySelector('.codiff-mermaid-error')?.textContent).toBe(
+    expect(view.container.querySelector('.codophon-mermaid-error')?.textContent).toBe(
       'Unable to render Mermaid diagram',
     );
   });
   expect(view.container.querySelector('.cm-content')?.textContent).toContain('broken-->');
-  expect(view.container.querySelector('img.codiff-mermaid-diagram')).toBe(null);
-  expect(view.container.querySelector('.codiff-mermaid-control')).toBe(null);
+  expect(view.container.querySelector('img.codophon-mermaid-diagram')).toBe(null);
+  expect(view.container.querySelector('.codophon-mermaid-control')).toBe(null);
 });
 
 test('ReadOnlyMarkdownView falls back to source when the SVG image cannot be decoded', async () => {
   await using view = await renderDiagram('flowchart TD\ndecode-->failure');
-  const image = view.container.querySelector('img.codiff-mermaid-diagram')!;
+  const image = view.container.querySelector('img.codophon-mermaid-diagram')!;
 
   await dispatch(image, new Event('error'));
   await waitFor(() => {
-    expect(view.container.querySelector('.codiff-mermaid-error')?.textContent).toBe(
+    expect(view.container.querySelector('.codophon-mermaid-error')?.textContent).toBe(
       'Unable to render Mermaid diagram',
     );
   });
   expect(view.container.querySelector('.cm-content')?.textContent).toContain('decode-->failure');
-  expect(view.container.querySelector('img.codiff-mermaid-diagram')).toBe(null);
+  expect(view.container.querySelector('img.codophon-mermaid-diagram')).toBe(null);
 
   // A cached result must not replace the fallback, and another diagram must still work.
   await view.rerender(
@@ -349,9 +349,9 @@ test('ReadOnlyMarkdownView falls back to source when the SVG image cannot be dec
     />,
   );
   await waitFor(() => {
-    expect(view.container.querySelector('img.codiff-mermaid-diagram')).not.toBe(null);
+    expect(view.container.querySelector('img.codophon-mermaid-diagram')).not.toBe(null);
   });
-  expect(view.container.querySelector('.codiff-mermaid-error')).toBe(null);
+  expect(view.container.querySelector('.codophon-mermaid-error')).toBe(null);
 });
 
 test('editable Markdown editors keep mermaid fences as code', async () => {
@@ -368,7 +368,7 @@ test('editable Markdown editors keep mermaid fences as code', async () => {
   await waitFor(() => {
     expect(view.container.querySelector('.cm-content')?.textContent).toContain('editable-->code');
   });
-  expect(view.container.querySelector('img.codiff-mermaid-diagram')).toBe(null);
+  expect(view.container.querySelector('img.codophon-mermaid-diagram')).toBe(null);
   expect(mermaid.render).not.toHaveBeenCalled();
 });
 
@@ -418,7 +418,7 @@ test('diagram buttons zoom, pan, and reset the view', async () => {
 
 test('modifier scrolling zooms the diagram while plain scrolling is left alone', async () => {
   await using view = await renderDiagram('flowchart TD\nwheel-->zoom');
-  const viewport = view.container.querySelector('.codiff-mermaid-viewport')!;
+  const viewport = view.container.querySelector('.codophon-mermaid-viewport')!;
 
   const plain = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -500 });
   await dispatch(viewport, plain);
@@ -448,7 +448,7 @@ test('modifier scrolling zooms the diagram while plain scrolling is left alone',
 
 test('dragging pans the diagram and double-clicking resets it', async () => {
   await using view = await renderDiagram('flowchart TD\ndrag-->pan');
-  const viewport = view.container.querySelector('.codiff-mermaid-viewport')!;
+  const viewport = view.container.querySelector('.codophon-mermaid-viewport')!;
   await dispatch(viewport, pointer('pointerdown', 10, 10, 2));
   await dispatch(viewport, pointer('pointermove', 40, 30));
   expect(getTransform(view.container)).toBe('translate(0px, 0px) scale(1)');
@@ -480,14 +480,14 @@ test('diagrams copy their Mermaid code and toggle to the source', async () => {
 
   await click(getButton(container, 'Show source'));
   await waitFor(() => {
-    expect(container.querySelector('.codiff-mermaid-source .cm-content')?.textContent).toContain(
+    expect(container.querySelector('.codophon-mermaid-source .cm-content')?.textContent).toContain(
       'copy-->source',
     );
   });
-  expect(container.querySelector('img.codiff-mermaid-diagram')).toBe(null);
+  expect(container.querySelector('img.codophon-mermaid-diagram')).toBe(null);
   getButton(container, 'Copy code');
 
   await click(getButton(container, 'Show diagram'));
-  expect(container.querySelector('img.codiff-mermaid-diagram')).not.toBe(null);
-  expect(container.querySelector('.codiff-mermaid-source')).toBe(null);
+  expect(container.querySelector('img.codophon-mermaid-diagram')).not.toBe(null);
+  expect(container.querySelector('.codophon-mermaid-source')).toBe(null);
 });

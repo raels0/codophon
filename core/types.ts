@@ -1,5 +1,5 @@
 import type { MarkdownAnnotationAnchor } from '@nkzw/mdx-editor';
-import type { CodiffDiffStyle, CodiffReviewTheme } from './config/types.ts';
+import type { CodophonDiffStyle, CodophonReviewTheme } from './config/types.ts';
 
 export type DiffSection = {
   binary: boolean;
@@ -92,7 +92,7 @@ export type ReviewSource =
       /**
        * Resolved base commit for the branch part of the comparison. Optional
        * because the CLI can construct this source from just a branch name
-       * (`codiff main`), before merge-base resolution happens; the resolved
+       * (`codophon main`), before merge-base resolution happens; the resolved
        * state's `source` always carries a concrete value.
        */
       baseRef?: string;
@@ -212,7 +212,7 @@ export type WalkthroughProgressEvent = {
   phase: WalkthroughProgressPhase;
 };
 
-export type CodiffMarkdownDocument = {
+export type CodophonMarkdownDocument = {
   content: string;
   id: string;
   kind: 'repository';
@@ -223,17 +223,17 @@ export type CodiffMarkdownDocument = {
 export type SaveMarkdownDocumentRequest = {
   baseVersion: string;
   content: string;
-  kind: CodiffMarkdownDocument['kind'];
+  kind: CodophonMarkdownDocument['kind'];
   path: string;
 };
 
 export type SaveMarkdownDocumentResult =
   | {
-      document: CodiffMarkdownDocument;
+      document: CodophonMarkdownDocument;
       status: 'conflict';
     }
   | {
-      document: CodiffMarkdownDocument;
+      document: CodophonMarkdownDocument;
       status: 'saved';
     };
 
@@ -315,7 +315,7 @@ export type WalkthroughContext = {
   version: 1;
 };
 
-export type CodiffLaunchOptions = {
+export type CodophonLaunchOptions = {
   agentBackend?: 'codex' | 'claude' | 'opencode';
   claudeSessionId?: string;
   codexSessionId?: string;
@@ -346,7 +346,7 @@ export type TerminalHelperStatus = {
 
 /**
  * Narrative Walkthrough. The agent authors chapters, stops, and support groups
- * around deterministic hunk ids. Codiff resolves those ids against the live diff
+ * around deterministic hunk ids. Codophon resolves those ids against the live diff
  * and computes file paths, anchors, and line counts.
  */
 export type WalkthroughIcon = 'bug' | 'wrench' | 'path' | 'flask' | 'beaker' | 'doc' | 'gear';
@@ -413,7 +413,7 @@ export type WalkthroughHunkGroup = {
   deleted: number;
   /** Deterministic hunk ids selected by the authoring agent, in display order. */
   hunkIds: ReadonlyArray<string>;
-  /** Resolved hunks with Codiff-computed anchors, file paths, status, and line counts. */
+  /** Resolved hunks with Codophon-computed anchors, file paths, status, and line counts. */
   hunks: ReadonlyArray<WalkthroughHunk>;
   /** Stable within the document, e.g. 's1'. */
   id: string;
@@ -449,7 +449,7 @@ export type WalkthroughChapter = {
 
 /**
  * Marks the walkthrough's diff as a staging set that can be committed and seeds
- * the commit composer Codiff renders as the walkthrough's terminal stop. Only
+ * the commit composer Codophon renders as the walkthrough's terminal stop. Only
  * honored when {@link NarrativeWalkthrough.source} is a working tree — you can
  * only commit a live staging set, never a past commit, branch, or pull request.
  */
@@ -471,7 +471,7 @@ export type WalkthroughDesignOverview = {
   goal: string;
   goalSource: 'stated' | 'inferred';
   implementation: ReadonlyArray<{ description: string; hunkId: string; title: string }>;
-  /** Set by Codiff when the overview used incomplete patch text. */
+  /** Set by Codophon when the overview used incomplete patch text. */
   partialEvidence?: boolean;
   unchanged?: string;
 };
@@ -480,7 +480,7 @@ export type NarrativeWalkthrough = {
   agent: 'codex' | 'claude' | 'opencode';
   chapters: ReadonlyArray<WalkthroughChapter>;
   /**
-   * When present, the diff is a committable staging set: Codiff adds a commit
+   * When present, the diff is a committable staging set: Codophon adds a commit
    * composer at the end of the walkthrough. Stripped unless `source` is a working tree.
    */
   commit?: WalkthroughCommit;
@@ -691,15 +691,15 @@ export type DiffImageContentResult =
       status: 'unavailable';
     };
 
-export type CodiffTheme = 'system' | 'light' | 'dark';
+export type CodophonTheme = 'system' | 'light' | 'dark';
 
-export type CodiffPreferences = {
+export type CodophonPreferences = {
   agentBackend: 'codex' | 'claude' | 'opencode';
   claudeModel: string;
   codeFontFamily: string;
   codeFontSize: number;
   copyCommentsOnClose: boolean;
-  diffStyle: CodiffDiffStyle;
+  diffStyle: CodophonDiffStyle;
   editorCommand: string;
   expandUnchanged: boolean;
   lastRepositoryPath: string;
@@ -708,17 +708,17 @@ export type CodiffPreferences = {
   opencodeModel: string;
   renderMarkdownAs: 'preview' | 'source';
   reviewCommentsPrefix: string;
-  reviewTheme: CodiffReviewTheme;
+  reviewTheme: CodophonReviewTheme;
   showOutdated: boolean;
   showWhitespace: boolean;
   sidebarPosition: 'left' | 'right';
-  theme: CodiffTheme;
+  theme: CodophonTheme;
   walkthroughPrompt: string;
   wordWrap: boolean;
 };
 
 /** A newer GitHub release than the running build, if one is known and not dismissed. */
-export type CodiffUpdateStatus = {
+export type CodophonUpdateStatus = {
   availableVersion?: string;
   currentVersion: string;
 };

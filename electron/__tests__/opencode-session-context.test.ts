@@ -1,28 +1,18 @@
 import { chmod, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { readOpenCodeSessionContext } = require('../opencode-session-context.cjs') as {
-  readOpenCodeSessionContext: (sessionId?: string) => Promise<{
-    messages?: ReadonlyArray<{ role: 'assistant' | 'user'; text: string }>;
-    risks?: ReadonlyArray<string>;
-    source: { threadId?: string; type: string };
-    version: 1;
-  } | null>;
-};
+import { readOpenCodeSessionContext } from '../opencode-session-context.cjs';
 
 const sessionId = 'ses_121b4816bffebMr9YE52O4870p';
 
 test('reads the linked session through the OpenCode export command', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-session-test-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-session-test-');
   const commandPath = join(directory.path, 'opencode');
-  await using _environment = createTemporaryEnvironment({ CODIFF_OPENCODE_PATH: commandPath });
+  await using _environment = createTemporaryEnvironment({ CODOPHON_OPENCODE_PATH: commandPath });
 
   await writeFile(
     commandPath,
@@ -51,9 +41,9 @@ printf '%s' '${JSON.stringify({
 });
 
 test('does not block the event loop while OpenCode exports a session', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-session-async-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-session-async-');
   const commandPath = join(directory.path, 'opencode');
-  await using _environment = createTemporaryEnvironment({ CODIFF_OPENCODE_PATH: commandPath });
+  await using _environment = createTemporaryEnvironment({ CODOPHON_OPENCODE_PATH: commandPath });
 
   await writeFile(
     commandPath,
@@ -78,9 +68,9 @@ printf '%s' '${JSON.stringify({
 });
 
 test('rejects invalid ids and mismatched session exports', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-session-mismatch-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-session-mismatch-');
   const commandPath = join(directory.path, 'opencode');
-  await using _environment = createTemporaryEnvironment({ CODIFF_OPENCODE_PATH: commandPath });
+  await using _environment = createTemporaryEnvironment({ CODOPHON_OPENCODE_PATH: commandPath });
 
   await writeFile(
     commandPath,
@@ -101,14 +91,14 @@ printf '%s' '${JSON.stringify({
   await expect(readOpenCodeSessionContext('../../sessions')).resolves.toBeNull();
   await expect(readOpenCodeSessionContext(sessionId)).resolves.toMatchObject({
     messages: [],
-    risks: ['Codiff could not find recent readable messages for the linked OpenCode session.'],
+    risks: ['Codophon could not find recent readable messages for the linked OpenCode session.'],
   });
 });
 
 test('rejects oversized OpenCode session exports', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-session-large-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-session-large-');
   const commandPath = join(directory.path, 'opencode');
-  await using _environment = createTemporaryEnvironment({ CODIFF_OPENCODE_PATH: commandPath });
+  await using _environment = createTemporaryEnvironment({ CODOPHON_OPENCODE_PATH: commandPath });
 
   await writeFile(
     commandPath,
@@ -121,6 +111,6 @@ dd if=/dev/zero bs=1048576 count=17 2>/dev/null
 
   await expect(readOpenCodeSessionContext(sessionId)).resolves.toMatchObject({
     messages: [],
-    risks: ['Codiff could not find recent readable messages for the linked OpenCode session.'],
+    risks: ['Codophon could not find recent readable messages for the linked OpenCode session.'],
   });
 });

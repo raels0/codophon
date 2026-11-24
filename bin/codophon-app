@@ -1,5 +1,5 @@
 #!/bin/sh
-# The packaged `codiff` terminal helper. It runs the CLI (bin/codiff.js) with the app's bundled
+# The packaged `codophon` terminal helper. It runs the CLI (bin/codophon.js) with the app's bundled
 # Electron runtime in Node mode, so the CLI works without a separate Node install. All argument
 # handling lives in the CLI.
 set -eu
@@ -18,10 +18,10 @@ script_dir="$(CDPATH= cd -P "$(dirname "$source_path")" >/dev/null 2>&1 && pwd)"
 
 # macOS: <App>.app/Contents/Resources/app/bin -> <App>.app/Contents/MacOS/<executable>.
 # Windows and Linux: the executable sits next to resources/, three levels above this script.
-runtime="${CODIFF_NODE_COMMAND:-}"
+runtime="${CODOPHON_NODE_COMMAND:-}"
 if [ -z "$runtime" ]; then
-  for candidate in "$script_dir/../../../MacOS/"* "$script_dir/../../../codiff.exe" \
-    "$script_dir/../../../codiff"; do
+  for candidate in "$script_dir/../../../MacOS/"* "$script_dir/../../../codophon.exe" \
+    "$script_dir/../../../codophon"; do
     if [ -f "$candidate" ] && [ -x "$candidate" ]; then
       runtime="$candidate"
       break
@@ -29,8 +29,8 @@ if [ -z "$runtime" ]; then
   done
 fi
 if [ -z "$runtime" ]; then
-  printf '%s\n' "codiff: could not find the app's bundled runtime next to $script_dir." >&2
+  printf '%s\n' "codophon: could not find the app's bundled runtime next to $script_dir." >&2
   exit 1
 fi
 
-ELECTRON_RUN_AS_NODE=1 exec "$runtime" "$script_dir/codiff.js" "$@"
+ELECTRON_RUN_AS_NODE=1 exec "$runtime" "$script_dir/codophon.js" "$@"

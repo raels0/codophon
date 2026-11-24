@@ -19,7 +19,7 @@ const { readRepositoryFile, writeRepositoryFile } = require('../repository-file.
 };
 
 test('saves UTF-8 source without changing line endings, BOM, or executable permissions', async () => {
-  await using directory = await createTemporaryDirectory('codiff-edit-');
+  await using directory = await createTemporaryDirectory('codophon-edit-');
   const path = join(directory.path, 'script.ts');
   await writeFile(path, '\uFEFFconst greeting = "こんにちは";\r\n');
   await chmod(path, 0o755);
@@ -37,7 +37,7 @@ test('saves UTF-8 source without changing line endings, BOM, or executable permi
 });
 
 test('keeps external edits and rejects saves belonging to a different repository', async () => {
-  await using directory = await createTemporaryDirectory('codiff-edit-conflict-');
+  await using directory = await createTemporaryDirectory('codophon-edit-conflict-');
   const path = join(directory.path, 'source.ts');
   await writeFile(path, 'original\n');
   const document = await readRepositoryFile(directory.path, 'source.ts');
@@ -60,8 +60,8 @@ test('keeps external edits and rejects saves belonging to a different repository
 });
 
 test('writes through contained symlinks but rejects traversal, outside targets, and Git metadata', async () => {
-  await using directory = await createTemporaryDirectory('codiff-edit-path-');
-  await using outside = await createTemporaryDirectory('codiff-edit-outside-');
+  await using directory = await createTemporaryDirectory('codophon-edit-path-');
+  await using outside = await createTemporaryDirectory('codophon-edit-outside-');
   await writeFile(join(directory.path, 'target.ts'), 'original\n');
   await symlink('target.ts', join(directory.path, 'source.ts'));
   await symlink(outside.path, join(directory.path, 'outside'));
@@ -82,7 +82,7 @@ test('writes through contained symlinks but rejects traversal, outside targets, 
 });
 
 test('refuses binary, non-UTF-8, and oversized files without rewriting them', async () => {
-  await using directory = await createTemporaryDirectory('codiff-edit-binary-');
+  await using directory = await createTemporaryDirectory('codophon-edit-binary-');
   for (const bytes of [
     Buffer.from([0, 1, 2]),
     Buffer.from([0xff]),

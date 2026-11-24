@@ -3,16 +3,13 @@
 const { promises: fs } = require('node:fs');
 const { homedir, tmpdir } = require('node:os');
 const { join } = require('node:path');
-const { resolveAgentCommandTransport } = require('./agent-command.cjs');
-const { getCommandEnvironment } = require('./login-shell-environment.cjs');
 const {
-  cleanText,
-  findExecutableOnPath,
-  isExecutableFile,
-  oneLine,
-  parseJSONMessage,
-  truncate,
-} = require('./agent-shared.cjs');
+  collectAgentOutput,
+  findAgentCommand,
+  resolveAgentCommandTransport,
+} = require('./agent-command.cjs');
+const { getCommandEnvironment } = require('./login-shell-environment.cjs');
+const { cleanText, oneLine, truncate } = require('./agent-shared.cjs');
 
 const CODEX_TIMEOUT_MS = 90_000;
 const DEFAULT_OPENAI_MODEL = 'gpt-5.6-terra';
@@ -23,7 +20,7 @@ const CODEX_MACOS_BLOCKED_MESSAGE =
 const CODEX_NOT_FOUND_CODE = 'CODEX_NOT_FOUND';
 const CODEX_APP_SERVER_UNAVAILABLE_CODE = 'CODEX_APP_SERVER_UNAVAILABLE';
 const CODEX_NOT_FOUND_MESSAGE =
-  'Codex CLI was not found. Install Codex and verify `codex --version` works in Terminal. On macOS, Codiff also checks for the CLI bundled with Codex.app or ChatGPT.app. If Codex is installed somewhere else, launch Codiff with `CODIFF_CODEX_PATH=/absolute/path/to/codex codiff -w`.';
+  'Codex CLI was not found. Install Codex and verify `codex --version` works in Terminal. On macOS, Codophon also checks for the CLI bundled with Codex.app or ChatGPT.app. If Codex is installed somewhere else, launch Codophon with `CODOPHON_CODEX_PATH=/absolute/path/to/codex codophon -w`.';
 /**
  * @typedef {{
  *   fallbackModel?: string;
@@ -109,31 +106,8 @@ const getCodexInstallPaths = (platform = process.platform, home = homedir()) => 
 ];
 
 /** @param {ReadonlyArray<string>} [installPaths] */
-const getCodexCommand = (installPaths = getCodexInstallPaths()) => {
-  const codexPath = process.env.CODIFF_CODEX_PATH?.trim();
-  if (codexPath) {
-    if (isExecutableFile(codexPath)) {
-      return codexPath;
-    }
-
-    throw createCodexNotFoundError(
-      `CODIFF_CODEX_PATH is set to ${JSON.stringify(codexPath)}, but that file is not executable.`,
-    );
-  }
-
-  const pathCommand = findExecutableOnPath('codex');
-  if (pathCommand) {
-    return pathCommand;
-  }
-
-  for (const path of installPaths) {
-    if (isExecutableFile(path)) {
-      return path;
-    }
-  }
-
-  throw createCodexNotFoundError();
-};
+const getCodexCommand = (installPaths = getCodexInstallPaths()) =>
+  findAgentCommand('codex', 'CODOPHON_CODEX_PATH', installPaths, createCodexNotFoundError);
 
 /** @param {unknown} error */
 const isCodexNotFoundError = (error) =>
@@ -384,114 +358,64 @@ const runCodex = async (
   /** @param {string} codexModel @returns {Promise<string>} */
   const invokeCodexExec = async (codexModel) => {
     const reasoningEffort = getOpenAIModelReasoningEffort(codexModel, options.reasoningEffort);
-    const directory = await fs.mkdtemp(join(tmpdir(), 'codiff-codex-'));
-    const outputPath = join(directory, outputName);
-    const schemaPath = join(directory, 'schema.json');
-    await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8');
-    const environment = await getCommandEnvironment();
-
-    return await /** @type {Promise<string>} */ (
-      new Promise((resolve, reject) => {
-        let stderr = '';
-        /** @type {Error | null} */
-        let stdinError = null;
-        let stdout = '';
-        let finished = false;
-
-        const commandTransport = resolveAgentCommandTransport(
-          options.commandTransport,
-          getCodexCommand,
-        );
-        const codexArgs = [
-          'exec',
-          '-m',
-          codexModel,
-          ...(reasoningEffort
-            ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
-            : []),
-          '--cd',
-          repoRoot,
-          '--sandbox',
-          'read-only',
-          '--ephemeral',
-          '--ignore-rules',
-          '--color',
-          'never',
-          '--json',
-          '--output-schema',
-          schemaPath,
-          '--output-last-message',
-          outputPath,
-          '-',
-        ];
-        const child = commandTransport.spawn(commandTransport.command, codexArgs, {
-          env: environment,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        const eventParser = createCodexEventParser(options.onProgress);
-
-        const timer = setTimeout(() => {
-          if (!finished) {
-            finished = true;
-            child.kill('SIGTERM');
-            reject(new Error(timeoutMessage));
-          }
-        }, timeoutMs);
-
-        child.stdout.on('data', (chunk) => {
-          const text = chunk.toString();
-          stdout += text;
-          eventParser.push(text);
-        });
-        child.stderr.on('data', (chunk) => {
-          stderr += chunk.toString();
-        });
-        child.stdin.on('error', (error) => {
-          stdinError = error;
-        });
-        child.on('error', (error) => {
-          finished = true;
-          clearTimeout(timer);
-          reject(getCodexLaunchError(error));
-        });
-        child.on('close', async (code, signal) => {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-          clearTimeout(timer);
-
-          if (code !== 0) {
-            const rawMessage = stderr || stdout || stdinError?.message || '';
-            const message = oneLine(
-              getCodexStructuredErrorMessage(rawMessage) || rawMessage,
-              signal ? `Codex was terminated by ${signal}.` : `Codex exited with code ${code}.`,
-            );
-            reject(
-              new Error(
-                getCodexLaunchErrorMessage({
-                  message,
-                  signal: signal ?? '',
-                }),
-              ),
-            );
-            return;
-          }
-
-          const { lastMessage: streamedMessage, usage } = eventParser.flush();
-          options.onMetrics?.({ transport: 'exec', usage });
-          try {
-            const message = await fs.readFile(outputPath, 'utf8');
-            resolve(message);
-          } catch {
-            resolve(streamedMessage || stdout);
-          }
-        });
-
-        child.stdin.end(prompt, () => {});
-      })
-    ).finally(() => fs.rm(directory, { force: true, recursive: true }).catch(() => {}));
+    const directory = await fs.mkdtemp(join(tmpdir(), 'codophon-codex-'));
+    try {
+      const outputPath = join(directory, outputName);
+      const schemaPath = join(directory, 'schema.json');
+      await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8');
+      const environment = await getCommandEnvironment();
+      const commandTransport = resolveAgentCommandTransport(
+        options.commandTransport,
+        getCodexCommand,
+      );
+      const codexArgs = [
+        'exec',
+        '-m',
+        codexModel,
+        ...(reasoningEffort
+          ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
+          : []),
+        '--cd',
+        repoRoot,
+        '--sandbox',
+        'read-only',
+        '--ephemeral',
+        '--ignore-rules',
+        '--color',
+        'never',
+        '--json',
+        '--output-schema',
+        schemaPath,
+        '--output-last-message',
+        outputPath,
+        '-',
+      ];
+      const child = commandTransport.spawn(commandTransport.command, codexArgs, {
+        env: environment,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const eventParser = createCodexEventParser(options.onProgress);
+      const stdout = await collectAgentOutput(child, {
+        label: 'Codex',
+        prompt,
+        timeoutMessage,
+        timeoutMs,
+        onStdout: eventParser.push,
+        getLaunchError: getCodexLaunchError,
+        getExitError: (rawMessage, signal) =>
+          new Error(
+            getCodexLaunchErrorMessage({
+              message: oneLine(getCodexStructuredErrorMessage(rawMessage) || rawMessage),
+              signal,
+            }),
+          ),
+      });
+      const { lastMessage, usage } = eventParser.flush();
+      options.onMetrics?.({ transport: 'exec', usage });
+      return await fs.readFile(outputPath, 'utf8').catch(() => lastMessage || stdout);
+    } finally {
+      await fs.rm(directory, { force: true, recursive: true }).catch(() => {});
+    }
   };
 
   /**
@@ -608,7 +532,7 @@ const runCodex = async (
           send({
             error: {
               code: -32601,
-              message: 'Codiff walkthrough generation does not handle interactive requests.',
+              message: 'Codophon walkthrough generation does not handle interactive requests.',
             },
             id: message.id,
           });
@@ -742,8 +666,8 @@ const runCodex = async (
             requestAttestation: false,
           },
           clientInfo: {
-            name: 'codiff',
-            title: 'Codiff',
+            name: 'codophon',
+            title: 'Codophon',
             version: '1',
           },
         });
@@ -757,7 +681,7 @@ const runCodex = async (
           ephemeral: true,
           model: codexModel,
           sandbox: 'read-only',
-          serviceName: 'codiff',
+          serviceName: 'codophon',
         });
         const threadId = thread?.thread?.id;
         if (typeof threadId !== 'string' || !threadId) {

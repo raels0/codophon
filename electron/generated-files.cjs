@@ -72,7 +72,7 @@ const checkGeneratedAttributeStates = async (repoRoot, paths, options, env) =>
  * @param {string} source
  */
 const readGeneratedAttributeStatesFromTree = async (repoRoot, paths, source) => {
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'codiff-generated-files-'));
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'codophon-generated-files-'));
   const env = {
     ...process.env,
     GIT_INDEX_FILE: join(temporaryDirectory, 'index'),

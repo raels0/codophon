@@ -281,7 +281,7 @@ const remotePriority = (remote) =>
       : 3;
 
 /**
- * `codiff pr` is GitHub-first, but Azure DevOps also calls them pull requests.
+ * `codophon pr` is GitHub-first, but Azure DevOps also calls them pull requests.
  * Prefer a GitHub remote when both exist; otherwise use the Azure remote.
  *
  * @param {ReviewProvider | undefined} provider
@@ -315,7 +315,7 @@ const resolveReviewUrl = (repositoryPath, number, provider) => {
     remotes = readReviewRemotes(repositoryPath);
   } catch {
     throw new Error(
-      `Could not resolve review #${number}. Run codiff inside a Git repository or pass a full pull request URL.`,
+      `Could not resolve review #${number}. Run codophon inside a Git repository or pass a full pull request URL.`,
     );
   }
 

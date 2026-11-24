@@ -102,7 +102,7 @@ const createGitHistory = async (repository: string) => {
         [
           `commit ${ref}`,
           `mark :${mark}`,
-          'committer Codiff Test <codiff@example.com> 0 +0000',
+          'committer Codophon Test <codophon@example.com> 0 +0000',
           `data ${Buffer.byteLength(message)}`,
           message,
           ...(parent == null ? [] : [`from :${parent}`]),
@@ -149,7 +149,7 @@ const createGitHistory = async (repository: string) => {
 };
 
 beforeAll(async () => {
-  repo = await realpath(await mkdtemp(join(tmpdir(), 'codiff-git-files-')));
+  repo = await realpath(await mkdtemp(join(tmpdir(), 'codophon-git-files-')));
   await git(repo, ['init']);
   await createGitHistory(repo);
   base = (await git(repo, ['rev-parse', 'refs/heads/base'])).trim();

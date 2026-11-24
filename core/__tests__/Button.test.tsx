@@ -38,11 +38,11 @@ test('renders reusable size and variant classes', async () => {
   );
 
   const button = view.container.querySelector('button');
-  expect(button?.classList.contains('codiff-button')).toBe(true);
-  expect(button?.classList.contains('codiff-button-size-icon')).toBe(true);
-  expect(button?.classList.contains('codiff-button-destructive')).toBe(true);
+  expect(button?.classList.contains('codophon-button')).toBe(true);
+  expect(button?.classList.contains('codophon-button-size-icon')).toBe(true);
+  expect(button?.classList.contains('codophon-button-destructive')).toBe(true);
   expect(button?.classList.contains('custom-button')).toBe(true);
-  expect(buttonVariants({ variant: 'outline' })).toContain('codiff-button-outline');
+  expect(buttonVariants({ variant: 'outline' })).toContain('codophon-button-outline');
 });
 
 test('supports rendering through a child element', async () => {
@@ -54,7 +54,7 @@ test('supports rendering through a child element', async () => {
 
   const link = view.container.querySelector('a');
   expect(link?.getAttribute('href')).toBe('/review');
-  expect(link?.classList.contains('codiff-button')).toBe(true);
+  expect(link?.classList.contains('codophon-button')).toBe(true);
   expect(view.container.querySelector('button')).toBeNull();
 });
 

@@ -2,22 +2,86 @@
 
 const { sep } = require('node:path');
 const {
+  chunk,
+  createEmptyFileContent,
   fileSort,
   getFingerprint,
   git,
+  normalizeStatus,
   readGitImageFile,
   summarizeContent,
   validateRepositoryPath,
 } = require('./common.cjs');
-const { createEmptyFileContent, readGitFiles } = require('./git-files.cjs');
+const { readGitFilePairs } = require('./git-files.cjs');
 
 /**
- * @typedef {import('../../core/types.ts').ChangedFile} ChangedFile
  * @typedef {import('../../core/types.ts').DiffImageContentResult} DiffImageContentResult
  * @typedef {import('../../core/types.ts').RepositoryState} RepositoryState
  * @typedef {import('../../core/types.ts').ReviewSource} ReviewSource
+ * @typedef {import('./common.cjs').FileContentResult} FileContentResult
  * @typedef {import('./common.cjs').StatusItem} StatusItem
+ * @typedef {Pick<StatusItem, 'oldPath' | 'path' | 'status'>} ComparisonItem
+ * @typedef {Extract<ReviewSource, {type: 'branch-diff' | 'range' | 'commit' | 'pull-request'}>} SnapshotSource
+ * @typedef {{ repoRoot: string; newRef: string; oldRef?: string; source: SnapshotSource; status: ComparisonItem[] }} ComparisonSnapshot
  */
+
+/**
+ * @param {string} raw
+ * @param {{sort?: boolean}} [options]
+ * @returns {Array<ComparisonItem>}
+ */
+const parseCommitNameStatus = (raw, options = {}) => {
+  const parts = raw.split('\0').filter(Boolean);
+  /** @type {Array<ComparisonItem>} */
+  const files = [];
+
+  for (let index = 0; index < parts.length;) {
+    const statusCode = parts[index++];
+    const statusType = statusCode[0];
+
+    if (statusType === 'R' || statusType === 'C') {
+      const oldPath = parts[index++];
+      const path = parts[index++];
+      files.push({
+        oldPath,
+        path,
+        status: 'renamed',
+      });
+    } else {
+      const path = parts[index++];
+      files.push({
+        path,
+        status: normalizeStatus(statusType),
+      });
+    }
+  }
+
+  return options.sort === false ? files : files.sort(fileSort);
+};
+
+/**
+ * @param {string} repoRoot
+ * @param {string} newRef
+ * @param {string | undefined} oldRef
+ * @param {SnapshotSource} source
+ * @returns {Promise<ComparisonSnapshot>}
+ */
+const readComparisonSnapshot = async (repoRoot, newRef, oldRef, source) => ({
+  newRef,
+  oldRef,
+  repoRoot,
+  source,
+  // Batched patches follow Git's order; readComparisonState sorts the finished files.
+  status: parseCommitNameStatus(
+    await git(
+      repoRoot,
+      oldRef
+        ? ['diff', '--name-status', '-r', '-z', '-M', oldRef, newRef]
+        : ['diff-tree', '--no-commit-id', '--name-status', '-r', '-z', '--root', '-M', newRef],
+    ),
+    { sort: false },
+  ),
+});
 
 /** @param {string} newRef @param {string | undefined} oldRef @param {ReadonlyArray<string>} paths */
 const createComparisonPatchArgs = (newRef, oldRef, paths) =>
@@ -28,16 +92,6 @@ const createComparisonPatchArgs = (newRef, oldRef, paths) =>
 /** @param {string} repoRoot @param {string} newRef @param {string | undefined} oldRef @param {string} path */
 const readComparisonPatch = (repoRoot, newRef, oldRef, path) =>
   git(repoRoot, createComparisonPatchArgs(newRef, oldRef, [path]));
-
-/** @param {ReadonlyArray<string>} values @param {number} size */
-const chunk = (values, size) => {
-  /** @type {Array<Array<string>>} */
-  const chunks = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
-};
 
 /** @param {string} patch */
 const splitCommitPatch = (patch) =>
@@ -61,10 +115,6 @@ const readComparisonPatches = async (repoRoot, newRef, oldRef, items) => {
     items.map((item) => item.path),
     200,
   )) {
-    if (itemChunk.length === 0) {
-      continue;
-    }
-
     const patch = await git(repoRoot, createComparisonPatchArgs(newRef, oldRef, itemChunk));
     const patchChunks = splitCommitPatch(patch);
 
@@ -85,196 +135,105 @@ const readComparisonPatches = async (repoRoot, newRef, oldRef, items) => {
 };
 
 /**
- * @param {string} ref
- * @param {Pick<StatusItem, 'oldPath' | 'path' | 'status'>} item
- * @param {ReturnType<typeof createEmptyFileContent>} oldFile
- * @param {ReturnType<typeof createEmptyFileContent>} newFile
- * @param {string} patch
- */
-const createComparisonFile = (ref, item, oldFile, newFile, patch) => {
-  const summary = summarizeContent(oldFile, newFile);
-
-  return {
-    fingerprint: getFingerprint(
-      `${ref}\n${item.status}\n${item.oldPath || ''}\n${summary.loadState || 'ready'}\n${
-        summary.summary?.reason || ''
-      }\n${summary.summary?.fingerprint || ''}\n${patch}\n${oldFile.file?.contents || ''}\n${
-        newFile.file?.contents || ''
-      }`,
-    ),
-    oldPath: item.oldPath,
-    path: item.path,
-    sections: [
-      {
-        binary: summary.binary || /Binary files .* differ/.test(patch),
-        id: `${item.path}:${ref}`,
-        kind: 'commit',
-        loadState: summary.loadState,
-        newFile: newFile.file,
-        oldFile: oldFile.file,
-        patch,
-        summary: summary.summary,
-      },
-    ],
-    status: item.status,
-  };
-};
-
-/**
- * @param {string} ref
- * @param {Pick<StatusItem, 'oldPath' | 'path' | 'status'>} item
- * @param {ReturnType<typeof createEmptyFileContent>} oldFile
- * @param {ReturnType<typeof createEmptyFileContent>} newFile
- * @param {string} patch
- */
-const createComparisonSection = (ref, item, oldFile, newFile, patch) =>
-  createComparisonFile(ref, item, oldFile, newFile, patch).sections[0];
-
-/**
- * @param {Map<string, ReturnType<typeof createEmptyFileContent> | import('./common.cjs').FileContentResult>} oldFiles
- * @param {string | undefined} oldRef
- * @param {Pick<StatusItem, 'oldPath' | 'path'>} item
- */
-const getOldComparisonFile = (oldFiles, oldRef, item) =>
-  oldRef
-    ? oldFiles.get(item.oldPath || item.path) || createEmptyFileContent(item.oldPath || item.path)
-    : createEmptyFileContent(item.oldPath || item.path);
-
-/**
- * @param {string} repoRoot
- * @param {string} newRef
- * @param {string | undefined} oldRef
- * @param {ReadonlyArray<Pick<StatusItem, 'oldPath' | 'path' | 'status'>>} status
+ * @param {ComparisonSnapshot} snapshot
+ * @param {ComparisonItem[]} items
  * @param {{force?: boolean}} [options]
  */
-const readComparisonFiles = async (repoRoot, newRef, oldRef, status, options = {}) => {
-  const [oldFiles, newFiles] = await Promise.all([
-    oldRef
-      ? readGitFiles(
-          repoRoot,
-          oldRef,
-          status.map((item) => item.oldPath || item.path),
-          options,
-        )
-      : Promise.resolve(new Map()),
-    readGitFiles(
-      repoRoot,
-      newRef,
-      status.map((item) => item.path),
-      options,
-    ),
-  ]);
-
-  return { newFiles, oldFiles };
-};
-
-/**
- * @param {{
- *   launchPath: string;
- *   newRef: string;
- *   oldRef?: string;
- *   repoRoot: string;
- *   source: ReviewSource;
- *   status: ReadonlyArray<Pick<StatusItem, 'oldPath' | 'path' | 'status'>>;
- * }} input
- * @returns {Promise<RepositoryState>}
- */
-const readComparisonState = async ({ launchPath, newRef, oldRef, repoRoot, source, status }) => {
-  const { oldFiles, newFiles } = await readComparisonFiles(repoRoot, newRef, oldRef, status);
-  const readyItems = status.filter((item) => {
-    const oldFile = getOldComparisonFile(oldFiles, oldRef, item);
-    const newFile = newFiles.get(item.path) || createEmptyFileContent(item.path);
-    return summarizeContent(oldFile, newFile).loadState === 'ready';
+const readComparisonContents = async ({ repoRoot, newRef, oldRef }, items, options) => {
+  const { oldFiles, newFiles } = await readGitFilePairs(repoRoot, newRef, oldRef, items, options);
+  return items.map((item) => {
+    const oldPath = item.oldPath || item.path;
+    const oldFile = oldFiles.get(oldPath) ?? createEmptyFileContent(oldPath);
+    const newFile = newFiles.get(item.path) ?? createEmptyFileContent(item.path);
+    return { item, oldFile, newFile, summary: summarizeContent(oldFile, newFile) };
   });
-  const patches = await readComparisonPatches(repoRoot, newRef, oldRef, readyItems);
-  /** @type {Array<ChangedFile>} */
-  const files = status
-    .map((item) =>
-      createComparisonFile(
-        newRef,
-        item,
-        getOldComparisonFile(oldFiles, oldRef, item),
-        newFiles.get(item.path) || createEmptyFileContent(item.path),
-        patches.get(item.path) || '',
-      ),
-    )
-    .sort(fileSort);
-
-  return {
-    files,
-    generatedAt: Date.now(),
-    launchPath,
-    root: repoRoot,
-    source,
-  };
 };
 
 /**
- * @param {string} repoRoot
- * @param {string} newRef
- * @param {string | undefined} oldRef
- * @param {ReadonlyArray<Pick<StatusItem, 'oldPath' | 'path' | 'status'>>} status
- * @param {string} requestedPath
- * @param {string} sourceLabel
- * @param {{force?: boolean}} [options]
+ * @param {ComparisonSnapshot} snapshot
+ * @param {Awaited<ReturnType<typeof readComparisonContents>>[number]} content
+ * @param {string} patch
+ * @param {string} [path]
+ * @returns {import('../../core/types.ts').DiffSection}
  */
-const readComparisonSectionContent = async (
-  repoRoot,
-  newRef,
-  oldRef,
-  status,
-  requestedPath,
-  sourceLabel,
-  options = {},
-) => {
+const createComparisonSection = (
+  { newRef, source },
+  { item, oldFile, newFile, summary },
+  patch,
+  path = item.path,
+) => ({
+  binary: summary.binary || /Binary files .* differ/.test(patch),
+  id:
+    source.type === 'pull-request'
+      ? `${path}:pull-request:${source.number}`
+      : `${item.path}:${newRef}`,
+  kind: source.type === 'pull-request' ? 'pull-request' : 'commit',
+  loadState: summary.loadState,
+  newFile: newFile.file,
+  oldFile: oldFile.file,
+  patch,
+  summary: summary.summary,
+});
+
+/** @param {string} launchPath @param {ComparisonSnapshot} snapshot @returns {Promise<RepositoryState>} */
+const readComparisonState = async (launchPath, snapshot) => {
+  const { newRef, oldRef, repoRoot, source, status } = snapshot;
+  const contents = await readComparisonContents(snapshot, status);
+  const readyItems = contents
+    .filter(({ summary }) => summary.loadState === 'ready')
+    .map(({ item }) => item);
+  const patches = await readComparisonPatches(repoRoot, newRef, oldRef, readyItems);
+  const files = contents
+    .map((content) => {
+      const { item } = content;
+      const patch = patches.get(item.path) || '';
+      const section = createComparisonSection(snapshot, content, patch);
+      return {
+        ...item,
+        oldPath: item.oldPath,
+        fingerprint: getFingerprint(
+          `${newRef}\n${item.status}\n${item.oldPath || ''}\n${section.loadState || 'ready'}\n${section.summary?.reason || ''}\n${section.summary?.fingerprint || ''}\n${patch}\n${section.oldFile?.contents || ''}\n${section.newFile?.contents || ''}`,
+        ),
+        sections: [section],
+      };
+    })
+    .sort(fileSort);
+  return { files, generatedAt: Date.now(), launchPath, root: repoRoot, source };
+};
+
+/** @param {ComparisonSnapshot} snapshot @param {string} requestedPath */
+const findComparisonItem = ({ status, source }, requestedPath) => {
   const path = validateRepositoryPath(requestedPath).split(sep).join('/');
   const item = status.find((candidate) => candidate.path === path);
   if (!item) {
-    throw new Error(`File is not part of this ${sourceLabel}.`);
+    const label =
+      source.type === 'pull-request'
+        ? 'pull request'
+        : source.type === 'branch-diff'
+          ? 'branch'
+          : source.type;
+    throw new Error(`File is not part of this ${label}.`);
   }
-
-  const { oldFiles, newFiles } = await readComparisonFiles(
-    repoRoot,
-    newRef,
-    oldRef,
-    [item],
-    options,
-  );
-  const oldFile = getOldComparisonFile(oldFiles, oldRef, item);
-  const newFile = newFiles.get(item.path) || createEmptyFileContent(item.path);
-  const summary = summarizeContent(oldFile, newFile);
-  const patch =
-    summary.loadState === 'ready'
-      ? await readComparisonPatch(repoRoot, newRef, oldRef, item.path)
-      : '';
-
-  return createComparisonSection(newRef, item, oldFile, newFile, patch);
+  return item;
 };
 
-/**
- * @param {string} repoRoot
- * @param {string} newRef
- * @param {string | undefined} oldRef
- * @param {ReadonlyArray<Pick<StatusItem, 'oldPath' | 'path' | 'status'>>} status
- * @param {string} requestedPath
- * @param {string} sourceLabel
- * @returns {Promise<DiffImageContentResult>}
- */
-const readComparisonImageContent = async (
-  repoRoot,
-  newRef,
-  oldRef,
-  status,
-  requestedPath,
-  sourceLabel,
-) => {
-  try {
-    const path = validateRepositoryPath(requestedPath).split(sep).join('/');
-    const item = status.find((candidate) => candidate.path === path);
-    if (!item) {
-      throw new Error(`File is not part of this ${sourceLabel}.`);
-    }
+/** @param {ComparisonSnapshot} snapshot @param {string} path @param {{force?: boolean}} [options] */
+const readComparisonSectionContent = async (snapshot, path, options) => {
+  const item = findComparisonItem(snapshot, path);
+  const [content] = await readComparisonContents(snapshot, [item], options);
+  const patch =
+    content.summary.loadState === 'ready'
+      ? await readComparisonPatch(snapshot.repoRoot, snapshot.newRef, snapshot.oldRef, item.path)
+      : '';
+  return createComparisonSection(snapshot, content, patch, path);
+};
 
+/** @param {ComparisonSnapshot | Promise<ComparisonSnapshot>} comparison @param {string} path @returns {Promise<DiffImageContentResult>} */
+const readComparisonImageContent = async (comparison, path) => {
+  try {
+    const snapshot = await comparison;
+    const { repoRoot, oldRef, newRef } = snapshot;
+    const item = findComparisonItem(snapshot, path);
     const [oldImage, newImage] = await Promise.all([
       oldRef ? readGitImageFile(repoRoot, oldRef, item.oldPath || item.path) : undefined,
       readGitImageFile(repoRoot, newRef, item.path),
@@ -282,7 +241,7 @@ const readComparisonImageContent = async (
 
     if (!oldImage && !newImage) {
       return {
-        reason: 'Codiff could not load either side of this image.',
+        reason: 'Codophon could not load either side of this image.',
         status: 'unavailable',
       };
     }
@@ -294,13 +253,15 @@ const readComparisonImageContent = async (
     };
   } catch (error) {
     return {
-      reason: error instanceof Error ? error.message : 'Codiff could not load this image.',
+      reason: error instanceof Error ? error.message : 'Codophon could not load this image.',
       status: 'unavailable',
     };
   }
 };
 
 module.exports = {
+  parseCommitNameStatus,
+  readComparisonSnapshot,
   readComparisonImageContent,
   readComparisonSectionContent,
   readComparisonState,

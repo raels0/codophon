@@ -71,7 +71,7 @@ const createPullRequest = (workspace: string, repo: Repo) => {
         .filter(Boolean)
         .map((line) => JSON.parse(line) as { endpoint: string; input: string; method: string }),
     env: {
-      CODIFF_GH_PATH: resolve('e2e/fake-gh.mjs'),
+      CODOPHON_GH_PATH: resolve('e2e/fake-gh.mjs'),
       FAKE_GH_LOG: log,
       FAKE_GH_STATE: state,
       FAKE_GIT_REMOTE: server.path,

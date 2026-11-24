@@ -22,11 +22,11 @@ type FakeWebContents = {
 test('opens target="_blank" links in the default browser instead of an in-app window', () => {
   const { openExternal, openWindow } = createFakeWebContents();
 
-  const result = openWindow('https://github.com/nkzw-tech/codiff/pull/1728');
+  const result = openWindow('https://github.com/raels0/codophon/pull/1728');
 
   expect(result).toEqual({ action: 'deny' });
   expect(openExternal).toHaveBeenCalledExactlyOnceWith(
-    'https://github.com/nkzw-tech/codiff/pull/1728',
+    'https://github.com/raels0/codophon/pull/1728',
   );
 });
 
@@ -42,14 +42,14 @@ test('denies in-app windows without opening urls the browser should not receive'
 
 test('redirects external navigation to the default browser', () => {
   const { navigate, openExternal } = createFakeWebContents(
-    'file:///Applications/Codiff.app/Contents/Resources/app/web/dist/index.html',
+    'file:///Applications/Codophon.app/Contents/Resources/app/web/dist/index.html',
   );
 
-  const event = navigate('https://github.com/nkzw-tech/codiff/pull/1728');
+  const event = navigate('https://github.com/raels0/codophon/pull/1728');
 
   expect(event.preventDefault).toHaveBeenCalledOnce();
   expect(openExternal).toHaveBeenCalledExactlyOnceWith(
-    'https://github.com/nkzw-tech/codiff/pull/1728',
+    'https://github.com/raels0/codophon/pull/1728',
   );
 });
 
@@ -63,7 +63,7 @@ test('lets the renderer dev server navigate within its own origin', () => {
 });
 
 test('lets the packaged renderer reload its own file url', () => {
-  const url = 'file:///Applications/Codiff.app/Contents/Resources/app/web/dist/index.html';
+  const url = 'file:///Applications/Codophon.app/Contents/Resources/app/web/dist/index.html';
   const { navigate, openExternal } = createFakeWebContents(url);
 
   const event = navigate(url);
@@ -76,12 +76,12 @@ test('attaches rejection handling so a failed browser launch cannot crash the ap
   const openExternalResult = { catch: vi.fn() };
   const openExternal = vi.fn(() => openExternalResult as unknown as Promise<void>);
   const { navigate, openWindow } = createFakeWebContents(
-    'file:///Applications/Codiff.app/Contents/Resources/app/web/dist/index.html',
+    'file:///Applications/Codophon.app/Contents/Resources/app/web/dist/index.html',
     openExternal,
   );
 
-  openWindow('https://github.com/nkzw-tech/codiff/pull/1728');
-  navigate('https://github.com/nkzw-tech/codiff/pull/1728');
+  openWindow('https://github.com/raels0/codophon/pull/1728');
+  navigate('https://github.com/raels0/codophon/pull/1728');
 
   expect(openExternal).toHaveBeenCalledTimes(2);
   expect(openExternalResult.catch).toHaveBeenCalledTimes(2);
@@ -89,7 +89,7 @@ test('attaches rejection handling so a failed browser launch cannot crash the ap
 
 test('blocks navigation to other local files without opening anything', () => {
   const { navigate, openExternal } = createFakeWebContents(
-    'file:///Applications/Codiff.app/Contents/Resources/app/web/dist/index.html',
+    'file:///Applications/Codophon.app/Contents/Resources/app/web/dist/index.html',
   );
 
   const event = navigate('file:///etc/passwd');

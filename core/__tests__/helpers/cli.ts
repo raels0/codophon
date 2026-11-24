@@ -9,7 +9,7 @@ const loggerScript =
   '#!/bin/sh\nprevious=""\nfor arg in "$@"; do\n  printf "%s\\n" "$arg" >> "$OPEN_ARGS_FILE"\n  if [ "$previous" = "--walkthrough-result-file" ] && [ -n "$FAKE_WALKTHROUGH_RESULT" ]; then\n    (sleep "${FAKE_WALKTHROUGH_RESULT_DELAY:-0}"; printf "%s\\n" "$FAKE_WALKTHROUGH_RESULT" > "$arg") &\n  fi\n  previous="$arg"\ndone\n';
 
 export const createFakeOpenLogger = async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'codiff-app-helper-'));
+  const directory = await mkdtemp(join(tmpdir(), 'codophon-app-helper-'));
   const fakeBin = join(directory, 'bin');
   const logPath = join(directory, 'open-args.txt');
   const openPath = join(fakeBin, 'open');

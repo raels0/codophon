@@ -25,7 +25,7 @@ export function useInitialWindowReveal(ready: boolean) {
       }
       const loadingPreview = [
         ...document.querySelectorAll<HTMLElement>(
-          '.review .codiff-readonly-markdown-loading, .review .codiff-markdown-editor-message:not(.error)',
+          '.review .codophon-readonly-markdown-loading, .review .codophon-markdown-editor-message:not(.error)',
         ),
       ].some((element) => {
         const bounds = element.getBoundingClientRect();
@@ -42,7 +42,7 @@ export function useInitialWindowReveal(ready: boolean) {
       pending.current = null;
       channel.port1.close();
       channel.port2.close();
-      window.codiff.markWindowReady();
+      window.codophon.markWindowReady();
     };
     const prepareFrame = () => {
       if (canceled) {

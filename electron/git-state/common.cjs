@@ -45,6 +45,20 @@ const execFileAsync = promisify(execFile);
 /** @param {string | Buffer} value */
 const getFingerprint = (value) => createHash('sha256').update(value).digest('hex').slice(0, 16);
 
+/** @param {ReadonlyArray<string>} values @param {number} size */
+const chunk = (values, size) => {
+  /** @type {Array<Array<string>>} */
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+};
+
+/** @param {string} launchPath */
+const readRepositoryRoot = async (launchPath) =>
+  (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+
 /** @param {string} email */
 const getGravatarHash = (email) =>
   createHash('md5').update(email.trim().toLowerCase()).digest('hex');
@@ -278,7 +292,7 @@ const bufferToImageRevision = (path, buffer) => {
   }
 
   if (buffer.length > IMAGE_FILE_LIMIT) {
-    throw new Error(`Image is ${formatBytes(buffer.length)}, so Codiff skipped rendering it.`);
+    throw new Error(`Image is ${formatBytes(buffer.length)}, so Codophon skipped rendering it.`);
   }
 
   return {
@@ -376,7 +390,7 @@ const readImageSpec = async (repoRoot, spec, path) => {
   }
 
   if (size > IMAGE_FILE_LIMIT) {
-    throw new Error(`Image is ${formatBytes(size)}, so Codiff skipped rendering it.`);
+    throw new Error(`Image is ${formatBytes(size)}, so Codophon skipped rendering it.`);
   }
 
   try {
@@ -406,99 +420,67 @@ const readWorkingTreeImageFile = async (repoRoot, path) => {
   }
 
   if (stat.size > IMAGE_FILE_LIMIT) {
-    throw new Error(`Image is ${formatBytes(stat.size)}, so Codiff skipped rendering it.`);
+    throw new Error(`Image is ${formatBytes(stat.size)}, so Codophon skipped rendering it.`);
   }
 
   return bufferToImageRevision(path, await fs.readFile(join(repoRoot, path)));
 };
 
 /**
- * @param {string} repoRoot
- * @param {string} ref
- * @param {string} path
- * @param {ReadFileOptions} [options]
- * @returns {Promise<FileContentResult>}
+ * @param {number} size
+ * @param {number} limit
+ * @param {string} [label]
+ * @returns {FileContentResult}
  */
-const readGitFile = async (repoRoot, ref, path, options = {}) => {
-  const limit = options.force ? MANUAL_TEXT_FILE_LIMIT : EAGER_TEXT_FILE_LIMIT;
-  const spec = `${ref}:${path}`;
+const createLargeBlobResult = (size, limit, label = 'File') => ({
+  binary: false,
+  loadState: size > MANUAL_TEXT_FILE_LIMIT ? 'too-large' : 'deferred',
+  summary: createSummary(
+    size > MANUAL_TEXT_FILE_LIMIT
+      ? `${label} is ${formatBytes(size)}, so Codophon skipped rendering it.`
+      : `${label} is ${formatBytes(size)} and will be loaded on demand.`,
+    {
+      canLoad: size <= MANUAL_TEXT_FILE_LIMIT,
+      limit,
+      size,
+    },
+  ),
+});
 
-  try {
-    const size = await getBlobSize(repoRoot, spec);
-    if (size != null && size > limit) {
-      return {
-        binary: false,
-        loadState: size > MANUAL_TEXT_FILE_LIMIT ? 'too-large' : 'deferred',
-        summary: createSummary(
-          size > MANUAL_TEXT_FILE_LIMIT
-            ? `File is ${formatBytes(size)}, so Codiff skipped rendering it.`
-            : `File is ${formatBytes(size)} and will be loaded on demand.`,
-          {
-            canLoad: size <= MANUAL_TEXT_FILE_LIMIT,
-            limit,
-            size,
-          },
-        ),
-      };
-    }
-
-    const buffer = await gitBuffer(repoRoot, ['show', spec]);
-    return bufferToTextFile(path, buffer, `${ref}:${path}`);
-  } catch {
-    return {
-      binary: false,
-      file: {
-        cacheKey: `${ref}:${path}:empty`,
-        contents: '',
-        name: path,
-      },
-    };
-  }
-};
+/** @param {string} path @param {string} [cacheKey] */
+const createEmptyFileContent = (path, cacheKey = `empty:${path}`) => ({
+  binary: false,
+  file: { cacheKey, contents: '', name: path },
+});
 
 /**
  * @param {string} repoRoot
+ * @param {string} spec
  * @param {string} path
- * @param {ReadFileOptions} [options]
- * @param {1 | 2 | 3} [stage]
+ * @param {string} cacheKey
+ * @param {ReadFileOptions} options
  * @returns {Promise<FileContentResult>}
  */
-const readIndexFile = async (repoRoot, path, options = {}, stage) => {
+const readTextSpec = async (repoRoot, spec, path, cacheKey, options) => {
   const limit = options.force ? MANUAL_TEXT_FILE_LIMIT : EAGER_TEXT_FILE_LIMIT;
-  const spec = stage ? `:${stage}:${path}` : `:${path}`;
-
   try {
     const size = await getBlobSize(repoRoot, spec);
     if (size != null && size > limit) {
-      return {
-        binary: false,
-        loadState: size > MANUAL_TEXT_FILE_LIMIT ? 'too-large' : 'deferred',
-        summary: createSummary(
-          size > MANUAL_TEXT_FILE_LIMIT
-            ? `File is ${formatBytes(size)}, so Codiff skipped rendering it.`
-            : `File is ${formatBytes(size)} and will be loaded on demand.`,
-          {
-            canLoad: size <= MANUAL_TEXT_FILE_LIMIT,
-            limit,
-            size,
-          },
-        ),
-      };
+      return createLargeBlobResult(size, limit);
     }
-
-    const buffer = await gitBuffer(repoRoot, ['show', spec]);
-    return bufferToTextFile(path, buffer, `index:${path}`);
+    return bufferToTextFile(path, await gitBuffer(repoRoot, ['show', spec]), cacheKey);
   } catch {
-    return {
-      binary: false,
-      file: {
-        cacheKey: `index:${path}:empty`,
-        contents: '',
-        name: path,
-      },
-    };
+    return createEmptyFileContent(path, `${cacheKey}:empty`);
   }
 };
+
+/** @param {string} repoRoot @param {string} ref @param {string} path @param {ReadFileOptions} [options] */
+const readGitFile = (repoRoot, ref, path, options = {}) =>
+  readTextSpec(repoRoot, `${ref}:${path}`, path, `${ref}:${path}`, options);
+
+/** @param {string} repoRoot @param {string} path @param {ReadFileOptions} [options] @param {1 | 2 | 3} [stage] */
+const readIndexFile = (repoRoot, path, options = {}, stage) =>
+  readTextSpec(repoRoot, stage ? `:${stage}:${path}` : `:${path}`, path, `index:${path}`, options);
 
 /**
  * @param {string} repoRoot
@@ -530,20 +512,7 @@ const readWorkingTreeFile = async (repoRoot, path, options = {}) => {
       const size = Buffer.byteLength(contents);
 
       if (size > limit) {
-        return {
-          binary: false,
-          loadState: size > MANUAL_TEXT_FILE_LIMIT ? 'too-large' : 'deferred',
-          summary: createSummary(
-            size > MANUAL_TEXT_FILE_LIMIT
-              ? `Symlink target is ${formatBytes(size)}, so Codiff skipped rendering it.`
-              : `Symlink target is ${formatBytes(size)} and will be loaded on demand.`,
-            {
-              canLoad: size <= MANUAL_TEXT_FILE_LIMIT,
-              limit,
-              size,
-            },
-          ),
-        };
+        return createLargeBlobResult(size, limit, 'Symlink target');
       }
 
       return {
@@ -568,33 +537,13 @@ const readWorkingTreeFile = async (repoRoot, path, options = {}) => {
     }
 
     if (stat.size > limit) {
-      return {
-        binary: false,
-        loadState: stat.size > MANUAL_TEXT_FILE_LIMIT ? 'too-large' : 'deferred',
-        summary: createSummary(
-          stat.size > MANUAL_TEXT_FILE_LIMIT
-            ? `File is ${formatBytes(stat.size)}, so Codiff skipped rendering it.`
-            : `File is ${formatBytes(stat.size)} and will be loaded on demand.`,
-          {
-            canLoad: stat.size <= MANUAL_TEXT_FILE_LIMIT,
-            limit,
-            size: stat.size,
-          },
-        ),
-      };
+      return createLargeBlobResult(stat.size, limit);
     }
 
     const buffer = await fs.readFile(join(repoRoot, path));
     return bufferToTextFile(path, buffer, `worktree:${path}:${buffer.length}`);
   } catch {
-    return {
-      binary: false,
-      file: {
-        cacheKey: `worktree:${path}:empty`,
-        contents: '',
-        name: path,
-      },
-    };
+    return createEmptyFileContent(path, `worktree:${path}:empty`);
   }
 };
 
@@ -840,6 +789,23 @@ const createSection = async (repoRoot, item, kind, options = {}) => {
   };
 };
 
+/** @param {Pick<ChangedFile, 'path' | 'oldPath' | 'status'>} item @param {ChangedFile['sections']} sections @returns {ChangedFile} */
+const createWorkingTreeChangedFile = ({ status, path, oldPath }, sections) => {
+  const fingerprint = getFingerprint(
+    `${status}\n${oldPath || ''}\n${sections
+      .map(
+        (section) =>
+          `${section.loadState || 'ready'}\n${section.binary ? 'binary' : 'text'}\n${
+            section.patch
+          }\n${section.summary?.reason || ''}\n${section.summary?.fingerprint || ''}\n${
+            section.oldFile?.contents || ''
+          }\n${section.newFile?.contents || ''}`,
+      )
+      .join('\n')}`,
+  );
+  return { fingerprint, oldPath, path, sections, status };
+};
+
 /** @param {string} statusCode @returns {GitFileStatus} */
 const normalizeStatus = (statusCode) =>
   statusCode === 'A'
@@ -860,6 +826,11 @@ const gitOrEmpty = async (repoRoot, args) => {
 };
 
 module.exports = {
+  chunk,
+  createEmptyFileContent,
+  createLargeBlobResult,
+  createWorkingTreeChangedFile,
+  readRepositoryRoot,
   EAGER_TEXT_FILE_LIMIT,
   IMAGE_FILE_LIMIT,
   MANUAL_TEXT_FILE_LIMIT,

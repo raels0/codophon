@@ -4,21 +4,12 @@ const {
   EAGER_TEXT_FILE_LIMIT,
   MANUAL_TEXT_FILE_LIMIT,
   bufferToTextFile,
-  createSummary,
-  formatBytes,
+  chunk,
+  createLargeBlobResult,
+  createEmptyFileContent,
   git,
   gitBufferWithInput,
 } = require('./common.cjs');
-
-/** @param {ReadonlyArray<string>} values @param {number} size */
-const chunk = (values, size) => {
-  /** @type {Array<Array<string>>} */
-  const chunks = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
-};
 
 /**
  * @param {string} repoRoot
@@ -31,10 +22,6 @@ const readTreeEntries = async (repoRoot, ref, paths) => {
   const uniquePaths = [...new Set(paths)];
 
   for (const pathChunk of chunk(uniquePaths, 200)) {
-    if (pathChunk.length === 0) {
-      continue;
-    }
-
     const raw = await git(repoRoot, [
       'ls-tree',
       '-rz',
@@ -160,39 +147,6 @@ const readObjectContents = async (repoRoot, objects) => {
 };
 
 /**
- * @param {number} size
- * @param {number} limit
- */
-const createLargeBlobResult = (size, limit) => ({
-  binary: false,
-  loadState: size > MANUAL_TEXT_FILE_LIMIT ? 'too-large' : 'deferred',
-  summary: createSummary(
-    size > MANUAL_TEXT_FILE_LIMIT
-      ? `File is ${formatBytes(size)}, so Codiff skipped rendering it.`
-      : `File is ${formatBytes(size)} and will be loaded on demand.`,
-    {
-      canLoad: size <= MANUAL_TEXT_FILE_LIMIT,
-      limit,
-      size,
-    },
-  ),
-});
-
-/**
- * @param {string} path
- * @param {string} [ref]
- * @param {boolean} refScoped
- */
-const createEmptyFileContent = (path, ref, refScoped = false) => ({
-  binary: false,
-  file: {
-    cacheKey: refScoped ? `${ref}:${path}:empty` : `empty:${path}`,
-    contents: '',
-    name: path,
-  },
-});
-
-/**
  * Read many files from one Git tree with a bounded number of Git processes.
  *
  * @param {string} repoRoot
@@ -224,14 +178,10 @@ const readGitFiles = async (repoRoot, ref, paths, options = {}) => {
 
   for (const path of paths) {
     const entry = entries.get(path);
-    if (!entry) {
-      files.set(path, createEmptyFileContent(path, ref, options.refScopedEmptyCacheKey));
-      continue;
-    }
-
-    const object = sizes.get(entry.object);
-    if (!object || object.type !== 'blob') {
-      files.set(path, createEmptyFileContent(path, ref, options.refScopedEmptyCacheKey));
+    const object = entry && sizes.get(entry.object);
+    const emptyKey = options.refScopedEmptyCacheKey ? `${ref}:${path}:empty` : undefined;
+    if (!entry || !object || object.type !== 'blob') {
+      files.set(path, createEmptyFileContent(path, emptyKey));
       continue;
     }
 
@@ -245,14 +195,41 @@ const readGitFiles = async (repoRoot, ref, paths, options = {}) => {
       path,
       buffer
         ? bufferToTextFile(path, buffer, `${ref}:${path}`)
-        : createEmptyFileContent(path, ref, options.refScopedEmptyCacheKey),
+        : createEmptyFileContent(path, emptyKey),
     );
   }
 
   return files;
 };
 
+/**
+ * @param {string} repoRoot
+ * @param {string} newRef
+ * @param {string | undefined} oldRef
+ * @param {ReadonlyArray<{path: string; oldPath?: string}>} items
+ * @param {Parameters<typeof readGitFiles>[3]} [options]
+ */
+const readGitFilePairs = async (repoRoot, newRef, oldRef, items, options) => {
+  const [oldFiles, newFiles] = await Promise.all([
+    oldRef
+      ? readGitFiles(
+          repoRoot,
+          oldRef,
+          items.map((item) => item.oldPath || item.path),
+          options,
+        )
+      : new Map(),
+    readGitFiles(
+      repoRoot,
+      newRef,
+      items.map((item) => item.path),
+      options,
+    ),
+  ]);
+  return { oldFiles, newFiles };
+};
+
 module.exports = {
-  createEmptyFileContent,
+  readGitFilePairs,
   readGitFiles,
 };

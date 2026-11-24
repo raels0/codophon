@@ -64,7 +64,7 @@ test('copies one window of pending comments before close', async () => {
 
   expect(window.sentMessages).toEqual([
     {
-      channel: 'codiff:copyPendingCommentsRequest',
+      channel: 'codophon:copyPendingCommentsRequest',
       requestId: 1,
     },
   ]);
@@ -96,13 +96,13 @@ test('copies all windows together before app quit instead of overwriting clipboa
 
   expect(firstWindow.sentMessages).toEqual([
     {
-      channel: 'codiff:copyPendingCommentsRequest',
+      channel: 'codophon:copyPendingCommentsRequest',
       requestId: 1,
     },
   ]);
   expect(secondWindow.sentMessages).toEqual([
     {
-      channel: 'codiff:copyPendingCommentsRequest',
+      channel: 'codophon:copyPendingCommentsRequest',
       requestId: 2,
     },
   ]);

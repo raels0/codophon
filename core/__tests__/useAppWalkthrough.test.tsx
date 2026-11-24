@@ -57,13 +57,13 @@ function AppWalkthroughHarness({
 }
 
 const renderWalkthroughController = async ({
-  codiff,
+  codophon,
   state = createRepositoryState(),
 }: {
-  codiff: Partial<Window['codiff']>;
+  codophon: Partial<Window['codophon']>;
   state?: RepositoryState;
 }) => {
-  window.codiff = codiff as Window['codiff'];
+  window.codophon = codophon as Window['codophon'];
   const stateRef = { current: state };
   const stateGenerationRef = { current: 0 };
   let controller: AppWalkthroughController | null = null;
@@ -94,7 +94,7 @@ test('walkthrough controller lazily generates, refreshes, and transitions modes'
     walkthrough,
   }));
   await using view = await renderWalkthroughController({
-    codiff: {
+    codophon: {
       getNarrativeWalkthrough,
       onWalkthroughProgress: vi.fn(() => () => {}),
     },
@@ -152,7 +152,7 @@ test('walkthrough controller routes progress and commit APIs through current sta
   }));
   const state = createRepositoryState();
   await using view = await renderWalkthroughController({
-    codiff: {
+    codophon: {
       createWalkthroughCommit,
       onWalkthroughProgress: vi.fn((callback) => {
         onProgress = callback;

@@ -228,7 +228,7 @@ beforeEach(async () => {
   await preloadHighlighter(getHighlighterOptions('text', workerHighlighterOptions));
   refresh.mockReset().mockResolvedValue(true);
   preparation = null;
-  window.codiff = {
+  window.codophon = {
     getRepositoryFile: vi.fn(async (path) => ({
       content: 'new\n',
       path,
@@ -239,7 +239,7 @@ beforeEach(async () => {
       document: { ...request, version: 'saved-version' },
       status: 'saved',
     })),
-  } as unknown as Window['codiff'];
+  } as unknown as Window['codophon'];
 });
 
 afterEach(() => {
@@ -316,7 +316,7 @@ test('warming an editor preserves the highlighted partial diff while preparing a
     ...metadata,
     file: { ...file, fingerprint: 'highlight-warmup' },
   };
-  vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+  vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
     content: contents,
     path: file.path,
     root: '/repo',
@@ -389,7 +389,7 @@ test.each([true, false])(
     };
     const pending = Promise.withResolvers<FileDiffLoadedFiles>();
     const loadContents = vi.fn(() => pending.promise);
-    vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+    vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
       content: contents,
       path: file.path,
       root: '/repo',
@@ -406,11 +406,11 @@ test.each([true, false])(
     if (prepareFirst) {
       await click(view.container, 'Prepare');
       expect(loadContents).toHaveBeenCalledOnce();
-      expect(window.codiff.getRepositoryFile).not.toHaveBeenCalled();
+      expect(window.codophon.getRepositoryFile).not.toHaveBeenCalled();
     } else {
       await click(view.container, 'Edit');
       // Reading disk must start without waiting for the Git contents request.
-      expect(window.codiff.getRepositoryFile).toHaveBeenCalledOnce();
+      expect(window.codophon.getRepositoryFile).toHaveBeenCalledOnce();
     }
     await act(async () => {
       pending.resolve({
@@ -425,11 +425,11 @@ test.each([true, false])(
     await act(async () => handle?.getInstance()?.render(true));
     await waitFor(() => expect(handle?.getEditor(item.id)?.getText()).toBe(contents));
     expect(loadContents).toHaveBeenCalledOnce();
-    expect(window.codiff.getRepositoryFile).toHaveBeenCalledOnce();
+    expect(window.codophon.getRepositoryFile).toHaveBeenCalledOnce();
 
     await click(view.container, 'Revert');
-    vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
-      content: 'changed outside Codiff\n',
+    vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
+      content: 'changed outside Codophon\n',
       path: file.path,
       root: '/repo',
       version: 'external-version',
@@ -440,7 +440,7 @@ test.each([true, false])(
     );
     expect(handle?.getEditor(item.id)).toBeUndefined();
     expect(loadContents).toHaveBeenCalledOnce();
-    expect(window.codiff.getRepositoryFile).toHaveBeenCalledTimes(2);
+    expect(window.codophon.getRepositoryFile).toHaveBeenCalledTimes(2);
   },
 );
 
@@ -484,7 +484,7 @@ test.each(['split', 'unified'] as const)(
 `,
     )[0]!.files[0]!;
     expect(fileDiff.isPartial).toBe(true);
-    vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+    vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
       content: contents,
       path: file.path,
       root: '/repo',
@@ -559,7 +559,7 @@ test('starting an edit targets the first change in the visible hunk instead of e
     }
     return getRect.call(this);
   });
-  vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+  vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
     content: contents,
     path: file.path,
     root: '/repo',
@@ -583,7 +583,7 @@ test('starting an edit targets the first change in the visible hunk instead of e
 
 test('starting an edit focuses visible code below the sticky header without scrolling', async () => {
   const contents = 'new\nsecond\nthird\nfourth\nfifth\n';
-  vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+  vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
     content: contents,
     path: file.path,
     root: '/repo',
@@ -631,14 +631,14 @@ test('Done saves complete Pierre contents; Revert discards a draft before auto-s
   await edit();
   expect(handle!.getEditor(item.id)!.getText()).toBe('updated\n');
   expect(item.fileDiff.additionLines.join('')).toBe('new\n');
-  expect(window.codiff.saveRepositoryFile).not.toHaveBeenCalled();
+  expect(window.codophon.saveRepositoryFile).not.toHaveBeenCalled();
   await click(view.container, 'Done');
   await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledWith(
     expect.objectContaining({ baseVersion: 'version', content: 'updated\n', path: file.path }),
   );
   expect(handle?.getEditor(item.id)).toBeUndefined();
-  vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+  vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
     content: 'updated\n',
     path: file.path,
     root: '/repo',
@@ -647,7 +647,7 @@ test('Done saves complete Pierre contents; Revert discards a draft before auto-s
   await click(view.container, 'Edit');
   await edit();
   await click(view.container, 'Revert');
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
   expect(handle?.getEditor(item.id)).toBeUndefined();
   expect(handle?.getItem(item.id)?.edit).toBeFalsy();
 });
@@ -665,14 +665,14 @@ test('auto-save keeps Pierre editing and the hunk stable; Revert restores the st
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
   });
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
   expect(handle?.getEditor(item.id)).toBe(editor);
   const savedItem = handle?.getItem(item.id);
   expect(savedItem?.type === 'diff' ? savedItem.fileDiff : undefined).toBe(editedItem.fileDiff);
   expect(editor.getViewState().selections).toEqual(selection);
   expect(refresh).not.toHaveBeenCalled();
   await click(view.container, 'Revert');
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'saved-version', content: 'new\n' }),
   );
   expect(refresh).toHaveBeenCalledOnce();
@@ -718,7 +718,7 @@ test('a failed repository refresh keeps the accepted diff and reports the saved 
   expect(completed.type === 'diff' && completed.fileDiff.additionLines.join('')).toBe('updated\n');
   expect(view.container.querySelector('[role="alert"]')?.textContent).toContain('File saved');
   expect(testStore.getSnapshot().size).toBe(0);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
 });
 
 test.each(['split', 'unified'] as const)(
@@ -730,7 +730,7 @@ test.each(['split', 'unified'] as const)(
     newLines[100] = 'new second\n';
     const oldContents = oldLines.join('');
     const initialContents = newLines.join('');
-    vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+    vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
       content: initialContents,
       path: file.path,
       root: '/repo',
@@ -804,7 +804,7 @@ test.each(['split', 'unified'] as const)(
 );
 
 test('conflicts retain the editable draft, including when background items disappear', async () => {
-  vi.mocked(window.codiff.saveRepositoryFile).mockResolvedValue({
+  vi.mocked(window.codophon.saveRepositoryFile).mockResolvedValue({
     document: {
       content: 'external\n',
       path: file.path,
@@ -838,7 +838,7 @@ test('returning to a source restores its unsaved draft', async () => {
     handle?.getInstance()?.render(true);
   });
   await waitFor(() => expect(handle?.getEditor(item.id)?.getText()).toBe('updated\n'));
-  expect(window.codiff.saveRepositoryFile).not.toHaveBeenCalled();
+  expect(window.codophon.saveRepositoryFile).not.toHaveBeenCalled();
 });
 
 test('tree and walkthrough surface remounts retain the draft in the App store', async () => {
@@ -854,7 +854,7 @@ test('tree and walkthrough surface remounts retain the draft in the App store', 
   await waitFor(() => expect(handle?.getEditor(item.id)?.getText()).toBe('updated\n'));
   await click(view.container, 'Done');
   await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledWith(
     expect.objectContaining({ content: 'updated\n' }),
   );
 });
@@ -874,15 +874,15 @@ test('Revert after a source switch restores the original diff and disk contents'
   expect(handle?.getEditor(item.id)).toBeUndefined();
   const reverted = handle!.getItem(item.id)!;
   expect(reverted.type === 'diff' && reverted.fileDiff.additionLines.join('')).toBe('new\n');
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'saved-version', content: 'new\n' }),
   );
 });
 
 test('Done drains input typed during a save using the updated disk version', async () => {
   const { promise, resolve: finishSave } =
-    Promise.withResolvers<Awaited<ReturnType<Window['codiff']['saveRepositoryFile']>>>();
-  vi.mocked(window.codiff.saveRepositoryFile).mockImplementationOnce(() => promise);
+    Promise.withResolvers<Awaited<ReturnType<Window['codophon']['saveRepositoryFile']>>>();
+  vi.mocked(window.codophon.saveRepositoryFile).mockImplementationOnce(() => promise);
   await using view = await renderReact(<Harness />);
   await click(view.container, 'Edit');
   await edit();
@@ -900,7 +900,7 @@ test('Done drains input typed during a save using the updated disk version', asy
     });
   });
   await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'saved-version', content: 'more updated\n' }),
   );
   expect(handle?.getEditor(item.id)).toBeUndefined();
@@ -908,8 +908,8 @@ test('Done drains input typed during a save using the updated disk version', asy
 
 test('different files can enter edit mode while another file is still loading', async () => {
   const pending =
-    Promise.withResolvers<Awaited<ReturnType<Window['codiff']['getRepositoryFile']>>>();
-  vi.mocked(window.codiff.getRepositoryFile).mockImplementationOnce(() => pending.promise);
+    Promise.withResolvers<Awaited<ReturnType<Window['codophon']['getRepositoryFile']>>>();
+  vi.mocked(window.codophon.getRepositoryFile).mockImplementationOnce(() => pending.promise);
   await using view = await renderReact(<Harness multiple />);
   await click(view.container, 'Edit');
   await click(view.container, 'Edit other.txt');
@@ -935,9 +935,9 @@ test('two Pierre editors auto-save independently; Done and Revert only close the
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
   });
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledTimes(2);
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledTimes(2);
   expect(
-    vi.mocked(window.codiff.saveRepositoryFile).mock.calls.map(([request]) => request),
+    vi.mocked(window.codophon.saveRepositoryFile).mock.calls.map(([request]) => request),
   ).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ baseVersion: 'version', content: 'updated\n', path: file.path }),
@@ -956,7 +956,7 @@ test('two Pierre editors auto-save independently; Done and Revert only close the
   expect(otherEditor.getText()).toBe('other update\n');
   expect(otherEditor.getViewState().selections).toEqual(selection);
   await click(view.container, 'Revert other.txt');
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({
       baseVersion: 'saved-version',
       content: 'new\n',
@@ -984,7 +984,7 @@ test('multiple drafts survive source switches and review surface remounts', asyn
 });
 
 test('a conflict in one file leaves other files editable and saveable', async () => {
-  vi.mocked(window.codiff.saveRepositoryFile).mockImplementation(async (request) => ({
+  vi.mocked(window.codophon.saveRepositoryFile).mockImplementation(async (request) => ({
     document: { ...request, version: 'saved-version' },
     status: request.path === file.path ? 'conflict' : 'saved',
   }));
@@ -999,7 +999,7 @@ test('a conflict in one file leaves other files editable and saveable', async ()
   expect(handle?.getEditor(otherItem.id)).toBeUndefined();
   expect(handle?.getEditor(item.id)?.getText()).toBe('updated\n');
   expect(refresh).toHaveBeenCalledOnce();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ content: 'second draft\n', path: otherFile.path }),
   );
 });
@@ -1032,7 +1032,7 @@ test('Cmd+S finishes the focused Pierre editor and leaves other files editing', 
     content.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
   });
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ content: 'second draft\n', path: otherFile.path }),
   );
   expect(handle?.getEditor(item.id)).toBe(editor);
@@ -1084,7 +1084,7 @@ test.each([true, false])(
   async (showWhitespace) => {
     const oldContents = 'const value = 1;\n';
     const contents = 'const value = 2;\n';
-    vi.mocked(window.codiff.getRepositoryFile).mockResolvedValue({
+    vi.mocked(window.codophon.getRepositoryFile).mockResolvedValue({
       content: contents,
       path: file.path,
       root: '/repo',
@@ -1111,7 +1111,7 @@ test.each([true, false])(
     }
     expect(completed.fileDiff.additionLines.join('')).toBe('  const value = 1;\n');
     expect(completed.fileDiff.hunks.length > 0).toBe(showWhitespace);
-    expect(window.codiff.saveRepositoryFile).toHaveBeenCalledWith(
+    expect(window.codophon.saveRepositoryFile).toHaveBeenCalledWith(
       expect.objectContaining({ content: '  const value = 1;\n' }),
     );
   },

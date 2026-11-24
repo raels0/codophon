@@ -222,11 +222,11 @@ function MarkdownSegment({
   }
 
   return (
-    <div className="codiff-safe-markdown-segment">
+    <div className="codophon-safe-markdown-segment">
       <MarkdownEditor
         additionalPlugins={additionalPlugins}
         ariaLabel={ariaLabel}
-        className={`codiff-readonly-markdown-editor${editorClassName ? ` ${editorClassName}` : ''}`}
+        className={`codophon-readonly-markdown-editor${editorClassName ? ` ${editorClassName}` : ''}`}
         colorScheme="inherit"
         contentClassName={contentClassName}
         density="compact"
@@ -277,13 +277,13 @@ function MarkdownParts({
 
     return (
       <details
-        className="codiff-markdown-details"
+        className="codophon-markdown-details"
         key={`details:${index}`}
         onToggle={(event) => onHeightChange?.(event.currentTarget.getBoundingClientRect().height)}
         open={part.open}
       >
         <summary>
-          <span className="codiff-markdown-details-summary-label">
+          <span className="codophon-markdown-details-summary-label">
             {renderInlineMarkdown(part.summary || 'Details')}
           </span>
           {code ? <CopyCodeButton code={code} /> : null}
@@ -334,7 +334,7 @@ export function ReadOnlyMarkdownView({
       <Suspense
         fallback={
           fallback ?? (
-            <div className={`${className} codiff-readonly-markdown-loading`}>Loading…</div>
+            <div className={`${className} codophon-readonly-markdown-loading`}>Loading…</div>
           )
         }
       >
@@ -342,7 +342,7 @@ export function ReadOnlyMarkdownView({
           <MarkdownEditor
             additionalPlugins={additionalPlugins}
             ariaLabel={ariaLabel}
-            className={`codiff-readonly-markdown-editor ${className}`}
+            className={`codophon-readonly-markdown-editor ${className}`}
             colorScheme="inherit"
             contentClassName={contentClassName}
             density={density}
@@ -362,10 +362,12 @@ export function ReadOnlyMarkdownView({
   return (
     <Suspense
       fallback={
-        fallback ?? <div className={`${className} codiff-readonly-markdown-loading`}>Loading…</div>
+        fallback ?? (
+          <div className={`${className} codophon-readonly-markdown-loading`}>Loading…</div>
+        )
       }
     >
-      <div aria-label={ariaLabel} className={`${className} codiff-safe-markdown-view`}>
+      <div aria-label={ariaLabel} className={`${className} codophon-safe-markdown-view`}>
         <MarkdownParts
           additionalPlugins={additionalPlugins}
           ariaLabel={ariaLabel}

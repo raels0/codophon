@@ -1,7 +1,7 @@
 // @ts-check
 
 const { readFileSync } = require('node:fs');
-const { cleanText, truncate } = require('./codex.cjs');
+const { cleanText, truncate } = require('./agent-shared.cjs');
 
 const MAX_CONTEXT_FILE_CHARS = 32_000;
 const MAX_TEXT_CHARS = 1_800;
@@ -178,7 +178,7 @@ const readWalkthroughContext = (contextPath, codexSessionId) => {
     return normalizeWalkthroughContext(
       {
         risks: [
-          `Codiff could not read the supplied Codex walkthrough context: ${
+          `Codophon could not read the supplied Codex walkthrough context: ${
             error instanceof Error ? error.message : String(error)
           }`,
         ],

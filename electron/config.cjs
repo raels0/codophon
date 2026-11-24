@@ -1,43 +1,35 @@
 // @ts-check
 
-const {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  watch,
-  writeFileSync,
-} = require('node:fs');
+const { existsSync, mkdirSync, readFileSync, watch, writeFileSync } = require('node:fs');
 const { homedir } = require('node:os');
 const { join } = require('node:path');
 const { normalizeAgentPrompts } = require('./agent-prompts.cjs');
 
 /**
- * @typedef {import('../core/config/types.ts').CodiffConfig} CodiffConfig
- * @typedef {import('../core/config/types.ts').CodiffDiffStyle} CodiffDiffStyle
- * @typedef {import('../core/config/types.ts').CodiffTheme} CodiffTheme
- * @typedef {import('../core/types.ts').CodiffPreferences} CodiffPreferences
+ * @typedef {import('../core/config/types.ts').CodophonConfig} CodophonConfig
+ * @typedef {import('../core/config/types.ts').CodophonDiffStyle} CodophonDiffStyle
+ * @typedef {import('../core/config/types.ts').CodophonTheme} CodophonTheme
  */
 
-/** @type {CodiffConfig} */
+/** @type {CodophonConfig} */
 const defaultConfigTemplate = require('../config/defaults.json');
 
 const SCHEMA_URL =
-  'https://raw.githubusercontent.com/raels0/codiff/feat/azure-devops-prs/core/config/codiff-config.schema.json';
+  'https://raw.githubusercontent.com/raels0/codophon/main/core/config/codophon-config.schema.json';
 const CODE_FONT_SIZE_DEFAULT = 13;
 const CODE_FONT_SIZE_MAX = 32;
 const CODE_FONT_SIZE_MIN = 10;
 
-/** @returns {CodiffConfig} */
+/** @returns {CodophonConfig} */
 const createDefaultConfig = () => ({
   keymap: { ...defaultConfigTemplate.keymap },
   settings: { ...defaultConfigTemplate.settings },
 });
 
-const getConfigDir = () => join(homedir(), '.codiff');
+const getConfigDir = () => join(homedir(), '.codophon');
 
 /** @param {string} [configDir] */
-const getConfigPath = (configDir) => join(configDir ?? getConfigDir(), 'codiff.jsonc');
+const getConfigPath = (configDir) => join(configDir ?? getConfigDir(), 'codophon.jsonc');
 
 /**
  * Strip JSONC comments (line comments and block comments) to produce valid JSON.
@@ -146,11 +138,11 @@ const stripTrailingCommas = (text) => {
  */
 const parseJsonc = (text) => JSON.parse(stripTrailingCommas(stripJsoncComments(text)));
 
-/** @param {unknown} theme @returns {CodiffTheme} */
+/** @param {unknown} theme @returns {CodophonTheme} */
 const normalizeTheme = (theme) =>
   theme === 'system' || theme === 'light' || theme === 'dark' ? theme : 'system';
 
-/** @param {unknown} diffStyle @returns {CodiffDiffStyle} */
+/** @param {unknown} diffStyle @returns {CodophonDiffStyle} */
 const normalizeDiffStyle = (diffStyle) =>
   diffStyle === 'split' || diffStyle === 'unified' ? diffStyle : 'split';
 
@@ -200,7 +192,7 @@ const normalizeKeyComboBinding = (binding, fallback) => {
 /**
  * Merge a partial config object on top of defaults.
  * @param {unknown} raw
- * @returns {CodiffConfig}
+ * @returns {CodophonConfig}
  */
 const mergeConfig = (raw) => {
   const defaults = createDefaultConfig();
@@ -345,7 +337,7 @@ const mergeConfig = (raw) => {
 /**
  * Read and parse the config file. Returns defaults if the file does not exist or is invalid.
  * @param {string} [configDir]
- * @returns {CodiffConfig}
+ * @returns {CodophonConfig}
  */
 const readConfig = (configDir) => {
   const configPath = getConfigPath(configDir);
@@ -365,7 +357,7 @@ const readConfig = (configDir) => {
 
 /**
  * Write a config object to the config file as JSONC with a $schema reference.
- * @param {CodiffConfig} config
+ * @param {CodophonConfig} config
  */
 const writeConfig = (config) => {
   const configDir = getConfigDir();
@@ -395,50 +387,21 @@ const initConfig = () => {
   return true;
 };
 
-/**
- * Migrate from the old preferences.json (in Electron's userData) to the new config file.
- * @param {string} userDataPath - Electron's app.getPath('userData')
- * @param {(model: string) => string} normalizeOpenAIModel
- */
-const migrateFromPreferences = (userDataPath, normalizeOpenAIModel) => {
-  const oldPath = join(userDataPath, 'preferences.json');
-
-  if (!existsSync(oldPath)) {
-    return;
-  }
-
-  // Only migrate if the new config doesn't exist yet
+const importPreviousConfig = () => {
   if (existsSync(getConfigPath())) {
-    // New config exists; remove old file
-    try {
-      renameSync(oldPath, oldPath + '.bak');
-    } catch {
-      // Ignore: best effort cleanup
-    }
     return;
   }
-
-  try {
-    const oldPrefs = JSON.parse(readFileSync(oldPath, 'utf8'));
-    const defaults = createDefaultConfig();
-    const config = mergeConfig({
-      settings: {
-        ...oldPrefs,
-        lastRepositoryPath: normalizeLastRepositoryPath(oldPrefs?.lastRepositoryPath),
-        openAIModel: normalizeOpenAIModel(oldPrefs?.openAIModel ?? defaults.settings.openAIModel),
-        theme: normalizeTheme(oldPrefs?.theme),
-      },
-    });
-    writeConfig(config);
-    renameSync(oldPath, oldPath + '.bak');
-  } catch {
-    // Migration failed; fall through to defaults
+  const previousPath = join(homedir(), '.codiff', 'codiff.jsonc');
+  if (existsSync(previousPath)) {
+    try {
+      writeConfig(mergeConfig(parseJsonc(readFileSync(previousPath, 'utf8'))));
+    } catch {}
   }
 };
 
 /**
  * Watch the config file for changes.
- * @param {(config: CodiffConfig) => void} onChange
+ * @param {(config: CodophonConfig) => void} onChange
  * @returns {() => void} stop watching
  */
 const watchConfig = (onChange) => {
@@ -454,7 +417,7 @@ const watchConfig = (onChange) => {
 
   // Watch the directory so we detect file creation/deletion too
   const watcher = watch(configDir, (eventType, filename) => {
-    if (filename !== 'codiff.jsonc') {
+    if (filename !== 'codophon.jsonc') {
       return;
     }
 
@@ -476,22 +439,11 @@ const watchConfig = (onChange) => {
   };
 };
 
-/**
- * Convert a CodiffConfig's settings to the legacy CodiffPreferences format
- * for backward compatibility with renderer code during migration.
- * @param {CodiffConfig} config
- * @returns {CodiffPreferences}
- */
-const configToPreferences = (config) => ({
-  ...config.settings,
-});
-
 module.exports = {
-  configToPreferences,
   createDefaultConfig,
   getConfigPath,
   initConfig,
-  migrateFromPreferences,
+  importPreviousConfig,
   normalizeCodeFontFamily,
   normalizeCodeFontSize,
   readConfig,

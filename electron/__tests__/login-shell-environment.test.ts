@@ -57,13 +57,13 @@ const expectProcessToExit = async (pidPath: string) => {
 test.skipIf(process.platform === 'win32')(
   'isolates login shells from the caller’s controlling terminal',
   async () => {
-    await using directory = await createTemporaryDirectory('codiff-login-shell-terminal-');
+    await using directory = await createTemporaryDirectory('codophon-login-shell-terminal-');
     const shell = await createFakeLoginShell(
       directory.path,
       `if ( : </dev/tty ) 2>/dev/null; then
-  export CODIFF_HAS_TERMINAL=yes
+  export CODOPHON_HAS_TERMINAL=yes
 else
-  export CODIFF_HAS_TERMINAL=no
+  export CODOPHON_HAS_TERMINAL=no
 fi
 exec /bin/sh -c "$4"
 `,
@@ -76,7 +76,7 @@ exec /bin/sh -c "$4"
 const { resolveLoginShellEnvironment } = require(${JSON.stringify(require.resolve('../login-shell-environment.cjs'))});
 closeSync(openSync('/dev/tty', 'r'));
 resolveLoginShellEnvironment(${JSON.stringify(shell)}).then((environment) => {
-  console.log('CODIFF_HAS_TERMINAL=' + environment.CODIFF_HAS_TERMINAL);
+  console.log('CODOPHON_HAS_TERMINAL=' + environment.CODOPHON_HAS_TERMINAL);
 });`,
       ],
       { cwd: directory.path },
@@ -88,7 +88,7 @@ resolveLoginShellEnvironment(${JSON.stringify(shell)}).then((environment) => {
         terminal.onExit(resolve);
       });
       expect(result.exitCode).toBe(0);
-      expect(output).toContain('CODIFF_HAS_TERMINAL=no');
+      expect(output).toContain('CODOPHON_HAS_TERMINAL=no');
     } finally {
       dataListener.dispose();
       terminal.kill();
@@ -97,7 +97,7 @@ resolveLoginShellEnvironment(${JSON.stringify(shell)}).then((environment) => {
 );
 
 test('resolves variables exported by the login shell', async () => {
-  await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  await using directory = await createTemporaryDirectory('codophon-login-shell-');
   // Prints startup noise first, the way version managers do in real login
   // shells, so parsing has to survive output preceding the marker.
   const shell = await createFakeLoginShell(
@@ -106,7 +106,7 @@ test('resolves variables exported by the login shell', async () => {
 if [ "$1" != '-l' ] || [ "$2" != '-i' ] || [ "$3" != '-c' ]; then
   exit 1
 fi
-CODIFF_FAKE_TOKEN='from-login-shell' CODIFF_FAKE_MULTILINE='first line
+CODOPHON_FAKE_TOKEN='from-login-shell' CODOPHON_FAKE_MULTILINE='first line
 second line' exec /bin/sh -c "$4"
 `,
   );
@@ -114,17 +114,17 @@ second line' exec /bin/sh -c "$4"
 
   const environment = await getLoginShellEnvironment();
 
-  expect(environment.CODIFF_FAKE_TOKEN).toBe('from-login-shell');
-  expect(environment.CODIFF_FAKE_MULTILINE).toBe('first line\nsecond line');
+  expect(environment.CODOPHON_FAKE_TOKEN).toBe('from-login-shell');
+  expect(environment.CODOPHON_FAKE_MULTILINE).toBe('first line\nsecond line');
 });
 
 test.skipIf(!fishPath)('resolves variables exported by Fish config', async () => {
-  await using directory = await createTemporaryDirectory('codiff-fish-login-shell-');
+  await using directory = await createTemporaryDirectory('codophon-fish-login-shell-');
   const fishConfigDirectory = join(directory.path, 'fish');
   await mkdir(fishConfigDirectory);
   await writeFile(
     join(fishConfigDirectory, 'config.fish'),
-    'set --export CODIFF_FAKE_TOKEN from-fish-config\n',
+    'set --export CODOPHON_FAKE_TOKEN from-fish-config\n',
   );
   await using _environment = createTemporaryEnvironment({
     HOME: directory.path,
@@ -133,12 +133,12 @@ test.skipIf(!fishPath)('resolves variables exported by Fish config', async () =>
 
   const environment = await resolveLoginShellEnvironment(fishPath!);
 
-  expect(environment.CODIFF_FAKE_TOKEN).toBe('from-fish-config');
+  expect(environment.CODOPHON_FAKE_TOKEN).toBe('from-fish-config');
 });
 
 test.skipIf(!zshPath)('resolves variables exported by zshrc', async () => {
-  await using directory = await createTemporaryDirectory('codiff-zsh-login-shell-');
-  await writeFile(join(directory.path, '.zshrc'), "export CODIFF_FAKE_TOKEN='from-zsh-config'\n");
+  await using directory = await createTemporaryDirectory('codophon-zsh-login-shell-');
+  await writeFile(join(directory.path, '.zshrc'), "export CODOPHON_FAKE_TOKEN='from-zsh-config'\n");
   await using _environment = createTemporaryEnvironment({
     HOME: directory.path,
     ZDOTDIR: directory.path,
@@ -146,11 +146,11 @@ test.skipIf(!zshPath)('resolves variables exported by zshrc', async () => {
 
   const environment = await resolveLoginShellEnvironment(zshPath!);
 
-  expect(environment.CODIFF_FAKE_TOKEN).toBe('from-zsh-config');
+  expect(environment.CODOPHON_FAKE_TOKEN).toBe('from-zsh-config');
 });
 
 test('returns an empty environment when the login shell fails', async () => {
-  await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  await using directory = await createTemporaryDirectory('codophon-login-shell-');
   const shell = await createFakeLoginShell(directory.path, 'exit 1\n');
   await using _environment = createTemporaryEnvironment({ SHELL: shell });
 
@@ -164,12 +164,12 @@ test('returns an empty environment when no login shell is configured', async () 
 });
 
 test('resolves each login shell once, even under concurrent calls', async () => {
-  await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  await using directory = await createTemporaryDirectory('codophon-login-shell-');
   const runsPath = join(directory.path, 'runs.txt');
   const shell = await createFakeLoginShell(
     directory.path,
     `echo run >> '${runsPath}'
-CODIFF_FAKE_TOKEN='from-login-shell' exec /bin/sh -c "$4"
+CODOPHON_FAKE_TOKEN='from-login-shell' exec /bin/sh -c "$4"
 `,
   );
   await using _environment = createTemporaryEnvironment({ SHELL: shell });
@@ -186,32 +186,32 @@ CODIFF_FAKE_TOKEN='from-login-shell' exec /bin/sh -c "$4"
 });
 
 test('builds command environments where the process wins over the login shell', async () => {
-  await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  await using directory = await createTemporaryDirectory('codophon-login-shell-');
   const shell = await createFakeLoginShell(
     directory.path,
-    `CODIFF_FAKE_TOKEN='from-login-shell' CODIFF_FAKE_SHARED='from-login-shell' exec /bin/sh -c "$4"
+    `CODOPHON_FAKE_TOKEN='from-login-shell' CODOPHON_FAKE_SHARED='from-login-shell' exec /bin/sh -c "$4"
 `,
   );
   await using _environment = createTemporaryEnvironment({
-    CODIFF_FAKE_SHARED: 'from-process',
-    CODIFF_FAKE_TOKEN: undefined,
+    CODOPHON_FAKE_SHARED: 'from-process',
+    CODOPHON_FAKE_TOKEN: undefined,
     SHELL: shell,
   });
 
   const environment = await getCommandEnvironment();
 
-  expect(environment.CODIFF_FAKE_TOKEN).toBe('from-login-shell');
-  expect(environment.CODIFF_FAKE_SHARED).toBe('from-process');
+  expect(environment.CODOPHON_FAKE_TOKEN).toBe('from-login-shell');
+  expect(environment.CODOPHON_FAKE_SHARED).toBe('from-process');
 });
 
 test('salvages a clean environment dump when a background child holds stdout open', async () => {
-  await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  await using directory = await createTemporaryDirectory('codophon-login-shell-');
   const pidPath = join(directory.path, 'child.pid');
   // The shell finishes the dump and exits cleanly, but leaves behind a child
   // that inherits stdout, so `close` stays hours away from `exit`.
   const shell = await createFakeLoginShell(
     directory.path,
-    `CODIFF_FAKE_TOKEN='from-login-shell' /bin/sh -c "$4"
+    `CODOPHON_FAKE_TOKEN='from-login-shell' /bin/sh -c "$4"
 sleep 10 &
 echo $! > '${pidPath}'
 exit 0
@@ -220,12 +220,12 @@ exit 0
 
   const environment = await resolveLoginShellEnvironment(shell, 500);
 
-  expect(environment.CODIFF_FAKE_TOKEN).toBe('from-login-shell');
+  expect(environment.CODOPHON_FAKE_TOKEN).toBe('from-login-shell');
   await expectProcessToExit(pidPath);
 });
 
 test('abandons a login shell that ignores termination', async () => {
-  await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  await using directory = await createTemporaryDirectory('codophon-login-shell-');
   const pidPath = join(directory.path, 'child.pid');
   const shell = await createFakeLoginShell(
     directory.path,

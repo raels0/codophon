@@ -55,12 +55,12 @@ beforeEach(() => {
   registry = createCodeEditingStore();
   store = registry.start(session)!;
   let version = 0;
-  window.codiff = {
+  window.codophon = {
     saveRepositoryFile: vi.fn(async (request) => ({
       document: { ...request, version: `version-${++version}` },
       status: 'saved',
     })),
-  } as unknown as Window['codiff'];
+  } as unknown as Window['codophon'];
 });
 
 afterEach(() => {
@@ -79,10 +79,10 @@ test('typing coalesces writes after a pause and keeps the original content for R
   await vi.advanceTimersByTimeAsync(CODE_AUTOSAVE_DELAY - 1);
   store.setDraft('second');
   await vi.advanceTimersByTimeAsync(CODE_AUTOSAVE_DELAY - 1);
-  expect(window.codiff.saveRepositoryFile).not.toHaveBeenCalled();
+  expect(window.codophon.saveRepositoryFile).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'version-0', content: 'second' }),
   );
   expect(store.getSnapshot()?.document.content).toBe('second');
@@ -92,17 +92,17 @@ test('typing coalesces writes after a pause and keeps the original content for R
 
 test('writes serialize and later keystrokes use the last saved version', async () => {
   const pending = Promise.withResolvers<SaveRepositoryFileResult>();
-  vi.mocked(window.codiff.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
+  vi.mocked(window.codophon.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
   store.setDraft('first');
   await waitForAutosave();
   expect(store.getSnapshot()?.saving).toBe(true);
   store.setDraft('second');
   await waitForAutosave();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
   pending.resolve(saved('first'));
   expect(await store.flush()).toBe(true);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledTimes(2);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledTimes(2);
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'version-1', content: 'second' }),
   );
   expect(store.draftRef.current).toBe('second');
@@ -111,10 +111,10 @@ test('writes serialize and later keystrokes use the last saved version', async (
 test('Done flushes immediately and clears the debounce before closing', async () => {
   store.setDraft('last keystroke');
   expect(await store.finish(false)).toBe(true);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
   expect(store.getSnapshot()).toBeNull();
   await waitForAutosave();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
 });
 
 test('Done completes the saved session before removing it from the store', async () => {
@@ -132,24 +132,24 @@ test('Revert before auto-save cancels the pending write', async () => {
   store.setDraft('draft');
   expect(await store.finish(true)).toBe(true);
   await waitForAutosave();
-  expect(window.codiff.saveRepositoryFile).not.toHaveBeenCalled();
+  expect(window.codophon.saveRepositoryFile).not.toHaveBeenCalled();
   expect(store.getSnapshot()).toBeNull();
 });
 
 test('Revert waits for an in-flight save and restores the starting working-tree content', async () => {
   const pending = Promise.withResolvers<SaveRepositoryFileResult>();
-  vi.mocked(window.codiff.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
+  vi.mocked(window.codophon.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
   store.setDraft('first');
   await waitForAutosave();
   store.setDraft('second');
   const reverted = store.finish(true);
   expect(store.getSnapshot()?.finishing).toBe('revert');
   await waitForAutosave();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
   pending.resolve(saved('first'));
   expect(await reverted).toBe(true);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledTimes(2);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledTimes(2);
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'version-1', content: originalContent }),
   );
   expect(store.getSnapshot()).toBeNull();
@@ -157,13 +157,13 @@ test('Revert waits for an in-flight save and restores the starting working-tree 
 
 test('undoing while a save is running persists the undone content afterward', async () => {
   const pending = Promise.withResolvers<SaveRepositoryFileResult>();
-  vi.mocked(window.codiff.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
+  vi.mocked(window.codophon.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
   store.setDraft('temporary');
   await waitForAutosave();
   store.setDraft(originalContent);
   pending.resolve(saved('temporary'));
   await store.flush();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'version-1', content: originalContent }),
   );
   expect(store.getSnapshot()?.document.content).toBe(originalContent);
@@ -176,13 +176,13 @@ test('auto-save continues after the review surface unsubscribes', async () => {
   unsubscribe();
   listener.mockClear();
   await waitForAutosave();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
   expect(store.getSnapshot()?.document.content).toBe('draft');
   expect(listener).not.toHaveBeenCalled();
 });
 
 test('a conflict keeps the draft and stops automatic retries', async () => {
-  vi.mocked(window.codiff.saveRepositoryFile).mockResolvedValue({
+  vi.mocked(window.codophon.saveRepositoryFile).mockResolvedValue({
     document: { ...session.document, content: 'external', version: 'external-version' },
     status: 'conflict',
   });
@@ -193,7 +193,7 @@ test('a conflict keeps the draft and stops automatic retries', async () => {
   expect(store.getSnapshot()?.saving).toBe(false);
   store.setDraft('more typing');
   await waitForAutosave();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledOnce();
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledOnce();
   expect(store.draftRef.current).toBe('more typing');
   expect(await store.finish(false)).toBe(false);
   expect(store.getSnapshot()?.finishing).toBeUndefined();
@@ -204,14 +204,14 @@ test('a failed Revert preserves the editable draft and saved version for retryin
   store.setDraft('saved edit');
   await waitForAutosave();
   store.setDraft('new unsaved edit');
-  vi.mocked(window.codiff.saveRepositoryFile).mockRejectedValueOnce(new Error('Disk full'));
+  vi.mocked(window.codophon.saveRepositoryFile).mockRejectedValueOnce(new Error('Disk full'));
   expect(await store.finish(true)).toBe(false);
   expect(store.draftRef.current).toBe('new unsaved edit');
   expect(store.getSnapshot()?.document.content).toBe('saved edit');
   expect(store.getSnapshot()?.saveError).toBe('Disk full');
   expect(store.getSnapshot()?.finishing).toBeUndefined();
   expect(await store.finish(true)).toBe(true);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'version-1', content: originalContent }),
   );
   expect(store.getSnapshot()).toBeNull();
@@ -237,18 +237,18 @@ const startOtherFile = () => {
 
 test('a slow save in one file cannot delay another file or mix their versions and Revert baselines', async () => {
   const pending = Promise.withResolvers<SaveRepositoryFileResult>();
-  vi.mocked(window.codiff.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
+  vi.mocked(window.codophon.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
   const other = startOtherFile();
   store.setDraft('first draft');
   await waitForAutosave();
   other.setDraft('second draft');
   await waitForAutosave();
-  expect(window.codiff.saveRepositoryFile).toHaveBeenCalledTimes(2);
+  expect(window.codophon.saveRepositoryFile).toHaveBeenCalledTimes(2);
   expect(store.getSnapshot()?.saving).toBe(true);
   expect(other.getSnapshot()?.document.content).toBe('second draft');
   expect(registry.hasUnsavedEdits()).toBe(true);
   expect(await other.finish(true)).toBe(true);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({
       baseVersion: 'version-1',
       content: 'other original',
@@ -259,7 +259,7 @@ test('a slow save in one file cannot delay another file or mix their versions an
   expect(store.getSnapshot()?.saving).toBe(true);
   pending.resolve(saved('first draft', 'first-file-version'));
   expect(await store.finish(true)).toBe(true);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({
       baseVersion: 'first-file-version',
       content: originalContent,
@@ -273,7 +273,7 @@ test('a slow save in one file cannot delay another file or mix their versions an
 test('unsaved edits in any file block closing, including undo while an earlier write is running', async () => {
   const other = startOtherFile();
   const pending = Promise.withResolvers<SaveRepositoryFileResult>();
-  vi.mocked(window.codiff.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
+  vi.mocked(window.codophon.saveRepositoryFile).mockImplementationOnce(() => pending.promise);
   expect(registry.hasUnsavedEdits()).toBe(false);
   other.setDraft('second draft');
   expect(registry.hasUnsavedEdits()).toBe(true);
@@ -314,7 +314,7 @@ test('changes compare to the edit baseline across auto-save and undoing back to 
   expect(store.getSnapshot()?.hasChanges).toBe(false);
   expect(store.getSnapshot()?.dirty).toBe(true);
   expect(await store.finish(true)).toBe(true);
-  expect(window.codiff.saveRepositoryFile).toHaveBeenLastCalledWith(
+  expect(window.codophon.saveRepositoryFile).toHaveBeenLastCalledWith(
     expect.objectContaining({ baseVersion: 'version-1', content: originalContent }),
   );
 });

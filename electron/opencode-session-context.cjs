@@ -8,11 +8,10 @@ const { join } = require('node:path');
 const { cleanText, truncate } = require('./agent-shared.cjs');
 const { getOpenCodeCommand } = require('./opencode.cjs');
 
+const { MAX_SESSION_MESSAGE_CHARS, selectRecentMessages } = require('./session-context-shared.cjs');
+
 const OPENCODE_EXPORT_TIMEOUT_MS = 15_000;
 const MAX_OPENCODE_EXPORT_BYTES = 16 * 1024 * 1024;
-const MAX_SESSION_MESSAGE_CHARS = 2_400;
-const MAX_SESSION_MESSAGES = 18;
-const MAX_SESSION_CONTEXT_CHARS = 28_000;
 const SESSION_ID_PATTERN = /^ses_[a-z0-9]{8,}$/i;
 
 /**
@@ -27,15 +26,15 @@ const normalizeOpenCodeSessionId = (value) =>
 const isNoiseMessage = (text) => {
   const normalized = cleanText(text).toLowerCase();
   return (
-    normalized === '/codiff' ||
-    normalized === '$codiff' ||
-    normalized === 'codiff' ||
-    normalized === 'show me codiff' ||
-    normalized === 'open codiff'
+    normalized === '/codophon' ||
+    normalized === '$codophon' ||
+    normalized === 'codophon' ||
+    normalized === 'show me codophon' ||
+    normalized === 'open codophon'
   );
 };
 
-/** @param {unknown} value */
+/** @param {unknown} value @returns {import('./session-context-shared.cjs').SessionMessage | null} */
 const extractMessage = (value) => {
   if (!value || typeof value !== 'object') {
     return null;
@@ -88,26 +87,9 @@ const extractSessionMessages = (input) => {
     return [];
   }
 
-  const messages = input.messages.map(extractMessage).filter(Boolean);
-  /** @type {Array<{role: 'assistant' | 'user'; text: string}>} */
-  const selected = [];
-  let totalChars = 0;
-
-  for (const message of messages.slice().reverse()) {
-    if (selected.length >= MAX_SESSION_MESSAGES) {
-      break;
-    }
-
-    const cost = message.role.length + message.text.length + 2;
-    if (selected.length > 0 && totalChars + cost > MAX_SESSION_CONTEXT_CHARS) {
-      break;
-    }
-
-    selected.push(message);
-    totalChars += cost;
-  }
-
-  return selected.reverse();
+  return selectRecentMessages(
+    input.messages.map(extractMessage).filter((message) => message !== null),
+  );
 };
 
 /** @param {unknown} input @param {string} sessionId */
@@ -128,7 +110,7 @@ const isMatchingSessionExport = (input, sessionId) =>
  */
 const exportOpenCodeSession = (sessionId, timeoutMs = OPENCODE_EXPORT_TIMEOUT_MS) =>
   new Promise((resolve) => {
-    const directory = mkdtempSync(join(tmpdir(), 'codiff-opencode-session-'));
+    const directory = mkdtempSync(join(tmpdir(), 'codophon-opencode-session-'));
     const path = join(directory, 'session.json');
     let output;
     let settled = false;
@@ -240,7 +222,7 @@ const readOpenCodeSessionContext = async (opencodeSessionId) => {
     messages,
     risks:
       messages.length === 0
-        ? ['Codiff could not find recent readable messages for the linked OpenCode session.']
+        ? ['Codophon could not find recent readable messages for the linked OpenCode session.']
         : undefined,
     source: {
       generatedAt: new Date().toISOString(),

@@ -61,9 +61,9 @@ test('applies and clears the modifier affordance inside rendered diff shadow roo
   root.append(line);
 
   applyIdentifierNavigationState([{ element: host }], true);
-  expect(host.hasAttribute('data-codiff-definition-mode')).toBe(true);
+  expect(host.hasAttribute('data-codophon-definition-mode')).toBe(true);
   expect(
-    Array.from(root.querySelectorAll<HTMLElement>('[data-codiff-identifier]')).map(
+    Array.from(root.querySelectorAll<HTMLElement>('[data-codophon-identifier]')).map(
       (element) => element.textContent,
     ),
   ).toEqual(['formatGreeting', 'name', 'value']);
@@ -71,7 +71,7 @@ test('applies and clears the modifier affordance inside rendered diff shadow roo
     '  return formatGreeting(name).value; // do not navigate these words',
   );
 
-  const identifier = root.querySelector('[data-codiff-identifier]');
+  const identifier = root.querySelector('[data-codophon-identifier]');
   const text = identifier?.firstChild;
   if (!text) {
     throw new Error('Expected a navigable identifier.');
@@ -80,15 +80,15 @@ test('applies and clears the modifier affordance inside rendered diff shadow roo
   range.selectNodeContents(text);
 
   applyIdentifierNavigationState([{ element: host }], false);
-  expect(host.hasAttribute('data-codiff-definition-mode')).toBe(false);
-  expect(root.querySelector('[data-codiff-identifier]')).toBe(identifier);
+  expect(host.hasAttribute('data-codophon-definition-mode')).toBe(false);
+  expect(root.querySelector('[data-codophon-identifier]')).toBe(identifier);
   expect(range.toString()).toBe('formatGreeting');
   expect(range.startContainer).toBe(text);
   expect(range.collapsed).toBe(false);
 
   applyIdentifierNavigationState([{ element: host }], true);
   applyIdentifierNavigationState([{ element: host }], true);
-  expect(root.querySelector('[data-codiff-identifier]')).toBe(identifier);
+  expect(root.querySelector('[data-codophon-identifier]')).toBe(identifier);
   expect(identifier?.firstChild).toBe(text);
   expect(range.toString()).toBe('formatGreeting');
   expect(line.textContent).toBe(
@@ -133,8 +133,8 @@ test.each(['composed', 'shadow'] as const)(
 
     for (const active of [true, true, false]) {
       applyIdentifierNavigationState([{ element: host }], active);
-      expect(host.hasAttribute('data-codiff-definition-mode')).toBe(false);
-      expect(root.querySelector('[data-codiff-identifier]')).toBeNull();
+      expect(host.hasAttribute('data-codophon-definition-mode')).toBe(false);
+      expect(root.querySelector('[data-codophon-identifier]')).toBeNull();
       expect(line.firstChild).toBe(text);
       expect(range.toString()).toBe('formatGreeting');
       expect(range.startOffset).toBe(7);
@@ -143,8 +143,8 @@ test.each(['composed', 'shadow'] as const)(
 
     range.collapse();
     applyIdentifierNavigationState([{ element: host }], true);
-    expect(host.hasAttribute('data-codiff-definition-mode')).toBe(true);
-    expect(root.querySelector('[data-codiff-identifier]')?.textContent).toBe('formatGreeting');
+    expect(host.hasAttribute('data-codophon-definition-mode')).toBe(true);
+    expect(root.querySelector('[data-codophon-identifier]')?.textContent).toBe('formatGreeting');
   },
 );
 
@@ -163,10 +163,10 @@ test('searches across persistent identifier wrappers after releasing the modifie
   applyIdentifierNavigationState(items, true);
   applyIdentifierNavigationState(items, false);
   applySearchHighlights(items, 'formatGreeting(name)', null);
-  expect(root.querySelector('mark.codiff-search-mark')?.textContent).toBe('formatGreeting(name)');
+  expect(root.querySelector('mark.codophon-search-mark')?.textContent).toBe('formatGreeting(name)');
 
   applySearchHighlights(items, '', null);
   applyIdentifierNavigationState(items, true);
-  expect(root.querySelector('[data-codiff-identifier]')?.textContent).toBe('formatGreeting');
+  expect(root.querySelector('[data-codophon-identifier]')?.textContent).toBe('formatGreeting');
   expect(line.textContent).toBe('return formatGreeting(name);');
 });

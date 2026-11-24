@@ -1,7 +1,7 @@
-export type CodiffDiffStyle = 'split' | 'unified';
-export type CodiffTheme = 'system' | 'light' | 'dark';
-export type CodiffReviewTheme = 'neutral' | 'blue-amber';
-export type CodiffAgentBackend = 'codex' | 'claude' | 'opencode';
+export type CodophonDiffStyle = 'split' | 'unified';
+export type CodophonTheme = 'system' | 'light' | 'dark';
+export type CodophonReviewTheme = 'neutral' | 'blue-amber';
+export type CodophonAgentBackend = 'codex' | 'claude' | 'opencode';
 
 export type AgentPromptId =
   | 'ask'
@@ -19,15 +19,15 @@ export type AgentModelCatalog = {
   note?: string;
 };
 
-export type CodiffSettings = {
-  agentBackend: CodiffAgentBackend;
+export type CodophonSettings = {
+  agentBackend: CodophonAgentBackend;
   agentPrompts: AgentPromptOverrides;
   checkForUpdates: boolean;
   claudeModel: string;
   codeFontFamily: string;
   codeFontSize: number;
   copyCommentsOnClose: boolean;
-  diffStyle: CodiffDiffStyle;
+  diffStyle: CodophonDiffStyle;
   editorCommand: string;
   expandUnchanged: boolean;
   lastRepositoryPath: string;
@@ -36,11 +36,11 @@ export type CodiffSettings = {
   opencodeModel: string;
   renderMarkdownAs: 'preview' | 'source';
   reviewCommentsPrefix: string;
-  reviewTheme: CodiffReviewTheme;
+  reviewTheme: CodophonReviewTheme;
   showOutdated: boolean;
   showWhitespace: boolean;
   sidebarPosition: 'left' | 'right';
-  theme: CodiffTheme;
+  theme: CodophonTheme;
   walkthroughPrompt: string;
   wordWrap: boolean;
 };
@@ -50,7 +50,7 @@ export type KeyCombo = string;
 // A shortcut can be a single combo or a list of aliases that all trigger the action.
 export type KeyComboBinding = KeyCombo | ReadonlyArray<KeyCombo>;
 
-export type CodiffKeymap = {
+export type CodophonKeymap = {
   askAgent: KeyCombo;
   closeSearch: KeyCombo;
   commandBar: KeyComboBinding;
@@ -70,7 +70,7 @@ export type CodiffKeymap = {
   toggleWordWrap: KeyCombo;
 };
 
-export type CodiffConfig = {
-  keymap: CodiffKeymap;
-  settings: CodiffSettings;
+export type CodophonConfig = {
+  keymap: CodophonKeymap;
+  settings: CodophonSettings;
 };

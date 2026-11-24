@@ -105,7 +105,7 @@ const matchesReviewPatchLine = (
 
 export function updateStickyHeaderState(viewer: CodeViewInstance) {
   for (const item of viewer.getRenderedItems()) {
-    const header = item.element.querySelector<HTMLElement>('.codiff-file-header');
+    const header = item.element.querySelector<HTMLElement>('.codophon-file-header');
     if (!header) {
       continue;
     }

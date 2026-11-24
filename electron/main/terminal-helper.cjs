@@ -18,13 +18,13 @@ const { join } = require('node:path');
 const createTerminalHelper = ({ app, dialog, root }) => {
   const getTerminalHelperSourcePath = () =>
     app.isPackaged
-      ? join(process.resourcesPath, 'app/bin/codiff-app')
-      : join(root, 'bin/codiff.js');
+      ? join(process.resourcesPath, 'app/bin/codophon-app')
+      : join(root, 'bin/codophon.js');
 
   const getTerminalHelperTargetPaths = () => [
-    '/opt/homebrew/bin/codiff',
-    '/usr/local/bin/codiff',
-    join(app.getPath('home'), '.local/bin/codiff'),
+    '/opt/homebrew/bin/codophon',
+    '/usr/local/bin/codophon',
+    join(app.getPath('home'), '.local/bin/codophon'),
   ];
 
   const getPreferredTerminalHelperTargetPath = () => {
@@ -32,14 +32,14 @@ const createTerminalHelper = ({ app, dialog, root }) => {
       try {
         if (existsSync(directory)) {
           accessSync(directory, constants.W_OK);
-          return join(directory, 'codiff');
+          return join(directory, 'codophon');
         }
       } catch {
         // Keep looking for a writable install location.
       }
     }
 
-    return join(app.getPath('home'), '.local/bin/codiff');
+    return join(app.getPath('home'), '.local/bin/codophon');
   };
 
   /** @param {string} targetPath */
@@ -66,7 +66,7 @@ const createTerminalHelper = ({ app, dialog, root }) => {
     );
 
     return {
-      command: 'codiff',
+      command: 'codophon',
       installed: installedPath != null,
       path: installedPath || getPreferredTerminalHelperTargetPath(),
     };
@@ -93,7 +93,7 @@ const createTerminalHelper = ({ app, dialog, root }) => {
   const installTerminalHelper = async (browserWindow) => {
     try {
       const sourcePath = getTerminalHelperSourcePath();
-      const targetPath = join(getWritableHelperDirectory(), 'codiff');
+      const targetPath = join(getWritableHelperDirectory(), 'codophon');
 
       if (!existsSync(sourcePath)) {
         throw new Error(`Could not find terminal helper at ${sourcePath}.`);
@@ -113,7 +113,7 @@ const createTerminalHelper = ({ app, dialog, root }) => {
       /** @type {import('electron').MessageBoxOptions} */
       const successMessage = {
         buttons: ['OK'],
-        message: `Installed codiff at ${targetPath}.`,
+        message: `Installed codophon at ${targetPath}.`,
         type: 'info',
       };
       if (browserWindow) {

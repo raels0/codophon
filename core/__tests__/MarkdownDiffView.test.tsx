@@ -32,7 +32,7 @@ test('keeps deletion-only edits visible and links to the old source line', async
   );
   expect(view.container.innerHTML).toContain('Remove this paragraph.');
   expect(view.container.querySelector('.removed p')?.textContent).toBe('Remove this paragraph.');
-  expect(view.container.querySelector('.removed .codiff-markdown-after')).toBeNull();
+  expect(view.container.querySelector('.removed .codophon-markdown-after')).toBeNull();
   await act(async () =>
     view.container.querySelector<HTMLButtonElement>('.removed button')?.click(),
   );
@@ -87,7 +87,7 @@ test.each([
         path="README.md"
       />,
     );
-    const change = view.container.querySelector('.codiff-markdown-attribute-change');
+    const change = view.container.querySelector('.codophon-markdown-attribute-change');
     expect(change?.textContent).toContain(label);
     expect(change?.querySelector('del')?.textContent).toBe(before);
     expect(change?.querySelector('ins')?.textContent).toBe(after);
@@ -110,14 +110,14 @@ test.each([
       />,
     );
     expect(
-      view.container.querySelector('.codiff-markdown-source-change summary')?.textContent,
+      view.container.querySelector('.codophon-markdown-source-change summary')?.textContent,
     ).toBe('Markdown syntax changed');
     expect(
       view.container.querySelector(
-        '.codiff-markdown-source-change .added, .codiff-markdown-source-change .removed',
+        '.codophon-markdown-source-change .added, .codophon-markdown-source-change .removed',
       ),
     ).not.toBeNull();
-    expect(view.container.querySelector('.codiff-markdown-change.added')).toBeNull();
+    expect(view.container.querySelector('.codophon-markdown-change.added')).toBeNull();
   },
 );
 
@@ -149,10 +149,10 @@ test('preserves structural formatting changes as before and after blocks', async
       path="README.md"
     />,
   );
-  expect(view.container.querySelector('.codiff-markdown-before p')?.textContent).toBe(
+  expect(view.container.querySelector('.codophon-markdown-before p')?.textContent).toBe(
     'Use caution.',
   );
-  expect(view.container.querySelector('.codiff-markdown-after strong')?.textContent).toBe(
+  expect(view.container.querySelector('.codophon-markdown-after strong')?.textContent).toBe(
     'caution',
   );
 });
@@ -169,8 +169,10 @@ test('shows frontmatter and HTML changes as literal source and rejects executabl
     />,
   );
   expect(view.container.querySelector('script')).toBeNull();
-  expect(view.container.querySelector('.codiff-markdown-literal')?.textContent).toContain('title:');
-  expect(view.container.querySelector('.codiff-markdown-literal ins')?.textContent).toBe('New');
+  expect(view.container.querySelector('.codophon-markdown-literal')?.textContent).toContain(
+    'title:',
+  );
+  expect(view.container.querySelector('.codophon-markdown-literal ins')?.textContent).toBe('New');
   expect(
     [...view.container.querySelectorAll('a')].every((link) => !link.hasAttribute('href')),
   ).toBe(true);
@@ -194,10 +196,10 @@ test('keeps existing strikethrough and inline HTML distinct from review deletion
       path="README.md"
     />,
   );
-  const context = view.container.querySelector('.codiff-markdown-context p');
+  const context = view.container.querySelector('.codophon-markdown-context p');
   expect(context?.querySelector('del')?.textContent).toBe('retired');
-  expect(context?.querySelector('.codiff-markdown-deletion')).toBeNull();
+  expect(context?.querySelector('.codophon-markdown-deletion')).toBeNull();
   expect(context?.querySelector('pre, b')).toBeNull();
   expect(context?.querySelector('code')?.textContent).toBe('<b>');
-  expect(view.container.querySelector('.codiff-markdown-deletion')?.textContent).toBe('Old');
+  expect(view.container.querySelector('.codophon-markdown-deletion')?.textContent).toBe('Old');
 });

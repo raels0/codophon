@@ -38,16 +38,16 @@ const AZ_NOT_FOUND_CODE = 'AZ_NOT_FOUND';
 const missingAzureCli = (detail = '') =>
   Object.assign(
     new Error(
-      `Azure DevOps support requires the Azure CLI. Install it, run \`az login\`, and ensure \`az --version\` works. Use CODIFF_AZ_PATH for a non-PATH installation. ${detail}`.trim(),
+      `Azure DevOps support requires the Azure CLI. Install it, run \`az login\`, and ensure \`az --version\` works. Use CODOPHON_AZ_PATH for a non-PATH installation. ${detail}`.trim(),
     ),
     { code: AZ_NOT_FOUND_CODE },
   );
 
 const getAzCommand = () => {
-  const override = process.env.CODIFF_AZ_PATH?.trim();
+  const override = process.env.CODOPHON_AZ_PATH?.trim();
   if (override) {
     if (!isExecutableFile(override)) {
-      throw missingAzureCli(`CODIFF_AZ_PATH is not executable: ${override}`);
+      throw missingAzureCli(`CODOPHON_AZ_PATH is not executable: ${override}`);
     }
     return override;
   }
@@ -94,7 +94,7 @@ const createAzureDevOpsClient = (repoRoot, pullRequest) => {
    */
   const request = async (uri, method = 'GET', body) => {
     const transport = getAzCommandTransport(getAzCommand());
-    const directory = body == null ? null : await fs.mkdtemp(join(tmpdir(), 'codiff-az-'));
+    const directory = body == null ? null : await fs.mkdtemp(join(tmpdir(), 'codophon-az-'));
     try {
       const bodyPath = directory ? join(directory, 'body.json') : null;
       if (bodyPath) {

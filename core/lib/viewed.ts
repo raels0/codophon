@@ -2,7 +2,7 @@ import type { RepositoryState } from '../types.ts';
 import { getWalkthroughReviewKeyPrefix } from './review-identity.ts';
 import { usesViewedFileState } from './source.ts';
 
-const getViewedKey = (root: string) => `codiff:viewed:${root}`;
+const getViewedKey = (root: string) => `codophon:viewed:${root}`;
 
 export const readViewed = (root: string): Record<string, string> => {
   try {

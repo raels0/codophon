@@ -133,7 +133,7 @@ const readCodexModels = async (options = {}) => {
 
     void (async () => {
       await request('initialize', {
-        clientInfo: { name: 'codiff', title: 'Codiff', version: '1' },
+        clientInfo: { name: 'codophon', title: 'Codophon', version: '1' },
         capabilities: { experimentalApi: true, requestAttestation: false },
       });
       send({ method: 'initialized' });

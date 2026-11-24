@@ -71,7 +71,7 @@ export function usePullRequestViewedSync({
       const source = state.source;
       const queue = (queuesRef.current.get(key) ?? Promise.resolve())
         .then(async () => {
-          await window.codiff.setPullRequestFileViewed({ path: file.path, source, viewed });
+          await window.codophon.setPullRequestFileViewed({ path: file.path, source, viewed });
           confirmedRef.current.set(key, replaceFileViewed({}, file, next));
         })
         .catch((error: unknown) => {
@@ -118,7 +118,7 @@ export function usePullRequestViewedSync({
       // A refresh after a click must observe the saved state. Keep newer clicks
       // optimistic if they happen while the GitHub lookup is in flight.
       await Promise.all(queuesRef.current.values());
-      const state = await window.codiff.getRepositoryState(source);
+      const state = await window.codophon.getRepositoryState(source);
       if (state.viewedFiles) {
         const viewedFiles = { ...state.viewedFiles };
         for (const update of updatesRef.current.values()) {

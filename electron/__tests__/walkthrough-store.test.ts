@@ -11,7 +11,7 @@ let previousHome: string | undefined;
 
 beforeEach(() => {
   previousHome = process.env.HOME;
-  home = mkdtempSync(join(tmpdir(), 'codiff-walkthrough-store-'));
+  home = mkdtempSync(join(tmpdir(), 'codophon-walkthrough-store-'));
   process.env.HOME = home;
 });
 
@@ -97,7 +97,7 @@ test('rejects malformed and incompatible cache records', () => {
   const store = loadStore();
   const cacheKey = 'exact-input-key';
   const path = store.getWalkthroughStorePath(cacheKey);
-  mkdirSync(join(home, '.codiff', 'walkthroughs'), { recursive: true });
+  mkdirSync(join(home, '.codophon', 'walkthroughs'), { recursive: true });
 
   writeFileSync(path, '{ not json');
   expect(store.readStoredWalkthrough(cacheKey)).toBe(null);

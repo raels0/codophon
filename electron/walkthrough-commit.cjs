@@ -112,7 +112,7 @@ const createWalkthroughCommit = async (repoPath, request, onOutput) => {
     // Stage exactly the chosen paths (covers untracked files too), then commit
     // only those paths so previously-staged work on other files stays staged.
     await git(repoPath, ['add', '--', ...paths]);
-    const tempDirectory = mkdtempSync(join(tmpdir(), 'codiff-commit-message-'));
+    const tempDirectory = mkdtempSync(join(tmpdir(), 'codophon-commit-message-'));
     const messagePath = join(tempDirectory, 'message.txt');
     try {
       writeFileSync(messagePath, message);

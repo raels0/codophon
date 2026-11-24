@@ -27,59 +27,59 @@ const { parseRemoteUrl, parseReviewUrl } = require('../review-source.cjs') as {
 };
 
 test('parseReviewUrl reads canonical GitHub pull request URLs', () => {
-  expect(parseReviewUrl('https://github.com/nkzw-tech/codiff/pull/1728')).toEqual({
+  expect(parseReviewUrl('https://github.com/raels0/codophon/pull/1728')).toEqual({
     host: 'github.com',
     number: 1728,
-    owner: 'nkzw-tech',
-    projectPath: 'nkzw-tech/codiff',
+    owner: 'raels0',
+    projectPath: 'raels0/codophon',
     provider: 'github',
-    repo: 'codiff',
-    url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+    repo: 'codophon',
+    url: 'https://github.com/raels0/codophon/pull/1728',
   });
 });
 
 test('parseReviewUrl ignores GitHub tab segments, queries and fragments', () => {
   for (const value of [
-    'https://github.com/nkzw-tech/codiff/pull/1728/',
-    'https://github.com/nkzw-tech/codiff/pull/1728/changes#r2231',
-    'https://github.com/nkzw-tech/codiff/pull/1728/files',
-    'https://github.com/nkzw-tech/codiff/pull/1728/files#diff-8a1b2c',
-    'https://github.com/nkzw-tech/codiff/pull/1728/commits/0f1e2d3c',
-    'https://github.com/nkzw-tech/codiff/pull/1728?diff=split&w=1',
-    'https://github.com/nkzw-tech/codiff/pull/1728#issuecomment-4412',
+    'https://github.com/raels0/codophon/pull/1728/',
+    'https://github.com/raels0/codophon/pull/1728/changes#r2231',
+    'https://github.com/raels0/codophon/pull/1728/files',
+    'https://github.com/raels0/codophon/pull/1728/files#diff-8a1b2c',
+    'https://github.com/raels0/codophon/pull/1728/commits/0f1e2d3c',
+    'https://github.com/raels0/codophon/pull/1728?diff=split&w=1',
+    'https://github.com/raels0/codophon/pull/1728#issuecomment-4412',
   ]) {
     expect(parseReviewUrl(value)).toMatchObject({
       number: 1728,
       provider: 'github',
-      url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+      url: 'https://github.com/raels0/codophon/pull/1728',
     });
   }
 });
 
 test('parseReviewUrl accepts GitHub URLs pasted without a scheme or with `www`', () => {
   for (const value of [
-    'github.com/nkzw-tech/codiff/pull/1728/changes',
-    'www.github.com/nkzw-tech/codiff/pull/1728',
-    'https://www.github.com/nkzw-tech/codiff/pull/1728/files',
-    'HTTPS://GitHub.com/nkzw-tech/codiff/pull/1728',
-    '<https://github.com/nkzw-tech/codiff/pull/1728>',
-    '  https://github.com/nkzw-tech/codiff/pull/1728/files  ',
+    'github.com/raels0/codophon/pull/1728/changes',
+    'www.github.com/raels0/codophon/pull/1728',
+    'https://www.github.com/raels0/codophon/pull/1728/files',
+    'HTTPS://GitHub.com/raels0/codophon/pull/1728',
+    '<https://github.com/raels0/codophon/pull/1728>',
+    '  https://github.com/raels0/codophon/pull/1728/files  ',
   ]) {
     expect(parseReviewUrl(value)).toMatchObject({
       host: 'github.com',
       number: 1728,
-      owner: 'nkzw-tech',
-      repo: 'codiff',
-      url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+      owner: 'raels0',
+      repo: 'codophon',
+      url: 'https://github.com/raels0/codophon/pull/1728',
     });
   }
 });
 
 test('parseReviewUrl strips a `.git` suffix from GitHub repositories', () => {
-  expect(parseReviewUrl('https://github.com/nkzw-tech/codiff.git/pull/1728')).toMatchObject({
-    projectPath: 'nkzw-tech/codiff',
-    repo: 'codiff',
-    url: 'https://github.com/nkzw-tech/codiff/pull/1728',
+  expect(parseReviewUrl('https://github.com/raels0/codophon.git/pull/1728')).toMatchObject({
+    projectPath: 'raels0/codophon',
+    repo: 'codophon',
+    url: 'https://github.com/raels0/codophon/pull/1728',
   });
 });
 
@@ -88,11 +88,11 @@ test('parseReviewUrl rejects values that are not review URLs', () => {
     '',
     'main',
     'feature/pull/1',
-    'https://github.com/nkzw-tech/codiff',
-    'https://github.com/nkzw-tech/codiff/pull/0',
-    'https://github.com/nkzw-tech/codiff/pull/abc',
-    'https://github.com/nkzw-tech/codiff/issues/1728',
-    'https://example.com/nkzw-tech/codiff/pull/1728',
+    'https://github.com/raels0/codophon',
+    'https://github.com/raels0/codophon/pull/0',
+    'https://github.com/raels0/codophon/pull/abc',
+    'https://github.com/raels0/codophon/issues/1728',
+    'https://example.com/raels0/codophon/pull/1728',
     'https://dev.azure.com/org/project/_git/repo',
     'some/local/path/merge_requests/23',
   ]) {
@@ -107,9 +107,9 @@ test('parseRemoteUrl ignores remotes that are neither GitHub nor Azure DevOps', 
 });
 
 test('parseRemoteUrl reads scp-style and GitHub remotes', () => {
-  expect(parseRemoteUrl('https://github.com/nkzw-tech/codiff.git')).toEqual({
+  expect(parseRemoteUrl('https://github.com/raels0/codophon.git')).toEqual({
     host: 'github.com',
-    projectPath: 'nkzw-tech/codiff',
+    projectPath: 'raels0/codophon',
     provider: 'github',
   });
 });

@@ -3,7 +3,7 @@
 require('./main/stdio.cjs');
 
 const { existsSync, readFileSync } = require('node:fs');
-const { dirname, join, relative, resolve } = require('node:path');
+const { dirname, join, resolve } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const {
   app,
@@ -53,11 +53,10 @@ const {
 } = require('./agent.cjs');
 const { buildInstallSkillMenuItem, listAgentSkills } = require('./agent-skills.cjs');
 const {
-  configToPreferences,
   createDefaultConfig,
   getConfigPath,
   initConfig,
-  migrateFromPreferences,
+  importPreviousConfig,
   normalizeCodeFontFamily,
   normalizeCodeFontSize,
   readConfig,
@@ -122,15 +121,15 @@ const {
 const { createWalkthroughProgressReporter } = require('./walkthrough-progress.cjs');
 
 /**
- * @typedef {import('../core/config/types.ts').CodiffConfig} CodiffConfig
- * @typedef {import('../core/types.ts').CodiffLaunchOptions} CodiffLaunchOptions
- * @typedef {import('../core/types.ts').CodiffTheme} CodiffTheme
+ * @typedef {import('../core/config/types.ts').CodophonConfig} CodophonConfig
+ * @typedef {import('../core/types.ts').CodophonLaunchOptions} CodophonLaunchOptions
+ * @typedef {import('../core/types.ts').CodophonTheme} CodophonTheme
  * @typedef {import('../core/types.ts').ReviewSource} ReviewSource
  * @typedef {{key: string; repositoryRoot: string; sourceKey: string}} WindowIdentity
  * @typedef {{direction: string; name: string; owner: string; repo: string}} GitHubRemote
- * @typedef {{repositoryPath?: string; launchOptions?: CodiffLaunchOptions}} SingleInstanceAdditionalData
+ * @typedef {{repositoryPath?: string; launchOptions?: CodophonLaunchOptions}} SingleInstanceAdditionalData
  * @typedef {{args: Array<string>; command: string}} EditorCommand
- * @typedef {{launchOptions: CodiffLaunchOptions; pullRequestNumber: number | null; repositoryPath: string | null}} ParsedCommandLineArguments
+ * @typedef {{launchOptions: CodophonLaunchOptions; pullRequestNumber: number | null; repositoryPath: string | null}} ParsedCommandLineArguments
  */
 
 const root = dirname(__dirname);
@@ -140,7 +139,7 @@ const windowRevealControllers = new Map();
 const windowIdentities = new Map();
 /** @type {Map<number, string>} */
 const windowRepositories = new Map();
-/** @type {Map<number, CodiffLaunchOptions>} */
+/** @type {Map<number, CodophonLaunchOptions>} */
 const windowLaunchOptions = new Map();
 /** @type {Map<number, Promise<RepositoryState>>} */
 const windowInitialRepositoryStates = new Map();
@@ -151,7 +150,7 @@ const markdownDocumentWatchers = new Map();
 /** @type {Set<import('electron').BrowserWindow>} */
 const openWindows = new Set();
 const pendingCommentsClipboardController = createPendingCommentsClipboardController({ clipboard });
-/** @type {CodiffConfig} */
+/** @type {CodophonConfig} */
 let config = createDefaultConfig();
 /** @type {ReadonlyArray<import('./codex-models.cjs').CodexModel> | undefined} */
 let codexModels;
@@ -184,7 +183,7 @@ const refreshInstalledAgentFiles = () => {
     try {
       installer.refreshManagedFiles();
     } catch {
-      // A stale or read-only managed file should not prevent Codiff from starting.
+      // A stale or read-only managed file should not prevent Codophon from starting.
     }
   }
 };
@@ -197,7 +196,7 @@ const readRepositoryStateWithConfig = (repositoryPath, source) =>
     showWhitespace: config.settings.showWhitespace,
   });
 
-/** @param {string} repositoryPath @param {CodiffLaunchOptions} launchOptions */
+/** @param {string} repositoryPath @param {CodophonLaunchOptions} launchOptions */
 const readInitialRepositoryStateWithConfig = (repositoryPath, launchOptions) =>
   launchOptions.walkthrough && !launchOptions.walkthroughFile
     ? readWalkthroughRepositoryState(repositoryPath, launchOptions.source, {
@@ -295,7 +294,7 @@ const ensureMarkdownDocumentWatcher = (webContents, request) => {
     watchMarkdownDocument({
       onChange: (document) => {
         if (!webContents.isDestroyed()) {
-          webContents.send('codiff:markdownDocumentChanged', {
+          webContents.send('codophon:markdownDocumentChanged', {
             deleted: false,
             document,
             id: document.id,
@@ -304,7 +303,7 @@ const ensureMarkdownDocumentWatcher = (webContents, request) => {
       },
       onDelete: (id) => {
         if (!webContents.isDestroyed()) {
-          webContents.send('codiff:markdownDocumentChanged', { deleted: true, id });
+          webContents.send('codophon:markdownDocumentChanged', { deleted: true, id });
         }
       },
       resolved,
@@ -316,12 +315,12 @@ const ensureMarkdownDocumentWatcher = (webContents, request) => {
 const sendConfigChanged = () => {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
-      window.webContents.send('codiff:configChanged', config);
+      window.webContents.send('codophon:configChanged', config);
     }
   }
 };
 
-/** @param {Partial<CodiffConfig>} nextConfig */
+/** @param {Partial<CodophonConfig>} nextConfig */
 const updateConfig = (nextConfig) => {
   const updatedConfig = {
     keymap: { ...config.keymap, ...nextConfig.keymap },
@@ -403,7 +402,7 @@ const getAgentOptions = (agent) => ({
   },
 });
 
-/** @param {CodiffTheme} theme */
+/** @param {CodophonTheme} theme */
 const updateTheme = (theme) => {
   updateConfig({ settings: { ...config.settings, theme } });
 };
@@ -500,7 +499,7 @@ const startRepositoryWatcher = (browserWindow, repositoryPath) => {
     id: webContentsId,
     notify: (root) => {
       if (!browserWindow.isDestroyed()) {
-        browserWindow.webContents.send('codiff:repositoryChanged', { root });
+        browserWindow.webContents.send('codophon:repositoryChanged', { root });
       }
     },
     root: repositoryPath,
@@ -603,16 +602,48 @@ const getInstallSkillMenuItem = () =>
  */
 const requestOpenReviewSource = (browserWindow, kind) => {
   if (browserWindow instanceof BrowserWindow && !browserWindow.isDestroyed()) {
-    browserWindow.webContents.send('codiff:openReviewSource', kind);
+    browserWindow.webContents.send('codophon:openReviewSource', kind);
   }
 };
 
 /** @param {'models' | 'prompts'} section @returns {NonNullable<import('electron').MenuItemConstructorOptions['click']>} */
 const openAgentSettings = (section) => (_item, browserWindow) => {
   if (browserWindow instanceof BrowserWindow && !browserWindow.isDestroyed()) {
-    browserWindow.webContents.send('codiff:openAgentSettings', section);
+    browserWindow.webContents.send('codophon:openAgentSettings', section);
   }
 };
+/** @returns {Array<import('electron').MenuItemConstructorOptions>} */
+const buildAgentMenuItems = () => [
+  {
+    label: 'Agent',
+    submenu: buildAgentSubmenu(),
+  },
+  {
+    label: 'Choose Model…',
+    click: openAgentSettings('models'),
+  },
+  ...(getActiveAgent().id === 'codex'
+    ? [{ label: 'Reasoning Effort', submenu: buildReasoningEffortSubmenu() }]
+    : []),
+  { type: 'separator' },
+  {
+    click: () => {
+      void openConfigFile();
+    },
+    label: 'Open Config File...',
+  },
+  { label: 'Agent Settings…', click: openAgentSettings('prompts') },
+  { type: 'separator' },
+  {
+    click: /** @type {NonNullable<import('electron').MenuItemConstructorOptions['click']>} */ (
+      (_menuItem, browserWindow) => installTerminalHelper(browserWindow)
+    ),
+    label: 'Install Terminal Helper',
+  },
+  getInstallSkillMenuItem(),
+  { type: 'separator' },
+];
+
 /** @returns {import('electron').Menu} */
 const buildApplicationMenu = () =>
   Menu.buildFromTemplate(
@@ -620,7 +651,7 @@ const buildApplicationMenu = () =>
       ...(process.platform === 'darwin'
         ? [
             {
-              label: 'Codiff',
+              label: 'Codophon',
               submenu: [
                 { role: 'about' },
                 {
@@ -646,35 +677,7 @@ const buildApplicationMenu = () =>
                   label: 'Open Branch',
                 },
                 { type: 'separator' },
-                {
-                  label: 'Agent',
-                  submenu: buildAgentSubmenu(),
-                },
-                {
-                  label: 'Choose Model…',
-                  click: openAgentSettings('models'),
-                },
-                ...(getActiveAgent().id === 'codex'
-                  ? [{ label: 'Reasoning Effort', submenu: buildReasoningEffortSubmenu() }]
-                  : []),
-                { type: 'separator' },
-                {
-                  click: () => {
-                    void openConfigFile();
-                  },
-                  label: 'Open Config File...',
-                },
-                { label: 'Agent Settings…', click: openAgentSettings('prompts') },
-                { type: 'separator' },
-                {
-                  click:
-                    /** @type {NonNullable<import('electron').MenuItemConstructorOptions['click']>} */ (
-                      (_menuItem, browserWindow) => installTerminalHelper(browserWindow)
-                    ),
-                  label: 'Install Terminal Helper',
-                },
-                getInstallSkillMenuItem(),
-                { type: 'separator' },
+                ...buildAgentMenuItems(),
                 { role: 'hide' },
                 { role: 'hideOthers' },
                 { role: 'unhide' },
@@ -687,39 +690,7 @@ const buildApplicationMenu = () =>
       {
         label: 'File',
         submenu: [
-          ...(process.platform === 'darwin'
-            ? []
-            : [
-                {
-                  label: 'Agent',
-                  submenu: buildAgentSubmenu(),
-                },
-                {
-                  label: 'Choose Model…',
-                  click: openAgentSettings('models'),
-                },
-                ...(getActiveAgent().id === 'codex'
-                  ? [{ label: 'Reasoning Effort', submenu: buildReasoningEffortSubmenu() }]
-                  : []),
-                { type: 'separator' },
-                {
-                  click: () => {
-                    void openConfigFile();
-                  },
-                  label: 'Open Config File...',
-                },
-                { label: 'Agent Settings…', click: openAgentSettings('prompts') },
-                { type: 'separator' },
-                {
-                  click:
-                    /** @type {NonNullable<import('electron').MenuItemConstructorOptions['click']>} */ (
-                      (_menuItem, browserWindow) => installTerminalHelper(browserWindow)
-                    ),
-                  label: 'Install Terminal Helper',
-                },
-                getInstallSkillMenuItem(),
-                { type: 'separator' },
-              ]),
+          ...(process.platform === 'darwin' ? [] : buildAgentMenuItems()),
           {
             accelerator: 'CommandOrControl+O',
             click: (_menuItem, browserWindow) => openRepositoryFolder(browserWindow),
@@ -746,7 +717,7 @@ const buildApplicationMenu = () =>
             accelerator: 'CommandOrControl+F',
             click: (_menuItem, browserWindow) => {
               if (browserWindow instanceof BrowserWindow) {
-                browserWindow.webContents.send('codiff:findInDiffs');
+                browserWindow.webContents.send('codophon:findInDiffs');
               }
             },
             label: 'Find in Diffs',
@@ -889,7 +860,7 @@ const buildApplicationMenu = () =>
             accelerator: 'CommandOrControl+R',
             click: (_menuItem, browserWindow) => {
               if (browserWindow instanceof BrowserWindow) {
-                browserWindow.webContents.send('codiff:refreshRequest');
+                browserWindow.webContents.send('codophon:refreshRequest');
               }
             },
             label: 'Refresh Changes',
@@ -914,13 +885,13 @@ let quitting = false;
 let quitAfterCopyingPendingComments = false;
 
 ipcMain.on(
-  'codiff:copyPendingCommentsResult',
+  'codophon:copyPendingCommentsResult',
   pendingCommentsClipboardController.handleCopyPendingCommentsResult,
 );
 
 /**
  * @param {string} repositoryPath
- * @param {CodiffLaunchOptions} [launchOptions]
+ * @param {CodophonLaunchOptions} [launchOptions]
  * @param {WindowIdentity | null} [identity]
  * @param {Promise<RepositoryState>} [preloadedRepositoryState]
  * @returns {import('electron').BrowserWindow}
@@ -1020,12 +991,12 @@ const createWindow = (
   }
   window.on('blur', () => repositoryWatcherCoordinator.visibilityChanged(webContentsId));
   window.on('enter-full-screen', () => {
-    window.webContents.send('codiff:windowFullScreenChanged', true);
+    window.webContents.send('codophon:windowFullScreenChanged', true);
   });
   window.on('focus', () => repositoryWatcherCoordinator.focus(webContentsId));
   window.on('hide', () => repositoryWatcherCoordinator.visibilityChanged(webContentsId));
   window.on('leave-full-screen', () => {
-    window.webContents.send('codiff:windowFullScreenChanged', false);
+    window.webContents.send('codophon:windowFullScreenChanged', false);
   });
   window.on('minimize', () => repositoryWatcherCoordinator.visibilityChanged(webContentsId));
   window.on('restore', () => repositoryWatcherCoordinator.focus(webContentsId));
@@ -1128,7 +1099,7 @@ const focusWindow = (window) => {
 
 /**
  * @param {string} repositoryPath
- * @param {CodiffLaunchOptions} [launchOptions]
+ * @param {CodophonLaunchOptions} [launchOptions]
  */
 const focusOrCreateWindow = (
   repositoryPath,
@@ -1179,11 +1150,11 @@ const RELEASE_CHECK_TIMER_INTERVAL_MS = 4 * 60 * 60 * 1000;
 /** @type {ReturnType<typeof createReleaseCheck> | null} */
 let releaseCheck = null;
 
-/** @param {import('../core/types.ts').CodiffUpdateStatus} status */
+/** @param {import('../core/types.ts').CodophonUpdateStatus} status */
 const sendUpdateStatusChanged = (status) => {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
-      window.webContents.send('codiff:updateStatusChanged', status);
+      window.webContents.send('codophon:updateStatusChanged', status);
     }
   }
 };
@@ -1192,7 +1163,7 @@ const checkForUpdatesFromMenu = async () => {
   const status = await releaseCheck?.check({ force: true });
   if (status && !status.availableVersion) {
     void dialog.showMessageBox({
-      message: `Codiff ${app.getVersion()} is the latest release.`,
+      message: `Codophon ${app.getVersion()} is the latest release.`,
       type: 'info',
     });
   }
@@ -1206,7 +1177,7 @@ const lock = app.requestSingleInstanceLock({
 if (!lock) {
   app.quit();
 } else {
-  app.setName('Codiff');
+  app.setName('Codophon');
 
   app.on('second-instance', (event, commandLine, workingDirectory, additionalData) => {
     const data = /** @type {SingleInstanceAdditionalData} */ (additionalData || {});
@@ -1220,7 +1191,7 @@ if (!lock) {
   });
 
   app.on('ready', () => {
-    migrateFromPreferences(app.getPath('userData'), normalizeOpenAIModel);
+    importPreviousConfig();
     const shouldDetectInitialAgent = !existsSync(getConfigPath());
     config = readConfig();
     config.settings.openAIModel = normalizeOpenAIModel(config.settings.openAIModel);
@@ -1239,7 +1210,7 @@ if (!lock) {
     watchKeyboardLayout((layout) => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) {
-          window.webContents.send('codiff:keyboardLayoutChanged', layout);
+          window.webContents.send('codophon:keyboardLayoutChanged', layout);
         }
       }
     });
@@ -1336,22 +1307,22 @@ if (!lock) {
 }
 
 ipcMain.handle(
-  'codiff:getUpdateStatus',
+  'codophon:getUpdateStatus',
   () => releaseCheck?.getStatus() ?? { currentVersion: app.getVersion() },
 );
 
 ipcMain.handle(
-  'codiff:dismissUpdate',
+  'codophon:dismissUpdate',
   () => releaseCheck?.dismiss() ?? { currentVersion: app.getVersion() },
 );
 
-ipcMain.handle('codiff:openReleasePage', () => {
+ipcMain.handle('codophon:openReleasePage', () => {
   if (releaseCheck) {
     return shell.openExternal(releaseCheck.releaseUrl());
   }
 });
 
-ipcMain.handle('codiff:getRepositoryState', async (event, source) => {
+ipcMain.handle('codophon:getRepositoryState', async (event, source) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   const launchOptions = windowLaunchOptions.get(event.sender.id);
   const walkthroughState = walkthroughLaunchController.getInitialRepositoryState(
@@ -1375,7 +1346,7 @@ ipcMain.handle('codiff:getRepositoryState', async (event, source) => {
   return state;
 });
 
-ipcMain.handle('codiff:resolvePullRequestUrl', (event, value) => {
+ipcMain.handle('codophon:resolvePullRequestUrl', (event, value) => {
   const input = typeof value === 'string' ? value.trim() : '';
   const parsedUrl = parseReviewUrl(input);
   if (parsedUrl) {
@@ -1392,17 +1363,17 @@ ipcMain.handle('codiff:resolvePullRequestUrl', (event, value) => {
   return resolveReviewUrl(repositoryPath, Number(number[1]));
 });
 
-ipcMain.handle('codiff:getMarkdownDocument', async (event, request) => {
+ipcMain.handle('codophon:getMarkdownDocument', async (event, request) => {
   const document = await readMarkdownDocument(request, getMarkdownDocumentContext(event.sender.id));
   ensureMarkdownDocumentWatcher(event.sender, request);
   return document;
 });
 
-ipcMain.handle('codiff:getRepositoryFile', (event, path) =>
+ipcMain.handle('codophon:getRepositoryFile', (event, path) =>
   readRepositoryFile(getWindowRepositoryRoot(event.sender.id), path),
 );
 
-ipcMain.handle('codiff:saveRepositoryFile', async (event, request) => {
+ipcMain.handle('codophon:saveRepositoryFile', async (event, request) => {
   const root = getWindowRepositoryRoot(event.sender.id);
   const current = await readRepositoryFile(root, request.path);
   const selfWrite = beginRepositorySelfWrite(event.sender.id, current.path);
@@ -1419,7 +1390,7 @@ ipcMain.handle('codiff:saveRepositoryFile', async (event, request) => {
   }
 });
 
-ipcMain.handle('codiff:saveMarkdownDocument', async (event, request) => {
+ipcMain.handle('codophon:saveMarkdownDocument', async (event, request) => {
   const context = getMarkdownDocumentContext(event.sender.id);
   let selfWrite = null;
   try {
@@ -1442,7 +1413,7 @@ ipcMain.handle('codiff:saveMarkdownDocument', async (event, request) => {
 });
 
 ipcMain.handle(
-  'codiff:getLaunchOptions',
+  'codophon:getLaunchOptions',
   (event) =>
     windowLaunchOptions.get(event.sender.id) || {
       repositoryPathProvided: false,
@@ -1450,12 +1421,12 @@ ipcMain.handle(
     },
 );
 
-ipcMain.handle('codiff:getAgentSkillStatus', (event) => {
+ipcMain.handle('codophon:getAgentSkillStatus', (event) => {
   const installer = skillInstallerFor(resolveWindowAgent(event.sender.id).id);
   return installer ? installer.getStatus() : { installed: false, path: '' };
 });
 
-ipcMain.handle('codiff:installAgentSkill', async (event) => {
+ipcMain.handle('codophon:installAgentSkill', async (event) => {
   const installer = skillInstallerFor(resolveWindowAgent(event.sender.id).id);
   if (!installer) {
     return { installed: false, path: '' };
@@ -1465,14 +1436,14 @@ ipcMain.handle('codiff:installAgentSkill', async (event) => {
   return installer.getStatus();
 });
 
-ipcMain.handle('codiff:getTerminalHelperStatus', () => getTerminalHelperStatus());
+ipcMain.handle('codophon:getTerminalHelperStatus', () => getTerminalHelperStatus());
 
-ipcMain.handle('codiff:installTerminalHelper', async (event) => {
+ipcMain.handle('codophon:installTerminalHelper', async (event) => {
   await installTerminalHelper(BrowserWindow.fromWebContents(event.sender));
   return getTerminalHelperStatus();
 });
 
-ipcMain.handle('codiff:getNarrativeWalkthrough', async (event, source, options) => {
+ipcMain.handle('codophon:getNarrativeWalkthrough', async (event, source, options) => {
   const launchOptions = windowLaunchOptions.get(event.sender.id);
   const progressGeneration = (walkthroughProgressGenerations.get(event.sender.id) || 0) + 1;
   walkthroughProgressGenerations.set(event.sender.id, progressGeneration);
@@ -1648,7 +1619,7 @@ ipcMain.handle('codiff:getNarrativeWalkthrough', async (event, source, options) 
   }
 });
 
-ipcMain.handle('codiff:askReviewAssistant', async (event, request) => {
+ipcMain.handle('codophon:askReviewAssistant', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   const launchOptions = windowLaunchOptions.get(event.sender.id);
   const state = await readRepositoryStateWithConfig(
@@ -1665,11 +1636,11 @@ ipcMain.handle('codiff:askReviewAssistant', async (event, request) => {
   );
 });
 
-ipcMain.handle('codiff:createWalkthroughCommit', async (event, request) => {
+ipcMain.handle('codophon:createWalkthroughCommit', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   const result = await createWalkthroughCommit(repositoryPath, request, (chunk) => {
     if (!event.sender.isDestroyed()) {
-      event.sender.send('codiff:walkthroughCommitOutput', chunk);
+      event.sender.send('codophon:walkthroughCommitOutput', chunk);
     }
   });
   if (result.status === 'committed') {
@@ -1678,7 +1649,7 @@ ipcMain.handle('codiff:createWalkthroughCommit', async (event, request) => {
   return result;
 });
 
-ipcMain.handle('codiff:updateWalkthroughCommitMessage', async (event, request) => {
+ipcMain.handle('codophon:updateWalkthroughCommitMessage', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   const launchOptions = windowLaunchOptions.get(event.sender.id);
   const state = await readRepositoryStateWithConfig(
@@ -1695,12 +1666,12 @@ ipcMain.handle('codiff:updateWalkthroughCommitMessage', async (event, request) =
   );
 });
 
-ipcMain.handle('codiff:submitPullRequestComment', async (event, request) => {
+ipcMain.handle('codophon:submitPullRequestComment', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   return submitPullRequestComment(repositoryPath, request);
 });
 
-ipcMain.handle('codiff:getReviewBriefComments', async (event, source) => {
+ipcMain.handle('codophon:getReviewBriefComments', async (event, source) => {
   if (source?.type !== 'pull-request' || source.provider !== 'azure-devops') {
     throw new Error('Posted-comment export requires an Azure DevOps pull request.');
   }
@@ -1708,17 +1679,17 @@ ipcMain.handle('codiff:getReviewBriefComments', async (event, source) => {
   return readAzureDevOpsReviewBriefComments(repositoryPath, source);
 });
 
-ipcMain.handle('codiff:submitPullRequestReview', async (event, request) => {
+ipcMain.handle('codophon:submitPullRequestReview', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   return submitPullRequestReview(repositoryPath, request);
 });
 
-ipcMain.handle('codiff:setPullRequestFileViewed', async (event, request) => {
+ipcMain.handle('codophon:setPullRequestFileViewed', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   return setPullRequestFileViewed(repositoryPath, request);
 });
 
-ipcMain.handle('codiff:getDiffSectionContent', async (event, request) => {
+ipcMain.handle('codophon:getDiffSectionContent', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   return readDiffSectionContent(repositoryPath, {
     ...request,
@@ -1726,28 +1697,26 @@ ipcMain.handle('codiff:getDiffSectionContent', async (event, request) => {
   });
 });
 
-ipcMain.handle('codiff:getDiffImageContent', async (event, request) => {
+ipcMain.handle('codophon:getDiffImageContent', async (event, request) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   return readDiffImageContent(repositoryPath, request);
 });
 
-ipcMain.handle('codiff:getRepositoryHistory', async (event, limit, source) => {
+ipcMain.handle('codophon:getRepositoryHistory', async (event, limit, source) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   return listRepositoryHistory(repositoryPath, limit, source);
 });
 
-ipcMain.handle('codiff:getGitIdentity', async (event) => {
+ipcMain.handle('codophon:getGitIdentity', async (event) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
   return readGitIdentity(repositoryPath);
 });
 
-ipcMain.handle('codiff:getPreferences', () => configToPreferences(config));
-
-ipcMain.handle('codiff:getConfig', () => config);
-ipcMain.handle('codiff:getAgentModelCatalog', (event, refresh) =>
+ipcMain.handle('codophon:getConfig', () => config);
+ipcMain.handle('codophon:getAgentModelCatalog', (event, refresh) =>
   getAgentModelCatalog(event.sender.id, refresh === true),
 );
-ipcMain.handle('codiff:selectAgentModel', (event, agentId, model) => {
+ipcMain.handle('codophon:selectAgentModel', (event, agentId, model) => {
   const agent = resolveWindowAgent(event.sender.id);
   if (agent.id !== agentId) throw new Error('The active agent changed. Refresh the model list.');
   if (typeof model !== 'string' || !model || agent.normalizeModel(model) !== model) {
@@ -1755,8 +1724,8 @@ ipcMain.handle('codiff:selectAgentModel', (event, agentId, model) => {
   }
   selectAgentModel(agent, model);
 });
-ipcMain.handle('codiff:getAgentPrompts', () => agentPrompts);
-ipcMain.handle('codiff:setAgentPrompt', (_event, id, text) => {
+ipcMain.handle('codophon:getAgentPrompts', () => agentPrompts);
+ipcMain.handle('codophon:setAgentPrompt', (_event, id, text) => {
   const module = agentPrompts.find((prompt) => prompt.id === id);
   if (
     !module ||
@@ -1770,18 +1739,18 @@ ipcMain.handle('codiff:setAgentPrompt', (_event, id, text) => {
   return overrides;
 });
 
-ipcMain.handle('codiff:getKeyboardLayout', () => readKeyboardLayout());
+ipcMain.handle('codophon:getKeyboardLayout', () => readKeyboardLayout());
 
-ipcMain.handle('codiff:isWindowFullScreen', (event) => {
+ipcMain.handle('codophon:isWindowFullScreen', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   return window?.isFullScreen() ?? false;
 });
 
-ipcMain.on('codiff:windowReady', (event) => {
+ipcMain.on('codophon:windowReady', (event) => {
   windowRevealControllers.get(event.sender.id)?.markContentReady();
 });
 
-ipcMain.handle('codiff:setDiffStyle', (_event, value) => {
+ipcMain.handle('codophon:setDiffStyle', (_event, value) => {
   updateConfig({
     settings: {
       ...config.settings,
@@ -1790,40 +1759,40 @@ ipcMain.handle('codiff:setDiffStyle', (_event, value) => {
   });
 });
 
-ipcMain.handle('codiff:setReviewTheme', (_event, value) => {
+ipcMain.handle('codophon:setReviewTheme', (_event, value) => {
   if (value !== 'neutral' && value !== 'blue-amber') {
     throw new TypeError('Unknown review theme.');
   }
   updateConfig({ settings: { ...config.settings, reviewTheme: value } });
 });
 
-ipcMain.handle('codiff:setShowOutdated', (_event, value) => {
+ipcMain.handle('codophon:setShowOutdated', (_event, value) => {
   updateConfig({ settings: { ...config.settings, showOutdated: Boolean(value) } });
 });
 
-ipcMain.handle('codiff:setWordWrap', (_event, value) => {
+ipcMain.handle('codophon:setWordWrap', (_event, value) => {
   updateConfig({ settings: { ...config.settings, wordWrap: Boolean(value) } });
 });
 
-ipcMain.handle('codiff:increaseCodeFontSize', () => {
+ipcMain.handle('codophon:increaseCodeFontSize', () => {
   increaseCodeFontSize();
 });
 
-ipcMain.handle('codiff:decreaseCodeFontSize', () => {
+ipcMain.handle('codophon:decreaseCodeFontSize', () => {
   decreaseCodeFontSize();
 });
 
-ipcMain.handle('codiff:resetCodeFontSize', () => {
+ipcMain.handle('codophon:resetCodeFontSize', () => {
   resetCodeFontSize();
 });
 
-ipcMain.handle('codiff:openConfigFile', () => openConfigFile());
+ipcMain.handle('codophon:openConfigFile', () => openConfigFile());
 
-ipcMain.handle('codiff:openRepositoryFolder', (event) =>
+ipcMain.handle('codophon:openRepositoryFolder', (event) =>
   openRepositoryFolder(BrowserWindow.fromWebContents(event.sender) ?? undefined),
 );
 
-ipcMain.handle('codiff:findDefinitions', (event, request) =>
+ipcMain.handle('codophon:findDefinitions', (event, request) =>
   definitionSearchCoordinator.find(
     event.sender.id,
     getWindowRepositoryRoot(event.sender.id),
@@ -1831,7 +1800,7 @@ ipcMain.handle('codiff:findDefinitions', (event, request) =>
   ),
 );
 
-ipcMain.handle('codiff:openFile', async (event, filePath, lineNumber) => {
+ipcMain.handle('codophon:openFile', async (event, filePath, lineNumber) => {
   const repositoryRoot = getWindowRepositoryRoot(event.sender.id);
   const repositoryFilePath = validateRepositoryPath(filePath);
   const absolutePath = resolve(repositoryRoot, repositoryFilePath);
@@ -1845,19 +1814,3 @@ ipcMain.handle('codiff:openFile', async (event, filePath, lineNumber) => {
     await shell.openPath(repositoryRoot);
   }
 });
-
-ipcMain.handle('codiff:showInFolder', (event, filePath) => {
-  const repositoryRoot = getWindowRepositoryRoot(event.sender.id);
-  const repositoryFilePath = validateRepositoryPath(filePath);
-  const absolutePath = resolve(repositoryRoot, repositoryFilePath);
-
-  if (existsSync(absolutePath)) {
-    shell.showItemInFolder(absolutePath);
-  } else {
-    void shell.openPath(repositoryRoot);
-  }
-});
-
-ipcMain.handle('codiff:getRelativePath', (event, filePath) =>
-  relative(getWindowRepositoryRoot(event.sender.id), filePath),
-);

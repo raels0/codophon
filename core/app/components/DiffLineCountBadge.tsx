@@ -3,7 +3,7 @@ import { formatLineCountNumber, getDiffLineCountTitle } from '../../lib/diff.ts'
 
 export function DiffLineCountBadge({
   ariaLabelPrefix,
-  className = 'codiff-line-count',
+  className = 'codophon-line-count',
   lineCount,
 }: {
   ariaLabelPrefix?: string;
@@ -22,8 +22,10 @@ export function DiffLineCountBadge({
       className={className}
       title={ariaLabelPrefix ? `${ariaLabelPrefix}: ${title}` : title}
     >
-      <span className="codiff-line-count-added">+{formatLineCountNumber(lineCount.additions)}</span>
-      <span className="codiff-line-count-deleted">
+      <span className="codophon-line-count-added">
+        +{formatLineCountNumber(lineCount.additions)}
+      </span>
+      <span className="codophon-line-count-deleted">
         -{formatLineCountNumber(lineCount.deletions)}
       </span>
     </span>

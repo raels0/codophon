@@ -9,25 +9,25 @@ import {
 } from 'react';
 import { useFormStatus } from 'react-dom';
 
-export const buttonVariants = cva('codiff-button', {
+export const buttonVariants = cva('codophon-button', {
   defaultVariants: {
     size: 'default',
     variant: 'default',
   },
   variants: {
     size: {
-      default: 'codiff-button-size-default',
-      icon: 'codiff-button-size-icon',
-      lg: 'codiff-button-size-lg',
-      sm: 'codiff-button-size-sm',
+      default: 'codophon-button-size-default',
+      icon: 'codophon-button-size-icon',
+      lg: 'codophon-button-size-lg',
+      sm: 'codophon-button-size-sm',
     },
     variant: {
-      default: 'codiff-button-default',
-      destructive: 'codiff-button-destructive',
-      ghost: 'codiff-button-ghost',
-      link: 'codiff-button-link',
-      outline: 'codiff-button-outline',
-      secondary: 'codiff-button-secondary',
+      default: 'codophon-button-default',
+      destructive: 'codophon-button-destructive',
+      ghost: 'codophon-button-ghost',
+      link: 'codophon-button-link',
+      outline: 'codophon-button-outline',
+      secondary: 'codophon-button-secondary',
     },
   },
 });

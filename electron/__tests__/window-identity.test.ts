@@ -63,7 +63,7 @@ const initRepository = async (path: string) => {
 };
 
 test('window identities resolve commit refs to the same commit sha', async () => {
-  await using directory = await createTemporaryDirectory('codiff-window-identity-');
+  await using directory = await createTemporaryDirectory('codophon-window-identity-');
   await initRepository(directory.path);
 
   const head = await git(directory.path, ['rev-parse', 'HEAD']);
@@ -88,9 +88,9 @@ test(
   'resolved repository states build identities without invoking Git',
   { concurrent: false },
   async () => {
-    await using repository = await createTemporaryDirectory('codiff-window-identity-');
+    await using repository = await createTemporaryDirectory('codophon-window-identity-');
     await initRepository(repository.path);
-    await using fakeBin = await createTemporaryDirectory('codiff-resolved-window-identity-');
+    await using fakeBin = await createTemporaryDirectory('codophon-resolved-window-identity-');
     const gitMarker = join(fakeBin.path, 'git-invoked');
     await using _environment = createTemporaryEnvironment({
       PATH: `${fakeBin.path}:${process.env.PATH ?? ''}`,
@@ -117,7 +117,7 @@ test(
 );
 
 test('implicit walkthrough identities use HEAD only when the working tree is clean', async () => {
-  await using directory = await createTemporaryDirectory('codiff-window-identity-');
+  await using directory = await createTemporaryDirectory('codophon-window-identity-');
   await initRepository(directory.path);
 
   const headIdentity = getWindowIdentity(directory.path, {
@@ -138,7 +138,7 @@ test('implicit walkthrough identities use HEAD only when the working tree is cle
 });
 
 test('window identities distinguish branch history launches', async () => {
-  await using directory = await createTemporaryDirectory('codiff-window-identity-');
+  await using directory = await createTemporaryDirectory('codophon-window-identity-');
   await initRepository(directory.path);
 
   await git(directory.path, ['checkout', '-b', 'feature']);
@@ -161,49 +161,49 @@ test('window identities distinguish branch history launches', async () => {
 });
 
 test('window identities normalize GitHub pull request sources', async () => {
-  await using directory = await createTemporaryDirectory('codiff-window-identity-');
+  await using directory = await createTemporaryDirectory('codophon-window-identity-');
   await initRepository(directory.path);
 
   expect(
     getWindowIdentity(directory.path, {
       source: {
         type: 'pull-request',
-        url: 'https://github.com/NKZW-Tech/Codiff/pull/8',
+        url: 'https://github.com/Raels0/Codophon/pull/8',
       },
     })?.sourceKey,
-  ).toBe('pull-request:nkzw-tech/codiff#8');
+  ).toBe('pull-request:raels0/codophon#8');
   expect(
     getWindowIdentity(directory.path, {
       source: {
         number: 8,
-        owner: 'nkzw-tech',
-        repo: 'codiff',
+        owner: 'raels0',
+        repo: 'codophon',
         type: 'pull-request',
-        url: 'https://github.com/nkzw-tech/codiff/pull/8',
+        url: 'https://github.com/raels0/codophon/pull/8',
       },
     })?.key,
   ).toBe(
     getWindowIdentity(directory.path, {
       source: {
         type: 'pull-request',
-        url: 'https://github.com/NKZW-Tech/Codiff/pull/8',
+        url: 'https://github.com/Raels0/Codophon/pull/8',
       },
     })?.key,
   );
 });
 
 test('window identities normalize pull request URLs copied from a review tab', async () => {
-  await using directory = await createTemporaryDirectory('codiff-window-identity-');
+  await using directory = await createTemporaryDirectory('codophon-window-identity-');
   await initRepository(directory.path);
 
   expect(
     getWindowIdentity(directory.path, {
       source: {
         type: 'pull-request',
-        url: 'https://github.com/NKZW-Tech/Codiff/pull/8/changes#r4821',
+        url: 'https://github.com/Raels0/Codophon/pull/8/changes#r4821',
       },
     })?.sourceKey,
-  ).toBe('pull-request:nkzw-tech/codiff#8');
+  ).toBe('pull-request:raels0/codophon#8');
 });
 
 test('window identity matching requires exact identity matches', () => {
@@ -218,8 +218,8 @@ test('window identity matching requires exact identity matches', () => {
   ).toBe(2);
   expect(
     findMatchingWindowIdentity(
-      { key: 'repo-a\0pull-request:nkzw-tech/codiff#9' },
-      new Map([[1, { key: 'repo-a\0pull-request:nkzw-tech/codiff#8' }]]),
+      { key: 'repo-a\0pull-request:raels0/codophon#9' },
+      new Map([[1, { key: 'repo-a\0pull-request:raels0/codophon#8' }]]),
     ),
   ).toBeNull();
   expect(findMatchingWindowIdentity(null, new Map([[1, { key: 'repo-a\0working-tree' }]]))).toBe(

@@ -19,7 +19,7 @@ const getWindowSourceTitle = (source) =>
           : source.ref;
 
 /** @param {string} title */
-const getCodiffWindowTitle = (title) => `${title} · Codiff`;
+const getCodophonWindowTitle = (title) => `${title} · Codophon`;
 
 /**
  * @param {WindowRepositoryState} state
@@ -27,7 +27,7 @@ const getCodiffWindowTitle = (title) => `${title} · Codiff`;
 const getRepositoryWindowTitle = (state) => {
   // Use the resolved source so aliases such as HEAD and a PR URL become the view the user opened.
   const sourceTitle = getWindowSourceTitle(state.source);
-  return getCodiffWindowTitle(`${basename(state.root)}${sourceTitle ? `/${sourceTitle}` : ''}`);
+  return getCodophonWindowTitle(`${basename(state.root)}${sourceTitle ? `/${sourceTitle}` : ''}`);
 };
 
 /**

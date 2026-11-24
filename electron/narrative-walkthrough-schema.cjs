@@ -32,7 +32,7 @@ const hunkGroupProperties = {
   id: { type: 'string' },
   notes: {
     description:
-      'Optional short header notes for selected hunk ids. Codiff renders each note under that focused diff header.',
+      'Optional short header notes for selected hunk ids. Codophon renders each note under that focused diff header.',
     items: {
       additionalProperties: false,
       properties: {
@@ -151,7 +151,7 @@ const narrativeWalkthroughSchema = {
   type: 'object',
 };
 
-// Agent generation only needs the fields that define the review path. Codiff
+// Agent generation only needs the fields that define the review path. Codophon
 // derives support groups and all display metadata from the live diff.
 const narrativeWalkthroughGenerationSchema = {
   additionalProperties: false,
@@ -195,7 +195,7 @@ const toArray = (value) => (Array.isArray(value) ? value : value == null ? [] : 
 
 /**
  * OpenAI structured outputs require every object key to be listed in `required`.
- * Keep Codiff's public schema ergonomic, and derive the stricter response-format
+ * Keep Codophon's public schema ergonomic, and derive the stricter response-format
  * schema only for agent calls. Originally optional properties become nullable.
  * @param {any} schema
  * @param {boolean} [optional]

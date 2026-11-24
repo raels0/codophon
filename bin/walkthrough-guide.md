@@ -1,8 +1,8 @@
 # Narrative walkthrough — authoring guide
 
-This is Codiff's guidance for authoring a **narrative walkthrough**: a compact review path
+This is Codophon's guidance for authoring a **narrative walkthrough**: a compact review path
 through a change, with ordered chapters, stops, and deterministic hunk ids from the live
-diff. The diff content itself is not embedded. Codiff computes the diff from the repository,
+diff. The diff content itself is not embedded. Codophon computes the diff from the repository,
 resolves hunk ids on load, and renders the real current diff.
 
 Desktop-generated walkthroughs use the writing guidance in **Agent Settings → Prompts**.
@@ -10,7 +10,7 @@ Those edits do not change the JSON shape below or apply to walkthroughs supplied
 `--walkthrough-file`.
 
 Write the JSON document to a **temporary file outside the repository** and pass it to
-Codiff with `--walkthrough-file`.
+Codophon with `--walkthrough-file`.
 
 Default to the **staged** diff (`git diff --staged`). If the user named a target, use that:
 a commit, branch, pull request, ref range, or repository path. If nothing is staged, fall back
@@ -49,7 +49,7 @@ choose.
   `"Tighten validation"`. Use enough words to be clear, not a filename or path. If the diff only
   defines settings, don't claim it enforces them.
 - **`hunkIds[]`** — deterministic hunk ids from the live diff (see "hunkId format"), in the exact order
-  Codiff should render them. Default to one review idea per stop, not one hunk per stop. Use
+  Codophon should render them. Default to one review idea per stop, not one hunk per stop. Use
   multiple ids when those hunks implement the same idea, invariant, behavior, or repeated pattern;
   cross-file and out-of-line order is allowed when it improves the review path. For 1-4 total
   hunks, usually write 1-2 stops. Some ids are synthetic hunks for binary, deferred,
@@ -59,9 +59,9 @@ choose.
   Use these when a specific hunk needs a label under its file header.
 - **`support[]`** — changed hunks that should stay off the main path. Use it for generated files,
   lockfiles, snapshots, docs-only changes, and repeated mechanical edits unless they are essential
-  to review. Codiff adds any omitted live-diff hunks to support. Generated-like files are one
-  synthetic hunk per changed section; never split them. Codiff groups generated-only support items
-  automatically, but keep behavior-relevant snapshots or artifacts on the main path. Codiff also
+  to review. Codophon adds any omitted live-diff hunks to support. Generated-like files are one
+  synthetic hunk per changed section; never split them. Codophon groups generated-only support items
+  automatically, but keep behavior-relevant snapshots or artifacts on the main path. Codophon also
   recognizes `linguist-generated` and `gitlab-generated` attributes from `.gitattributes`.
   Folder-name detection only applies to `__generated__` and `__snapshots__`; other folder names
   such as `codegen`, `gen`, and `generated` do not imply generated files. Filename rules still apply.
@@ -73,8 +73,8 @@ choose.
 ## Rules
 
 - Do not provide `added`, `deleted`, `path`, `oldPath`, `status`, `anchor`, `repo`, `source`,
-  `generatedAt`, `agent`, or `meta`. Codiff computes those from the live diff.
-- Every changed hunk should appear at most once in either a stop or support. Codiff adds omitted
+  `generatedAt`, `agent`, or `meta`. Codophon computes those from the live diff.
+- Every changed hunk should appear at most once in either a stop or support. Codophon adds omitted
   live-diff hunks to support, but a clean document reads better.
 - Order stops by review leverage, not by file path.
 - Similar same-file hunks should usually be one stop with multiple `hunkIds`, not separate
@@ -116,10 +116,10 @@ The `<scope>` segment depends on which diff you anchored against:
 - `<commit SHA>` — every commit-like target: a single commit, a branch comparison, or a
   ref range. This is always the **full 40-character SHA of the diff's new (head) side**,
   resolved with `git rev-parse` — never a ref name or a `branch:`/`range:` prefix:
-  - single commit (`codiff <ref>`): the resolved commit SHA.
-  - branch comparison (`codiff <branch>` — current branch vs `<branch>`): the resolved
+  - single commit (`codophon <ref>`): the resolved commit SHA.
+  - branch comparison (`codophon <branch>` — current branch vs `<branch>`): the resolved
     **`HEAD`** SHA, _not_ `<branch>`.
-  - ref range (`codiff base..head` or `base...head`): the resolved SHA of `head`.
+  - ref range (`codophon base..head` or `base...head`): the resolved SHA of `head`.
 
 ## Validation
 

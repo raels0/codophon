@@ -59,7 +59,7 @@ import { useResizableSidebar } from './app/hooks/useResizableSidebar.ts';
 import { useReviewFileState } from './app/hooks/useReviewState.ts';
 import { createDefaultConfig } from './config/defaults.ts';
 import { getShortcutLabel } from './config/keymap.ts';
-import type { AgentSettingsSection, CodiffConfig } from './config/types.ts';
+import type { AgentSettingsSection, CodophonConfig } from './config/types.ts';
 import {
   defaultAgentSkillStatus,
   defaultLaunchOptions,
@@ -125,9 +125,9 @@ import { readViewedForState, writeViewed } from './lib/viewed.ts';
 import type {
   ChangedFile,
   AgentSkillStatus,
-  CodiffLaunchOptions,
-  CodiffPreferences,
-  CodiffUpdateStatus,
+  CodophonLaunchOptions,
+  CodophonPreferences,
+  CodophonUpdateStatus,
   DefinitionCandidate,
   GitIdentity,
   HistoryEntry,
@@ -147,7 +147,7 @@ const getFailedSectionLoadState = (section: DiffSection): DiffSection =>
         ...section,
         summary: {
           canLoad: false,
-          reason: 'Codiff could not load full file context.',
+          reason: 'Codophon could not load full file context.',
         },
       }
     : {
@@ -155,15 +155,20 @@ const getFailedSectionLoadState = (section: DiffSection): DiffSection =>
         loadState: 'error',
         summary: {
           canLoad: false,
-          reason: 'Codiff could not load this file.',
+          reason: 'Codophon could not load this file.',
         },
       };
 
-const getPreferencesFromConfig = ({ settings }: CodiffConfig): CodiffPreferences => ({
+const getPreferencesFromConfig = ({ settings }: CodophonConfig): CodophonPreferences => ({
   ...settings,
 });
 
 const defaultPreferences = getPreferencesFromConfig(createDefaultConfig());
+
+const orderRepositorySnapshot = (snapshot: RepositoryState): RepositoryState => ({
+  ...snapshot,
+  files: sortFiles(snapshot.files),
+});
 
 const getCollapsedViewedPaths = (
   files: ReadonlyArray<ChangedFile>,
@@ -175,7 +180,7 @@ const getCollapsedViewedPaths = (
 
 const getReloadSourceForLaunch = (
   reloadSelection: ReturnType<typeof consumeReloadSelection>,
-  launchOptions: CodiffLaunchOptions,
+  launchOptions: CodophonLaunchOptions,
 ) => {
   if (!reloadSelection) {
     return undefined;
@@ -194,8 +199,8 @@ export default function App({
   initialConfig,
   initialLaunchOptions,
 }: {
-  initialConfig?: CodiffConfig;
-  initialLaunchOptions?: CodiffLaunchOptions;
+  initialConfig?: CodophonConfig;
+  initialLaunchOptions?: CodophonLaunchOptions;
 } = {}) {
   const initialPreferences = initialConfig
     ? getPreferencesFromConfig(initialConfig)
@@ -211,17 +216,17 @@ export default function App({
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [reviewThemeError, setReviewThemeError] = useState<string | null>(null);
-  const [updateStatus, setUpdateStatus] = useState<CodiffUpdateStatus | null>(null);
-  const [launchOptions, setLaunchOptions] = useState<CodiffLaunchOptions>(
+  const [updateStatus, setUpdateStatus] = useState<CodophonUpdateStatus | null>(null);
+  const [launchOptions, setLaunchOptions] = useState<CodophonLaunchOptions>(
     initialLaunchOptions ?? defaultLaunchOptions,
   );
-  const [codiffConfig, setCodiffConfig] = useState<CodiffConfig>(
+  const [codophonConfig, setCodophonConfig] = useState<CodophonConfig>(
     initialConfig ?? createDefaultConfig,
   );
   const [agentSkillInstalling, setAgentSkillInstalling] = useState(false);
   const [agentSkillStatus, setAgentSkillStatus] =
     useState<AgentSkillStatus>(defaultAgentSkillStatus);
-  const [preferences, setPreferences] = useState<CodiffPreferences>(initialPreferences);
+  const [preferences, setPreferences] = useState<CodophonPreferences>(initialPreferences);
   const [configLoaded, setConfigLoaded] = useState(initialConfig != null);
   const [reloadDeltaPaths, setReloadDeltaPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [scrollTarget, setScrollTarget] = useState<ReviewScrollTarget | null>(null);
@@ -257,11 +262,16 @@ export default function App({
   const stateRef = useRef<RepositoryState | null>(null);
   const collapsedRef = useRef<Set<string>>(new Set());
   const expandedReviewKeysRef = useRef<Set<string>>(new Set());
-  const preferencesRef = useRef<CodiffPreferences>(initialPreferences);
+  const preferencesRef = useRef<CodophonPreferences>(initialPreferences);
   const selectedPathRef = useRef<string | null>(null);
   const sourceRequestRef = useRef(0);
   const refreshInProgressRef = useRef(false);
   const stateGenerationRef = useRef(0);
+  const installRepositorySnapshot = useCallback((snapshot: RepositoryState) => {
+    stateGenerationRef.current += 1;
+    stateRef.current = snapshot;
+    setState(snapshot);
+  }, []);
   const markdownRefreshQueueRef = useRef<Promise<void>>(Promise.resolve());
   const viewedRef = useRef<Record<string, string>>({});
   const persistViewed = useCallback((nextViewed: Record<string, string>) => {
@@ -390,7 +400,7 @@ export default function App({
     request: number;
   } | null>(null);
   const showWhitespace = preferences.showWhitespace;
-  const orderedFiles = useMemo(() => (state ? sortFiles(state.files) : []), [state]);
+  const orderedFiles = useMemo(() => state?.files ?? [], [state]);
   const {
     activeMatch: activeDiffSearchMatch,
     activeMatchIndex: effectiveActiveDiffSearchMatchIndex,
@@ -441,7 +451,7 @@ export default function App({
       loadingSectionKeysRef.current.add(key);
       setLoadingSectionIds((current) => new Set(current).add(section.id));
 
-      window.codiff
+      window.codophon
         .getDiffSectionContent({
           force: true,
           kind: section.kind,
@@ -528,7 +538,7 @@ export default function App({
         throw new Error(`Cannot load diff contents for '${file.path}'.`);
       }
 
-      const loadedSection = await window.codiff.getDiffSectionContent({
+      const loadedSection = await window.codophon.getDiffSectionContent({
         force: true,
         kind: section.kind,
         path: file.path,
@@ -564,10 +574,7 @@ export default function App({
 
         try {
           const nextState = await getRepositoryState(currentState.source);
-          const orderedState = {
-            ...nextState,
-            files: sortFiles(nextState.files),
-          };
+          const orderedState = orderRepositorySnapshot(nextState);
           if (
             sourceRequestRef.current !== sourceRequest ||
             stateGenerationRef.current !== stateGeneration ||
@@ -579,9 +586,7 @@ export default function App({
 
           const changedPaths = getChangedPaths(currentState.files, orderedState.files);
           const walkthroughNeedsRefresh = haveChangedFiles(currentState.files, orderedState.files);
-          stateGenerationRef.current += 1;
-          stateRef.current = orderedState;
-          setState(orderedState);
+          installRepositorySnapshot(orderedState);
           setLocalChangesDetected(false);
           setReviewComments((current) => getRefreshedReviewComments(orderedState, current));
           if (walkthroughNeedsRefresh) {
@@ -623,6 +628,7 @@ export default function App({
     [
       bumpItemVersion,
       getRepositoryState,
+      installRepositorySnapshot,
       refreshWalkthroughForState,
       setCollapsed,
       setReviewComments,
@@ -674,13 +680,13 @@ export default function App({
 
     const load = async () => {
       const reloadSelection = consumeReloadSelection();
-      const nextLaunchOptions = initialLaunchOptions ?? (await window.codiff.getLaunchOptions());
+      const nextLaunchOptions = initialLaunchOptions ?? (await window.codophon.getLaunchOptions());
       if (canceled) {
         return;
       }
       setLaunchOptions(nextLaunchOptions);
 
-      void window.codiff
+      void window.codophon
         .getAgentSkillStatus()
         .catch(() => defaultAgentSkillStatus)
         .then((status) => {
@@ -689,7 +695,7 @@ export default function App({
           }
         });
 
-      void window.codiff
+      void window.codophon
         .getTerminalHelperStatus()
         .catch(() => defaultTerminalHelperStatus)
         .then((status) => {
@@ -706,10 +712,7 @@ export default function App({
         return;
       }
 
-      const orderedState = {
-        ...nextState,
-        files: sortFiles(nextState.files),
-      };
+      const orderedState = orderRepositorySnapshot(nextState);
       if (
         orderedState.files.some(
           (file) =>
@@ -731,7 +734,7 @@ export default function App({
         historyRequestRef.current === historyRequest &&
         sourceRequestRef.current === sourceRequest;
       const loadHistory = () => {
-        void window.codiff
+        void window.codophon
           .getRepositoryHistory(HISTORY_PAGE_SIZE, nextHistorySource ?? undefined)
           .then((history) => {
             if (isCurrentHistory()) {
@@ -781,8 +784,8 @@ export default function App({
       const shouldFetchNarrative = shouldLoadNarrative || walkthroughFilePath != null;
       const narrativePromise = shouldFetchNarrative
         ? reloadFilesChanged && walkthroughFilePath == null
-          ? window.codiff.getNarrativeWalkthrough(orderedState.source, { force: true })
-          : window.codiff.getNarrativeWalkthrough(orderedState.source)
+          ? window.codophon.getNarrativeWalkthrough(orderedState.source, { force: true })
+          : window.codophon.getNarrativeWalkthrough(orderedState.source)
         : null;
       // Publish the diff before history or walkthrough generation finishes.
       const nextViewed = readViewedForState(orderedState);
@@ -795,9 +798,7 @@ export default function App({
         setMainMode('commit');
       }
 
-      stateGenerationRef.current += 1;
-      stateRef.current = orderedState;
-      setState(orderedState);
+      installRepositorySnapshot(orderedState);
       setLoadError(null);
       setCollapsed(getCollapsedViewedPaths(orderedState.files, nextViewed));
       setExpandedReviewKeys(new Set());
@@ -867,6 +868,7 @@ export default function App({
   }, [
     getRepositoryState,
     initialLaunchOptions,
+    installRepositorySnapshot,
     resetCommentFocus,
     scrollPathIntoReview,
     setCollapsed,
@@ -886,7 +888,7 @@ export default function App({
 
   useEffect(
     () =>
-      window.codiff.onRepositoryChanged(() => {
+      window.codophon.onRepositoryChanged(() => {
         setLocalChangesDetected(true);
       }),
     [],
@@ -895,7 +897,7 @@ export default function App({
   useEffect(() => {
     let canceled = false;
 
-    window.codiff
+    window.codophon
       .getUpdateStatus()
       .then((status) => {
         if (!canceled) {
@@ -904,7 +906,7 @@ export default function App({
       })
       .catch(() => {});
 
-    const unsubscribe = window.codiff.onUpdateStatusChanged(setUpdateStatus);
+    const unsubscribe = window.codophon.onUpdateStatusChanged(setUpdateStatus);
     return () => {
       canceled = true;
       unsubscribe();
@@ -914,7 +916,7 @@ export default function App({
   useEffect(() => {
     let canceled = false;
 
-    window.codiff
+    window.codophon
       .getGitIdentity()
       .then((identity) => {
         if (!canceled) {
@@ -993,7 +995,7 @@ export default function App({
       loadingSectionKeysRef.current.add(key);
 
       try {
-        const loadedSection = await window.codiff.getDiffSectionContent({
+        const loadedSection = await window.codophon.getDiffSectionContent({
           force: true,
           kind: request.section.kind,
           path: request.file.path,
@@ -1076,12 +1078,12 @@ export default function App({
     let canceled = false;
 
     if (!initialConfig) {
-      window.codiff.getConfig().then(
+      window.codophon.getConfig().then(
         (nextConfig) => {
           if (!canceled) {
             const nextPreferences = getPreferencesFromConfig(nextConfig);
             preferencesRef.current = nextPreferences;
-            setCodiffConfig(nextConfig);
+            setCodophonConfig(nextConfig);
             setPreferences(nextPreferences);
             setConfigLoaded(true);
           }
@@ -1094,11 +1096,11 @@ export default function App({
       );
     }
 
-    const removeConfigListener = window.codiff.onConfigChanged((nextConfig) => {
+    const removeConfigListener = window.codophon.onConfigChanged((nextConfig) => {
       const previousShowWhitespace = preferencesRef.current.showWhitespace;
       const nextPreferences = getPreferencesFromConfig(nextConfig);
       preferencesRef.current = nextPreferences;
-      setCodiffConfig(nextConfig);
+      setCodophonConfig(nextConfig);
       setPreferences(nextPreferences);
 
       if (previousShowWhitespace === nextPreferences.showWhitespace) {
@@ -1112,6 +1114,7 @@ export default function App({
 
       const request = sourceRequestRef.current + 1;
       sourceRequestRef.current = request;
+      // Invalidate in-flight section loads as soon as whitespace changes.
       stateGenerationRef.current += 1;
       loadingSectionKeysRef.current.clear();
       setLoadingSectionIds(new Set());
@@ -1122,10 +1125,7 @@ export default function App({
             return;
           }
 
-          const orderedState = {
-            ...nextState,
-            files: sortFiles(nextState.files),
-          };
+          const orderedState = orderRepositorySnapshot(nextState);
           const nextSelectedPath =
             selectedPathRef.current &&
             orderedState.files.some((file) => file.path === selectedPathRef.current)
@@ -1219,7 +1219,7 @@ export default function App({
   }, [preferences]);
 
   useEffect(() => {
-    const removeListener = window.codiff.onCopyPendingCommentsRequest(() => {
+    const removeListener = window.codophon.onCopyPendingCommentsRequest(() => {
       const currentState = stateRef.current;
       if (!currentState) {
         return '';
@@ -1236,8 +1236,8 @@ export default function App({
   }, [reviewCommentsRef]);
 
   useEffect(() => {
-    void window.codiff.isWindowFullScreen().then(setIsWindowFullScreen, () => {});
-    return window.codiff.onWindowFullScreenChanged(setIsWindowFullScreen);
+    void window.codophon.isWindowFullScreen().then(setIsWindowFullScreen, () => {});
+    return window.codophon.onWindowFullScreenChanged(setIsWindowFullScreen);
   }, []);
 
   useEffect(() => {
@@ -1260,7 +1260,7 @@ export default function App({
   }, []);
 
   const toggleWordWrap = useCallback(() => {
-    void window.codiff.setWordWrap(!preferencesRef.current.wordWrap).catch(() => {});
+    void window.codophon.setWordWrap(!preferencesRef.current.wordWrap).catch(() => {});
   }, []);
 
   const expandSidebar = useCallback(() => {
@@ -1282,7 +1282,7 @@ export default function App({
       return;
     }
 
-    void window.codiff.openFile(file.path).catch(() => {});
+    void window.codophon.openFile(file.path).catch(() => {});
   }, []);
 
   const getReviewCommandTarget = useCallback(() => {
@@ -1324,7 +1324,7 @@ export default function App({
     shortcutsHelpOpen,
     shortcutsHelpVisible,
   } = useAppKeyboardShortcuts({
-    keymap: codiffConfig.keymap,
+    keymap: codophonConfig.keymap,
     navigateHunks,
     onFocusFileFilter: focusFileFilter,
     onOpenDiffSearch: openDiffSearch,
@@ -1336,7 +1336,7 @@ export default function App({
   });
   const commandButtonRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => window.codiff.onFindInDiffs(openDiffSearch), [openDiffSearch]);
+  useEffect(() => window.codophon.onFindInDiffs(openDiffSearch), [openDiffSearch]);
 
   const loadMoreHistory = useCallback(() => {
     if (historyLoading || !historyHasMore) {
@@ -1347,7 +1347,7 @@ export default function App({
     const request = historyRequestRef.current + 1;
     historyRequestRef.current = request;
     setHistoryLoading(true);
-    window.codiff
+    window.codophon
       .getRepositoryHistory(nextLimit, historySource ?? undefined)
       .then((history) => {
         if (historyRequestRef.current !== request) {
@@ -1437,7 +1437,7 @@ export default function App({
       }
 
       // History must use the newly resolved PR snapshot, not its previous head/base.
-      const history = await window.codiff.getRepositoryHistory(
+      const history = await window.codophon.getRepositoryHistory(
         historyLimit,
         nextState.source.type === 'pull-request' ? nextState.source : refreshHistorySource,
       );
@@ -1445,16 +1445,11 @@ export default function App({
         return;
       }
 
-      const orderedState = {
-        ...nextState,
-        files: sortFiles(nextState.files),
-      };
+      const orderedState = orderRepositorySnapshot(nextState);
       const changedPaths = getChangedPaths(previousState.files, orderedState.files);
       const walkthroughNeedsRefresh = haveChangedFiles(previousState.files, orderedState.files);
 
-      stateGenerationRef.current += 1;
-      stateRef.current = orderedState;
-      setState(orderedState);
+      installRepositorySnapshot(orderedState);
       setReloadDeltaPaths(changedPaths);
       if (
         orderedState.source.type === 'pull-request' &&
@@ -1527,6 +1522,7 @@ export default function App({
     bumpItemVersion,
     getRepositoryState,
     historyLimit,
+    installRepositorySnapshot,
     loadReviewComments,
     mainModeRef,
     pendingSource,
@@ -1541,7 +1537,7 @@ export default function App({
 
   // ⌘R / the View menu's "Refresh Changes" item route here from the main
   // process instead of reloading the window.
-  useEffect(() => window.codiff.onRefreshRequest(refreshRepository), [refreshRepository]);
+  useEffect(() => window.codophon.onRefreshRequest(refreshRepository), [refreshRepository]);
 
   useEffect(() => {
     const writeCurrentReloadSelection = () => {
@@ -1589,10 +1585,7 @@ export default function App({
             return;
           }
 
-          const orderedState = {
-            ...nextState,
-            files: sortFiles(nextState.files),
-          };
+          const orderedState = orderRepositorySnapshot(nextState);
           const session = sourceSessionsRef.current.get(getSourceKey(orderedState.source));
           const nextViewed = readViewedForState(orderedState, session?.viewed);
           const nextSelectedPath =
@@ -1625,9 +1618,7 @@ export default function App({
             ? (session?.narrativeWalkthrough ?? null)
             : null;
 
-          stateGenerationRef.current += 1;
-          stateRef.current = orderedState;
-          setState(orderedState);
+          installRepositorySnapshot(orderedState);
           setHistorySource(getHistorySource(orderedState.source) ?? historySource);
           setCollapsed(nextCollapsed);
           setExpandedReviewKeys(nextExpandedReviewKeys);
@@ -1664,6 +1655,7 @@ export default function App({
     [
       getRepositoryState,
       historySource,
+      installRepositorySnapshot,
       loadReviewComments,
       pendingSource,
       refreshWalkthroughForState,
@@ -1686,7 +1678,7 @@ export default function App({
   const openReviewSource = useCallback(
     async (kind: OpenReviewSourceKind, value: string) => {
       if (kind === 'pull-request') {
-        const url = await window.codiff.resolvePullRequestUrl(value);
+        const url = await window.codophon.resolvePullRequestUrl(value);
         await selectSource({ type: 'pull-request', url }, { throwOnError: true });
         return;
       }
@@ -1705,20 +1697,20 @@ export default function App({
     setOpenReviewSourceKind(kind);
   }, []);
   const [agentSettings, setAgentSettings] = useState<AgentSettingsSection | null>(null);
-  useEffect(() => window.codiff.onOpenAgentSettings?.(setAgentSettings), []);
+  useEffect(() => window.codophon.onOpenAgentSettings?.(setAgentSettings), []);
 
   const openRepositoryFolder = useCallback(() => {
-    void window.codiff.openRepositoryFolder().catch(() => {});
+    void window.codophon.openRepositoryFolder().catch(() => {});
   }, []);
 
   useEffect(
-    () => window.codiff.onOpenReviewSource(showOpenReviewSourceDialog),
+    () => window.codophon.onOpenReviewSource(showOpenReviewSourceDialog),
     [showOpenReviewSourceDialog],
   );
 
-  const changeReviewTheme = useCallback((reviewTheme: CodiffPreferences['reviewTheme']) => {
+  const changeReviewTheme = useCallback((reviewTheme: CodophonPreferences['reviewTheme']) => {
     setReviewThemeError(null);
-    void window.codiff.setReviewTheme(reviewTheme).catch((error: unknown) => {
+    void window.codophon.setReviewTheme(reviewTheme).catch((error: unknown) => {
       setReviewThemeError(getRepositoryLoadError(error).message);
     });
   }, []);
@@ -1739,7 +1731,7 @@ export default function App({
     changeSidebarMode,
     focusFileFilter,
     getReviewCommandTarget,
-    onOpenAgentSettings: window.codiff.onOpenAgentSettings ? setAgentSettings : undefined,
+    onOpenAgentSettings: window.codophon.onOpenAgentSettings ? setAgentSettings : undefined,
     onOpenAskHistory:
       !pendingSource && state?.source.type === 'pull-request' ? openAskHistory : null,
     onOpenDiffSearch: openDiffSearch,
@@ -1786,7 +1778,7 @@ export default function App({
 
   const installTerminalHelper = useCallback(() => {
     setTerminalHelperInstalling(true);
-    window.codiff
+    window.codophon
       .installTerminalHelper()
       .then((status) => setTerminalHelperStatus(status))
       .catch(() => {
@@ -1799,7 +1791,7 @@ export default function App({
 
   const installAgentSkill = useCallback(() => {
     setAgentSkillInstalling(true);
-    window.codiff
+    window.codophon
       .installAgentSkill()
       .then((status) => setAgentSkillStatus(status))
       .catch(() => {
@@ -1810,7 +1802,7 @@ export default function App({
       });
   }, []);
 
-  const activeAgentBackend = launchOptions.agentBackend ?? codiffConfig.settings.agentBackend;
+  const activeAgentBackend = launchOptions.agentBackend ?? codophonConfig.settings.agentBackend;
   const showAgentUnavailablePanel =
     sidebarMode === 'walkthrough' &&
     !narrativeWalkthrough &&
@@ -1833,9 +1825,9 @@ export default function App({
   const agentLabel = getAgentLabel(activeAgentBackend);
   const agentSkillLabel = `${agentLabel} Skill`;
   const configuredModel = {
-    claude: codiffConfig.settings.claudeModel,
-    codex: codiffConfig.settings.openAIModel,
-    opencode: codiffConfig.settings.opencodeModel,
+    claude: codophonConfig.settings.claudeModel,
+    codex: codophonConfig.settings.openAIModel,
+    opencode: codophonConfig.settings.opencodeModel,
   }[activeAgentBackend];
   const settingsDialog = agentSettings ? (
     <AgentSettingsDialog
@@ -1844,7 +1836,7 @@ export default function App({
       initialSection={agentSettings}
       key={agentSettings}
       onClose={() => setAgentSettings(null)}
-      overrides={codiffConfig.settings.agentPrompts}
+      overrides={codophonConfig.settings.agentPrompts}
     />
   ) : null;
   const withAgentSettings = (content: ReactNode) => (
@@ -1950,19 +1942,19 @@ export default function App({
     gitIdentity,
     hunkNavigation,
     itemVersionByKey,
-    keymap: codiffConfig.keymap,
+    keymap: codophonConfig.keymap,
     loadingSectionIds,
     onAskCodex: askCodex,
     onAskFollowUpDraftChange: updateAskFollowUpDraft,
     onCommentDraftChange: updateActiveReviewCommentDraft,
     onCreateComment: createComment,
     onDeleteComment: deleteComment,
-    onFindDefinitions: window.codiff.findDefinitions,
-    onLoadImageContent: window.codiff.getDiffImageContent,
+    onFindDefinitions: window.codophon.findDefinitions,
+    onLoadImageContent: window.codophon.getDiffImageContent,
     onLoadSection: loadDiffSection,
     onLoadSectionContents: loadDiffSectionContents,
     onOpenDefinition: (candidate: DefinitionCandidate) => {
-      void window.codiff.openFile(candidate.path, candidate.lineNumber).catch(() => {});
+      void window.codophon.openFile(candidate.path, candidate.lineNumber).catch(() => {});
     },
     onOpenFile: openFile,
     onReady: markInitialContentReady,
@@ -2056,7 +2048,7 @@ export default function App({
               className="review-top-bar-icon-button review-top-bar-text-button"
               onClick={openCommandBar}
               ref={commandButtonRef}
-              title={`Command palette (${getShortcutLabel(codiffConfig.keymap, 'commandBar')})`}
+              title={`Command palette (${getShortcutLabel(codophonConfig.keymap, 'commandBar')})`}
               type="button"
             >
               <MagnifyingGlass aria-hidden size={16} weight="bold" />
@@ -2130,7 +2122,7 @@ export default function App({
           />
         }
         toggleTitle={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar (${getShortcutLabel(
-          codiffConfig.keymap,
+          codophonConfig.keymap,
           'toggleSidebar',
         )})`}
       />
@@ -2166,7 +2158,7 @@ export default function App({
       <DiffSearchPanel
         activeIndex={effectiveActiveDiffSearchMatchIndex}
         focusRequest={diffSearchFocusRequest}
-        keymap={codiffConfig.keymap}
+        keymap={codophonConfig.keymap}
         matchCount={diffSearchMatches.length}
         onChange={updateDiffSearchQuery}
         onClose={closeDiffSearch}
@@ -2177,7 +2169,7 @@ export default function App({
       />
       <CommandBar
         commands={commandBarCommands}
-        keymap={codiffConfig.keymap}
+        keymap={codophonConfig.keymap}
         onClose={closeCommandBar}
         visible={commandBarVisible}
       />
@@ -2215,7 +2207,7 @@ export default function App({
         />
       ) : null}
       <KeyboardShortcutsHelp
-        keymap={codiffConfig.keymap}
+        keymap={codophonConfig.keymap}
         onClose={() => {
           closeShortcutsHelp();
           commandButtonRef.current?.focus();
@@ -2246,7 +2238,7 @@ export default function App({
           historyEntries={historyEntries}
           historyHasMore={historyHasMore}
           historyLoading={historyLoading}
-          keymap={codiffConfig.keymap}
+          keymap={codophonConfig.keymap}
           mode={sidebarMode}
           narrativeNavigation={narrativeNavigation}
           narrativeWalkthrough={narrativeWalkthrough}
@@ -2271,10 +2263,10 @@ export default function App({
         {updateStatus ? (
           <UpdatePill
             onDismiss={() => {
-              window.codiff.dismissUpdate().then(setUpdateStatus, () => {});
+              window.codophon.dismissUpdate().then(setUpdateStatus, () => {});
             }}
             onOpen={() => {
-              void window.codiff.openReleasePage();
+              void window.codophon.openReleasePage();
             }}
             status={updateStatus}
           />

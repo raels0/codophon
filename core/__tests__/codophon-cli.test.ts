@@ -45,7 +45,7 @@ let refRepositoryPath = '';
 let refRepositoryShortHash = '';
 
 beforeAll(async () => {
-  refRepositoryPath = await realpath(await mkdtemp(join(tmpdir(), 'codiff-cli-refs-')));
+  refRepositoryPath = await realpath(await mkdtemp(join(tmpdir(), 'codophon-cli-refs-')));
   await git(refRepositoryPath, ['init']);
   await git(refRepositoryPath, ['commit', '--allow-empty', '-m', 'first']);
   await git(refRepositoryPath, ['branch', 'base']);
@@ -75,18 +75,18 @@ const withFakeGitHubCli = async <T>(
   response: Record<string, unknown>,
   callback: (argsPath: string) => T | Promise<T>,
 ) => {
-  await using directory = await createTemporaryDirectory('codiff-cli-gh-');
+  await using directory = await createTemporaryDirectory('codophon-cli-gh-');
   const argsPath = join(directory.path, 'args.txt');
   const commandPath = join(directory.path, 'gh');
 
   await writeFile(
     commandPath,
-    '#!/bin/sh\nfor arg in "$@"; do\n  printf "%s\\n" "$arg" >> "$CODIFF_TEST_GH_ARGS"\ndone\nprintf "%s\\n" "$CODIFF_TEST_GH_RESPONSE"\n',
+    '#!/bin/sh\nfor arg in "$@"; do\n  printf "%s\\n" "$arg" >> "$CODOPHON_TEST_GH_ARGS"\ndone\nprintf "%s\\n" "$CODOPHON_TEST_GH_RESPONSE"\n',
   );
   await chmod(commandPath, 0o755);
   await using _environment = createTemporaryEnvironment({
-    CODIFF_TEST_GH_ARGS: argsPath,
-    CODIFF_TEST_GH_RESPONSE: JSON.stringify(response),
+    CODOPHON_TEST_GH_ARGS: argsPath,
+    CODOPHON_TEST_GH_RESPONSE: JSON.stringify(response),
     PATH: `${directory.path}:${process.env.PATH ?? ''}`,
   });
   return await callback(argsPath);
@@ -130,13 +130,13 @@ test('parseArguments treats HEAD positional revisions as commit refs', () => {
 
 test('parseArguments canonicalizes review URLs copied from a review tab', () => {
   for (const value of [
-    'https://github.com/nkzw-tech/codiff/pull/1728/changes#r4821',
-    'https://github.com/nkzw-tech/codiff/pull/1728/files',
-    'https://www.github.com/nkzw-tech/codiff/pull/1728?diff=split',
-    'github.com/nkzw-tech/codiff/pull/1728',
+    'https://github.com/raels0/codophon/pull/1728/changes#r4821',
+    'https://github.com/raels0/codophon/pull/1728/files',
+    'https://www.github.com/raels0/codophon/pull/1728?diff=split',
+    'github.com/raels0/codophon/pull/1728',
   ]) {
     expect(parseArguments([value])).toMatchObject({
-      pullRequestUrl: 'https://github.com/nkzw-tech/codiff/pull/1728',
+      pullRequestUrl: 'https://github.com/raels0/codophon/pull/1728',
     });
   }
 
@@ -197,7 +197,7 @@ test('parseArguments treats hex-like refs as commits before branches', async () 
 });
 
 test('parseArguments keeps existing hash-like paths as repository paths', async () => {
-  await using directory = await createTemporaryDirectory('codiff-cli-');
+  await using directory = await createTemporaryDirectory('codophon-cli-');
   const repositoryPath = join(directory.path, 'deadbeef');
 
   await mkdir(repositoryPath);
@@ -272,9 +272,9 @@ test('parseArguments recognizes Codex walkthrough seed options', () => {
 });
 
 test('parseArguments recognizes a pre-authored walkthrough file', () => {
-  expect(parseArguments(['-w', '--walkthrough-file', '.codiff/walkthrough.json'])).toMatchObject({
+  expect(parseArguments(['-w', '--walkthrough-file', '.codophon/walkthrough.json'])).toMatchObject({
     walkthrough: true,
-    walkthroughFilePath: resolve('.codiff/walkthrough.json'),
+    walkthroughFilePath: resolve('.codophon/walkthrough.json'),
   });
 });
 
@@ -355,15 +355,15 @@ test('parseArguments accepts Azure DevOps pull request URLs', () => {
 });
 
 test('resolvePullRequestUrl builds GitHub PR URLs from the origin remote', async () => {
-  await using directory = await createTemporaryDirectory('codiff-cli-');
+  await using directory = await createTemporaryDirectory('codophon-cli-');
   const repositoryPath = directory.path;
 
   await git(repositoryPath, ['init']);
   await git(repositoryPath, ['remote', 'add', 'upstream', 'https://github.com/other/repo.git']);
-  await git(repositoryPath, ['remote', 'add', 'origin', 'git@github.com:nkzw-tech/codiff.git']);
+  await git(repositoryPath, ['remote', 'add', 'origin', 'git@github.com:raels0/codophon.git']);
 
   expect(resolvePullRequestUrl(repositoryPath, 75)).toBe(
-    'https://github.com/nkzw-tech/codiff/pull/75',
+    'https://github.com/raels0/codophon/pull/75',
   );
 });
 
@@ -374,7 +374,7 @@ test(
     await withFakeGitHubCli(
       {
         state: 'OPEN',
-        url: 'https://github.com/nkzw-tech/codiff/pull/129',
+        url: 'https://github.com/raels0/codophon/pull/129',
       },
       async (argsPath) => {
         expect(
@@ -385,7 +385,7 @@ test(
             repositoryPath: process.cwd(),
             url: null,
           }),
-        ).toBe('https://github.com/nkzw-tech/codiff/pull/129');
+        ).toBe('https://github.com/raels0/codophon/pull/129');
         expect(await readFile(argsPath, 'utf8')).toBe(
           ['pr', 'view', 'iminoso:feat/pr-branch-lookup', '--json', 'state,url', ''].join('\n'),
         );
@@ -394,7 +394,7 @@ test(
   },
 );
 test('resolvePullRequestUrl builds Azure DevOps PR URLs from SSH remotes', async () => {
-  await using directory = await createTemporaryDirectory('codiff-cli-');
+  await using directory = await createTemporaryDirectory('codophon-cli-');
   const repositoryPath = directory.path;
 
   await git(repositoryPath, ['init']);
@@ -414,7 +414,7 @@ test('resolvePullRequestUrl builds Azure DevOps PR URLs from SSH remotes', async
 });
 
 test('resolvePullRequestUrl prefers GitHub remotes when both GitHub and Azure exist', async () => {
-  await using directory = await createTemporaryDirectory('codiff-cli-');
+  await using directory = await createTemporaryDirectory('codophon-cli-');
   const repositoryPath = directory.path;
 
   await git(repositoryPath, ['init']);
@@ -424,10 +424,10 @@ test('resolvePullRequestUrl prefers GitHub remotes when both GitHub and Azure ex
     'azure',
     'git@ssh.dev.azure.com:v3/contoso/Fabrikam/Storefront',
   ]);
-  await git(repositoryPath, ['remote', 'add', 'origin', 'git@github.com:nkzw-tech/codiff.git']);
+  await git(repositoryPath, ['remote', 'add', 'origin', 'git@github.com:raels0/codophon.git']);
 
   expect(resolvePullRequestUrl(repositoryPath, 75, 'github')).toBe(
-    'https://github.com/nkzw-tech/codiff/pull/75',
+    'https://github.com/raels0/codophon/pull/75',
   );
 });
 
@@ -435,7 +435,7 @@ test('PR branch lookup rejects merged pull requests', { concurrent: false }, asy
   await withFakeGitHubCli(
     {
       state: 'MERGED',
-      url: 'https://github.com/nkzw-tech/codiff/pull/127',
+      url: 'https://github.com/raels0/codophon/pull/127',
     },
     () => {
       expect(() =>
@@ -464,9 +464,9 @@ done
 mv "$PACKAGED_ARGS_FILE.tmp" "$PACKAGED_ARGS_FILE"
 `;
 
-for (const executableName of ['codiff.exe', 'codiff']) {
+for (const executableName of ['codophon.exe', 'codophon']) {
   test(`packaged terminal helper launches ${executableName} with the parsed review`, async () => {
-    await using directory = await createTemporaryDirectory('codiff-packaged-app-');
+    await using directory = await createTemporaryDirectory('codophon-packaged-app-');
     const appPath = join(directory.path, 'resources', 'app');
     const argsPath = join(directory.path, 'args.txt');
     const repositoryPath = join(directory.path, 'repo');
@@ -475,16 +475,20 @@ for (const executableName of ['codiff.exe', 'codiff']) {
     for (const file of await readdir(resolve('bin'))) {
       await writeFile(join(appPath, 'bin', file), await readFile(resolve('bin', file)));
     }
-    await chmod(join(appPath, 'bin', 'codiff-app'), 0o755);
+    await chmod(join(appPath, 'bin', 'codophon-app'), 0o755);
     await symlink(resolve('electron'), join(appPath, 'electron'), 'dir');
     await writeFile(join(appPath, 'package.json'), await readFile(resolve('package.json')));
     await writeFile(join(directory.path, executableName), fakePackagedExecutable);
     await chmod(join(directory.path, executableName), 0o755);
 
-    const { CODIFF_NODE_COMMAND: _, ...env } = process.env;
-    await execFileAsync(join(appPath, 'bin', 'codiff-app'), ['--commit', 'HEAD', repositoryPath], {
-      env: { ...env, PACKAGED_ARGS_FILE: argsPath, REAL_NODE: process.execPath },
-    });
+    const { CODOPHON_NODE_COMMAND: _, ...env } = process.env;
+    await execFileAsync(
+      join(appPath, 'bin', 'codophon-app'),
+      ['--commit', 'HEAD', repositoryPath],
+      {
+        env: { ...env, PACKAGED_ARGS_FILE: argsPath, REAL_NODE: process.execPath },
+      },
+    );
 
     let args: Array<string> = [];
     for (let attempt = 0; attempt < 250 && args.length === 0; attempt++) {
@@ -502,7 +506,7 @@ for (const executableName of ['codiff.exe', 'codiff']) {
 }
 
 test('Codex skill launcher uses the session cwd as the repository target', async () => {
-  await using logger = await createFakeCommandLogger('codiff-skill-launcher-', 'codiff');
+  await using logger = await createFakeCommandLogger('codophon-skill-launcher-', 'codophon');
   const home = join(logger.directory, 'home');
   const repositoryPath = join(logger.directory, 'repo');
   const sessionDirectory = join(home, '.codex', 'sessions', '2026', '05', '25');
@@ -525,14 +529,14 @@ test('Codex skill launcher uses the session cwd as the repository target', async
 
   await execFileAsync(
     process.execPath,
-    [resolve('skills/codiff/scripts/open-codiff.mjs'), '--file', walkthroughFile, 'HEAD'],
+    [resolve('skills/codophon/scripts/open-codophon.mjs'), '--file', walkthroughFile, 'HEAD'],
     {
-      cwd: resolve('skills/codiff'),
+      cwd: resolve('skills/codophon'),
       env: {
         ...logger.env,
         CODEX_HOME: join(home, '.codex'),
         CODEX_THREAD_ID: sessionId,
-        CODIFF_COMMAND: logger.commandPath,
+        CODOPHON_COMMAND: logger.commandPath,
       },
     },
   );
@@ -551,24 +555,24 @@ test('Codex skill launcher uses the session cwd as the repository target', async
 });
 
 test('skill launcher identifies the agent from its install path and falls back to the source repo', async () => {
-  await using logger = await createFakeCommandLogger('codiff-skill-launcher-', 'codiff');
+  await using logger = await createFakeCommandLogger('codophon-skill-launcher-', 'codophon');
   const walkthroughFile = join(logger.directory, 'walkthrough.json');
-  const installedSkill = join(logger.directory, 'home', '.codex', 'skills', 'codiff');
+  const installedSkill = join(logger.directory, 'home', '.codex', 'skills', 'codophon');
 
   await writeFile(walkthroughFile, '{}');
   await mkdir(dirname(installedSkill), { recursive: true });
-  await symlink(resolve('skills/codiff'), installedSkill, 'dir');
+  await symlink(resolve('skills/codophon'), installedSkill, 'dir');
 
   await execFileAsync(
     process.execPath,
-    [join(installedSkill, 'scripts/open-codiff.mjs'), '--file', walkthroughFile],
+    [join(installedSkill, 'scripts/open-codophon.mjs'), '--file', walkthroughFile],
     {
-      cwd: resolve('skills/codiff'),
+      cwd: resolve('skills/codophon'),
       env: {
         ...logger.env,
         CODEX_HOME: join(logger.directory, 'home', '.codex'),
         CODEX_THREAD_ID: '',
-        CODIFF_COMMAND: logger.commandPath,
+        CODOPHON_COMMAND: logger.commandPath,
       },
     },
   );
@@ -584,7 +588,7 @@ test('skill launcher identifies the agent from its install path and falls back t
 });
 
 test('Codex skill launcher does not override explicit repository targets', async () => {
-  await using logger = await createFakeCommandLogger('codiff-skill-launcher-', 'codiff');
+  await using logger = await createFakeCommandLogger('codophon-skill-launcher-', 'codophon');
   const sessionRepositoryPath = join(logger.directory, 'session-repo');
   const explicitRepositoryPath = join(logger.directory, 'explicit-repo');
   const walkthroughFile = join(logger.directory, 'walkthrough.json');
@@ -596,7 +600,7 @@ test('Codex skill launcher does not override explicit repository targets', async
   await execFileAsync(
     process.execPath,
     [
-      resolve('skills/codiff/scripts/open-codiff.mjs'),
+      resolve('skills/codophon/scripts/open-codophon.mjs'),
       '--agent',
       'codex',
       '--file',
@@ -604,12 +608,12 @@ test('Codex skill launcher does not override explicit repository targets', async
       explicitRepositoryPath,
     ],
     {
-      cwd: resolve('skills/codiff'),
+      cwd: resolve('skills/codophon'),
       env: {
         ...logger.env,
         CODEX_SESSION_CWD: sessionRepositoryPath,
         CODEX_THREAD_ID: '',
-        CODIFF_COMMAND: logger.commandPath,
+        CODOPHON_COMMAND: logger.commandPath,
       },
     },
   );
@@ -625,7 +629,7 @@ test('Codex skill launcher does not override explicit repository targets', async
 });
 
 test('Claude skill launcher uses the session cwd and forwards --agent claude', async () => {
-  await using logger = await createFakeCommandLogger('codiff-claude-launcher-', 'codiff');
+  await using logger = await createFakeCommandLogger('codophon-claude-launcher-', 'codophon');
   const home = join(logger.directory, 'home');
   const repositoryPath = join(logger.directory, 'repo');
   const sessionId = '019e5e57-e7d6-7392-9ad1-ad959319d2fb';
@@ -642,14 +646,14 @@ test('Claude skill launcher uses the session cwd and forwards --agent claude', a
 
   await execFileAsync(
     process.execPath,
-    [resolve('skills/codiff/scripts/open-codiff.mjs'), '--file', walkthroughFile, 'HEAD'],
+    [resolve('skills/codophon/scripts/open-codophon.mjs'), '--file', walkthroughFile, 'HEAD'],
     {
-      cwd: resolve('skills/codiff'),
+      cwd: resolve('skills/codophon'),
       env: {
         ...logger.env,
         CLAUDE_CONFIG_DIR: join(home, '.claude'),
         CLAUDE_SESSION_ID: sessionId,
-        CODIFF_COMMAND: logger.commandPath,
+        CODOPHON_COMMAND: logger.commandPath,
       },
     },
   );
@@ -668,7 +672,7 @@ test('Claude skill launcher uses the session cwd and forwards --agent claude', a
 });
 
 test('OpenCode skill launcher links the project session from a repository subdirectory', async () => {
-  await using logger = await createFakeCommandLogger('codiff-opencode-launcher-', 'codiff');
+  await using logger = await createFakeCommandLogger('codophon-opencode-launcher-', 'codophon');
   const repositoryPath = join(logger.directory, 'repo');
   const workingDirectory = join(repositoryPath, 'nested');
   const walkthroughFile = join(logger.directory, 'walkthrough.json');
@@ -692,7 +696,7 @@ printf '[{"id":"${sessionId}","directory":"%s"}]\\n' "$OPENCODE_SESSION_DIRECTOR
   await execFileAsync(
     process.execPath,
     [
-      resolve('skills/codiff/scripts/open-codiff.mjs'),
+      resolve('skills/codophon/scripts/open-codophon.mjs'),
       '--agent',
       'opencode',
       '--file',
@@ -703,7 +707,7 @@ printf '[{"id":"${sessionId}","directory":"%s"}]\\n' "$OPENCODE_SESSION_DIRECTOR
       cwd: workingDirectory,
       env: {
         ...logger.env,
-        CODIFF_COMMAND: logger.commandPath,
+        CODOPHON_COMMAND: logger.commandPath,
         HOME: homePath,
         OPENCODE_SESSION_DIRECTORY: realRepositoryPath,
         PATH: logger.directory,
@@ -742,22 +746,22 @@ test('parseArguments defaults help and version to false', () => {
 
 test('formatHelpText includes version and all flags', () => {
   const text = formatHelpText('1.2.3');
-  expect(text).toContain('codiff v1.2.3');
+  expect(text).toContain('codophon v1.2.3');
   expect(text).toContain('Usage:');
   expect(text).toContain('--help');
   expect(text).toContain('--version');
   expect(text).toContain('--commit');
   expect(text).toContain('--codex-session');
   expect(text).toContain('--opencode-session');
-  expect(text).toContain('--plan');
+  expect(text).not.toContain('--plan');
   expect(text).not.toContain('--share');
   expect(text).toContain('--walkthrough');
   expect(text).toContain('--walkthrough-context');
   expect(text).toContain('-h');
   expect(text).toContain('-v');
   expect(text).toContain('-w');
-  expect(text).toContain('codiff pr owner:feature');
-  expect(text).toContain('codiff ado 75');
+  expect(text).toContain('codophon pr owner:feature');
+  expect(text).toContain('codophon ado 75');
 });
 
 test('formatHelpText styles titles and descriptions', () => {
@@ -769,17 +773,17 @@ test('formatHelpText styles titles and descriptions', () => {
   expect(text).toContain('  --help, -h');
   expect(text).not.toContain('\u001b[1;34m--help, -h\u001b[0m');
   expect(text).toContain('\u001b[90mShow this help message and exit.\u001b[0m');
-  expect(text).toContain('  codiff -w');
-  expect(text).not.toContain('\u001b[1;34mcodiff -w\u001b[0m');
+  expect(text).toContain('  codophon -w');
+  expect(text).not.toContain('\u001b[1;34mcodophon -w\u001b[0m');
   expect(text).toContain('\u001b[90mWalk through local changes, or HEAD when clean.\u001b[0m');
 });
 
-test('codiff-app prints help text and exits 0', async () => {
-  const { stdout } = await execFileAsync(resolve('bin/codiff-app'), ['--help'], {
+test('codophon-app prints help text and exits 0', async () => {
+  const { stdout } = await execFileAsync(resolve('bin/codophon-app'), ['--help'], {
     encoding: 'utf8',
-    env: { ...process.env, CODIFF_NODE_COMMAND: process.execPath },
+    env: { ...process.env, CODOPHON_NODE_COMMAND: process.execPath },
   });
-  expect(stdout).toContain('codiff v');
+  expect(stdout).toContain('codophon v');
   expect(stdout).toContain('Usage:');
   expect(stdout).toContain('--help');
   expect(stdout).toContain('--opencode-session <id>');
@@ -788,18 +792,18 @@ test('codiff-app prints help text and exits 0', async () => {
   expect(stdout).toContain('\u001b[90mShow this help message and exit.\u001b[0m');
 });
 
-test('codiff-app prints version and exits 0', async () => {
-  const { stdout } = await execFileAsync(resolve('bin/codiff-app'), ['--version'], {
+test('codophon-app prints version and exits 0', async () => {
+  const { stdout } = await execFileAsync(resolve('bin/codophon-app'), ['--version'], {
     encoding: 'utf8',
-    env: { ...process.env, CODIFF_NODE_COMMAND: process.execPath },
+    env: { ...process.env, CODOPHON_NODE_COMMAND: process.execPath },
   });
-  expect(stdout).toMatch(/^codiff v\d+\.\d+\.\d+\n$/);
+  expect(stdout).toMatch(/^codophon v\d+\.\d+\.\d+\n$/);
 });
 
-test('codiff --walkthrough-guide prints the guide and embedded schema, then exits 0', async () => {
+test('codophon --walkthrough-guide prints the guide and embedded schema, then exits 0', async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
-    ['bin/codiff.js', '--walkthrough-guide'],
+    ['bin/codophon.js', '--walkthrough-guide'],
     {
       cwd: resolve('.'),
       encoding: 'utf8',

@@ -1,10 +1,10 @@
-# Contributing to Codiff
+# Contributing to Codophon
 
 ## AI Assistance Notice
 
 > [!IMPORTANT]
 >
-> If you use any kind of AI assistance to contribute to Codiff, disclose it in
+> If you use any kind of AI assistance to contribute to Codophon, disclose it in
 > the pull request.
 
 Include the extent of the assistance, such as research, documentation, tests, or
@@ -29,7 +29,7 @@ for inspiring this policy.
 
 ## Requirements
 
-Codiff uses Node.js 24.21.0 or later, pnpm 12, and
+Codophon uses Node.js 24.21.0 or later, pnpm 12, and
 [Vite+](https://viteplus.dev/). Install Vite+ before working in the repository.
 
 You will also need Git. The native application requires a platform supported by

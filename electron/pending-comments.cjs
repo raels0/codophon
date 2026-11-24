@@ -84,7 +84,7 @@ const createPendingCommentsClipboardController = ({
         webContentsId,
       });
 
-      browserWindow.webContents.send('codiff:copyPendingCommentsRequest', requestId);
+      browserWindow.webContents.send('codophon:copyPendingCommentsRequest', requestId);
     });
 
   /** @param {ReadonlyArray<PendingCommentsBrowserWindow>} browserWindows */

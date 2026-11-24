@@ -1,16 +1,13 @@
 // @ts-check
 
-const { readdir } = require('node:fs/promises');
 const { homedir } = require('node:os');
 const { join } = require('node:path');
 const { cleanText, truncate } = require('./agent-shared.cjs');
-const { readSessionFileTail } = require('./session-context-shared.cjs');
-
-const MAX_SESSION_SCAN_FILES = 20_000;
-const MAX_SESSION_MESSAGE_CHARS = 2_400;
-const MAX_SESSION_MESSAGES = 18;
-const MAX_SESSION_CONTEXT_CHARS = 28_000;
-const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const {
+  MAX_SESSION_MESSAGE_CHARS,
+  SESSION_UUID_PATTERN,
+  readSessionMessages,
+} = require('./session-context-shared.cjs');
 
 /**
  * @typedef {import('../core/types.ts').WalkthroughContext} WalkthroughContext
@@ -18,7 +15,7 @@ const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 
 /** @param {unknown} value */
 const normalizeClaudeSessionId = (value) =>
-  typeof value === 'string' && SESSION_ID_PATTERN.test(value) ? value : '';
+  typeof value === 'string' && SESSION_UUID_PATTERN.test(value) ? value : '';
 
 const getClaudeHome = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
 
@@ -59,10 +56,10 @@ const extractContentText = (value) => {
 const isNoiseMessage = (text) => {
   const normalized = cleanText(text).toLowerCase();
   return (
-    normalized === '/codiff' ||
-    normalized === 'codiff' ||
-    normalized === 'show me codiff' ||
-    normalized === 'open codiff'
+    normalized === '/codophon' ||
+    normalized === 'codophon' ||
+    normalized === 'show me codophon' ||
+    normalized === 'open codophon'
   );
 };
 
@@ -70,61 +67,7 @@ const isNoiseMessage = (text) => {
 const pathMatchesSessionId = (path, sessionId) =>
   path.toLowerCase().endsWith(`${sessionId.toLowerCase()}.jsonl`);
 
-/**
- * Claude Code stores transcripts at ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl,
- * so we scan the projects tree for a file named after the session id.
- * @param {string} root
- * @param {string} sessionId
- */
-const findClaudeSessionFile = async (root, sessionId) => {
-  if (!sessionId) {
-    return null;
-  }
-
-  /** @type {Array<string>} */
-  const stack = [root];
-  let scanned = 0;
-
-  while (stack.length > 0 && scanned < MAX_SESSION_SCAN_FILES) {
-    const directory = stack.pop();
-    if (!directory) {
-      continue;
-    }
-
-    /** @type {Array<import('node:fs').Dirent>} */
-    let entries;
-    try {
-      entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) =>
-        b.name.localeCompare(a.name),
-      );
-    } catch {
-      continue;
-    }
-
-    const directories = [];
-    for (const entry of entries) {
-      scanned += 1;
-      const path = join(directory, entry.name);
-      if (entry.isFile() && pathMatchesSessionId(path, sessionId)) {
-        return path;
-      }
-
-      if (entry.isDirectory()) {
-        directories.push(path);
-      }
-
-      if (scanned >= MAX_SESSION_SCAN_FILES) {
-        break;
-      }
-    }
-
-    stack.push(...directories.reverse());
-  }
-
-  return null;
-};
-
-/** @param {unknown} input */
+/** @param {unknown} input @returns {import('./session-context-shared.cjs').SessionMessage | null} */
 const extractMessage = (input) => {
   if (!input || typeof input !== 'object') {
     return null;
@@ -155,48 +98,6 @@ const extractMessage = (input) => {
   return { role, text };
 };
 
-/** @param {string} sessionPath */
-const readSessionMessages = async (sessionPath) => {
-  /** @type {Array<{role: 'assistant' | 'user'; text: string}>} */
-  const messages = [];
-  let totalChars = 0;
-
-  for (const line of (await readSessionFileTail(sessionPath)).split('\n')) {
-    if (!line.trim()) {
-      continue;
-    }
-
-    try {
-      const message = extractMessage(JSON.parse(line));
-      if (!message) {
-        continue;
-      }
-
-      messages.push(message);
-    } catch {
-      // Ignore malformed or future-format records in Claude Code session logs.
-    }
-  }
-
-  /** @type {Array<{role: 'assistant' | 'user'; text: string}>} */
-  const selected = [];
-  for (const message of messages.slice().reverse()) {
-    if (selected.length >= MAX_SESSION_MESSAGES) {
-      break;
-    }
-
-    const cost = message.role.length + message.text.length + 2;
-    if (selected.length > 0 && totalChars + cost > MAX_SESSION_CONTEXT_CHARS) {
-      break;
-    }
-
-    selected.push(message);
-    totalChars += cost;
-  }
-
-  return selected.reverse();
-};
-
 /**
  * @param {string | undefined} claudeSessionId
  * @returns {Promise<WalkthroughContext | null>}
@@ -207,14 +108,17 @@ const readClaudeSessionContext = async (claudeSessionId) => {
     return null;
   }
 
-  const path = await findClaudeSessionFile(join(getClaudeHome(), 'projects'), threadId);
-  const messages = path ? await readSessionMessages(path) : [];
+  const messages = await readSessionMessages(
+    join(getClaudeHome(), 'projects'),
+    (path) => pathMatchesSessionId(path, threadId),
+    extractMessage,
+  );
 
   return {
     messages,
     risks:
       messages.length === 0
-        ? ['Codiff could not find recent readable messages for the linked Claude Code session.']
+        ? ['Codophon could not find recent readable messages for the linked Claude Code session.']
         : undefined,
     source: {
       generatedAt: new Date().toISOString(),

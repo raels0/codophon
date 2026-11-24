@@ -1,5 +1,5 @@
 import { codeForCharacter, hasKeyboardLayout, shiftedCharacterForCode } from './keyboard-layout.ts';
-import type { CodiffKeymap, KeyCombo, KeyComboBinding } from './types.ts';
+import type { CodophonKeymap, KeyCombo, KeyComboBinding } from './types.ts';
 
 type ParsedKeyCombo = {
   altKey: boolean;
@@ -208,7 +208,7 @@ const matchesBinding = (
 // advertises. Only the window before the layout arrives resolves against US
 // positions, which on a layout that moves keys can fire an action the keycap
 // does not suggest.
-const canFallBackToPhysicalKey = (event: ShortcutEvent, keymap: CodiffKeymap): boolean =>
+const canFallBackToPhysicalKey = (event: ShortcutEvent, keymap: CodophonKeymap): boolean =>
   event.altKey &&
   isMac() &&
   isDeadOrCharacterKey(event.key) &&
@@ -216,14 +216,14 @@ const canFallBackToPhysicalKey = (event: ShortcutEvent, keymap: CodiffKeymap): b
 
 export const matchesShortcut = (
   event: ShortcutEvent,
-  keymap: CodiffKeymap,
-  action: keyof CodiffKeymap,
+  keymap: CodophonKeymap,
+  action: keyof CodophonKeymap,
 ): boolean =>
   matchesBinding(event, keymap[action], matchesTypedKey) ||
   (canFallBackToPhysicalKey(event, keymap) &&
     matchesBinding(event, keymap[action], matchesPhysicalKey));
 
-export const getShortcutLabel = (keymap: CodiffKeymap, action: keyof CodiffKeymap): string => {
+export const getShortcutLabel = (keymap: CodophonKeymap, action: keyof CodophonKeymap): string => {
   // Show the primary combo when an action has alias bindings.
   const combo = getBindingCombos(keymap[action])[0] ?? '';
   const mac = isMac();

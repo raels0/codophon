@@ -5,7 +5,7 @@ import { formatLineCountNumber, getDiffLineCountTitle } from '../../lib/diff.ts'
 import type { ChangedFile } from '../../types.ts';
 import { DiffLineCountBadge } from './DiffLineCountBadge.tsx';
 
-const collapsedStorageKey = 'codiff:diff-summary-collapsed';
+const collapsedStorageKey = 'codophon:diff-summary-collapsed';
 const categories = [
   ['prod', 'Prod', 'Application code and runtime resources'],
   ['tests', 'Tests', 'Tests, helpers, mocks, fixtures, and snapshots'],
@@ -57,12 +57,14 @@ export function DiffSummaryFooter({
                   }
                 >
                   <dt>{label}</dt>
-                  <dd className={summary.total.countable ? 'codiff-line-count-added' : undefined}>
+                  <dd className={summary.total.countable ? 'codophon-line-count-added' : undefined}>
                     {summary.total.countable
                       ? `+${formatLineCountNumber(lineCount.additions)}`
                       : '—'}
                   </dd>
-                  <dd className={summary.total.countable ? 'codiff-line-count-deleted' : undefined}>
+                  <dd
+                    className={summary.total.countable ? 'codophon-line-count-deleted' : undefined}
+                  >
                     {summary.total.countable
                       ? `-${formatLineCountNumber(lineCount.deletions)}`
                       : '—'}

@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vite-plus/test';
 import packageJson from '../../package.json' with { type: 'json' };
-import schema from '../config/codiff-config.schema.json' with { type: 'json' };
+import schema from '../config/codophon-config.schema.json' with { type: 'json' };
 import { createDefaultConfig } from '../config/defaults.ts';
 import { createTemporaryDirectorySync, createTemporaryEnvironment } from './helpers/resources.ts';
 
@@ -21,20 +21,20 @@ const {
 };
 
 const readElectronConfig = (raw: unknown) => {
-  using home = createTemporaryDirectorySync('codiff-config-home.');
+  using home = createTemporaryDirectorySync('codophon-config-home.');
   using _environment = createTemporaryEnvironment({ HOME: home.path, USERPROFILE: home.path });
-  const configDirectory = join(home.path, '.codiff');
+  const configDirectory = join(home.path, '.codophon');
   mkdirSync(configDirectory);
-  writeFileSync(join(configDirectory, 'codiff.jsonc'), `${JSON.stringify(raw)}\n`);
+  writeFileSync(join(configDirectory, 'codophon.jsonc'), `${JSON.stringify(raw)}\n`);
   return readConfig();
 };
 
 const readElectronConfigText = (text: string) => {
-  using home = createTemporaryDirectorySync('codiff-config-home.');
+  using home = createTemporaryDirectorySync('codophon-config-home.');
   using _environment = createTemporaryEnvironment({ HOME: home.path, USERPROFILE: home.path });
-  const configDirectory = join(home.path, '.codiff');
+  const configDirectory = join(home.path, '.codophon');
   mkdirSync(configDirectory);
-  writeFileSync(join(configDirectory, 'codiff.jsonc'), text);
+  writeFileSync(join(configDirectory, 'codophon.jsonc'), text);
   return readConfig();
 };
 
@@ -58,7 +58,7 @@ test('electron and renderer defaults match', () => {
 });
 
 test('prompt overrides persist independently of legacy guidance and can be reset', () => {
-  using home = createTemporaryDirectorySync('codiff-agent-prompts.');
+  using home = createTemporaryDirectorySync('codophon-agent-prompts.');
   using _environment = createTemporaryEnvironment({ HOME: home.path, USERPROFILE: home.path });
   const config = createDefaultConfig();
   config.settings.agentPrompts = {
@@ -133,7 +133,7 @@ test('old and invalid review themes use the neutral preset', () => {
 test.each(['neutral', 'blue-amber'] as const)(
   'review theme %s survives save and reload',
   (reviewTheme) => {
-    using home = createTemporaryDirectorySync('codiff-review-theme.');
+    using home = createTemporaryDirectorySync('codophon-review-theme.');
     using _environment = createTemporaryEnvironment({ HOME: home.path, USERPROFILE: home.path });
     const config = createDefaultConfig();
     config.settings.reviewTheme = reviewTheme;
@@ -158,12 +158,12 @@ test('old configurations retain automatic reasoning and custom values survive sa
   expect(
     readElectronConfig({ settings: { openAIReasoningEffort: 42 } }).settings.openAIReasoningEffort,
   ).toBe('');
-  using home = createTemporaryDirectorySync('codiff-model-config.');
+  using home = createTemporaryDirectorySync('codophon-model-config.');
   using _environment = createTemporaryEnvironment({ HOME: home.path, USERPROFILE: home.path });
-  const configDirectory = join(home.path, '.codiff');
+  const configDirectory = join(home.path, '.codophon');
   mkdirSync(configDirectory);
   writeFileSync(
-    join(configDirectory, 'codiff.jsonc'),
+    join(configDirectory, 'codophon.jsonc'),
     JSON.stringify({ settings: { openAIModel: 'gpt-6.1-sol', openAIReasoningEffort: ' high ' } }),
   );
   const config = readConfig();
@@ -235,7 +235,7 @@ test('electron config strips trailing commas without changing strings', () => {
 });
 
 test('electron defaults load from packaged app shape', () => {
-  using directory = createTemporaryDirectorySync('codiff-package-shape.');
+  using directory = createTemporaryDirectorySync('codophon-package-shape.');
   const packageRoot = directory.path;
   mkdirSync(join(packageRoot, 'config'));
   mkdirSync(join(packageRoot, 'electron'));

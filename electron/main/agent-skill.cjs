@@ -135,7 +135,7 @@ const createSkillInstaller = ({ app, dialog, renderManagedFile, root, skill }) =
       const stats = lstatSync(targetPath);
       const contents = stats.isFile() ? readFileSync(targetPath, 'utf8') : '';
       if (!stats.isFile() || !isManagedFile(file, contents)) {
-        throw new Error(`${targetPath} already exists and is not managed by Codiff.`);
+        throw new Error(`${targetPath} already exists and is not managed by Codophon.`);
       }
     }
 
@@ -196,7 +196,7 @@ const createSkillInstaller = ({ app, dialog, renderManagedFile, root, skill }) =
           const stats = lstatSync(targetPath);
           const contents = stats.isFile() ? readFileSync(targetPath, 'utf8') : '';
           if (!stats.isFile() || !isManagedFile(file, contents)) {
-            throw new Error(`${targetPath} already exists and is not managed by Codiff.`);
+            throw new Error(`${targetPath} already exists and is not managed by Codophon.`);
           }
         }
       }
@@ -210,7 +210,7 @@ const createSkillInstaller = ({ app, dialog, renderManagedFile, root, skill }) =
       const successMessage = {
         buttons: ['OK'],
         detail: installedPaths.join('\n'),
-        message: `Installed the Codiff ${skill.label}.`,
+        message: `Installed the Codophon ${skill.label}.`,
         type: 'info',
       };
       if (browserWindow) {

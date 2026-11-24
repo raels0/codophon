@@ -1,24 +1,12 @@
 import { chmod, readFile, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { beforeEach, expect, test, vi } from 'vite-plus/test';
 import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-import { createCommandTransport } from './helpers/command-transport.ts';
-
-type CommandTransport = ReturnType<typeof createCommandTransport>['transport'];
-
-const require = createRequire(import.meta.url);
-type CopilotModel = { id: string; label: string };
-const { createCopilotModelLoader, matchCopilotModels } = require('../copilot-models.cjs') as {
-  createCopilotModelLoader: (
-    readModels: () => Promise<Array<CopilotModel>>,
-  ) => (refresh?: boolean) => Promise<Array<CopilotModel>>;
-  matchCopilotModels: (catalog: unknown, supported: string) => Array<CopilotModel>;
-};
-const {
+import { createCopilotModelLoader, matchCopilotModels } from '../copilot-models.cjs';
+import {
   DEFAULT_OPENCODE_MODEL,
   FALLBACK_OPENCODE_MODEL,
   OPENCODE_MODELS,
@@ -29,31 +17,8 @@ const {
   normalizeOpenCodeModel,
   renderOpenCodeCommand,
   runOpenCode,
-} = require('../opencode.cjs') as {
-  DEFAULT_OPENCODE_MODEL: string;
-  FALLBACK_OPENCODE_MODEL: string;
-  OPENCODE_MODELS: ReadonlyArray<{ id: string; label: string }>;
-  OPENCODE_NOT_FOUND_CODE: string;
-  OPENCODE_TIMEOUT_MS: number;
-  getOpenCodeCommand: () => string;
-  isOpenCodeNotFoundError: (error: unknown) => boolean;
-  normalizeOpenCodeModel: (value: unknown) => string;
-  renderOpenCodeCommand: (template: string, model: unknown) => string;
-  runOpenCode: (
-    repoRoot: string,
-    prompt: string,
-    schema: unknown,
-    outputName?: string,
-    timeoutMessage?: string,
-    options?: {
-      commandTransport?: CommandTransport;
-      fallbackModel?: string;
-      model?: string;
-      onModelFallback?: (fallbackModel: string, originalModel: string) => void;
-      onProgress?: (phase: string) => void;
-    },
-  ) => Promise<string>;
-};
+} from '../opencode.cjs';
+import { createCommandTransport } from './helpers/command-transport.ts';
 
 // Spawning OpenCode resolves the login shell environment, so tests either
 // provide their own fake shell or run without one.
@@ -142,18 +107,20 @@ test('a failed Copilot refresh does not serve stale or failed results on the nex
 });
 
 test('renders the selected model into the managed OpenCode command', () => {
-  const template = '---\n{{CODIFF_OPENCODE_MODEL}}\n---\nRun Codiff.\n';
+  const template = '---\n{{CODOPHON_OPENCODE_MODEL}}\n---\nRun Codophon.\n';
 
-  expect(renderOpenCodeCommand(template, DEFAULT_OPENCODE_MODEL)).toBe('---\n\n---\nRun Codiff.\n');
-  expect(renderOpenCodeCommand(template, 'anthropic/claude-sonnet-4-6')).toBe(
-    '---\nmodel: anthropic/claude-sonnet-4-6\n---\nRun Codiff.\n',
+  expect(renderOpenCodeCommand(template, DEFAULT_OPENCODE_MODEL)).toBe(
+    '---\n\n---\nRun Codophon.\n',
   );
-  expect(() => renderOpenCodeCommand('Run Codiff.\n', DEFAULT_OPENCODE_MODEL)).toThrow(
+  expect(renderOpenCodeCommand(template, 'anthropic/claude-sonnet-4-6')).toBe(
+    '---\nmodel: anthropic/claude-sonnet-4-6\n---\nRun Codophon.\n',
+  );
+  expect(() => renderOpenCodeCommand('Run Codophon.\n', DEFAULT_OPENCODE_MODEL)).toThrow(
     'exactly one',
   );
   expect(() =>
     renderOpenCodeCommand(
-      '{{CODIFF_OPENCODE_MODEL}}\n{{CODIFF_OPENCODE_MODEL}}\n',
+      '{{CODOPHON_OPENCODE_MODEL}}\n{{CODOPHON_OPENCODE_MODEL}}\n',
       DEFAULT_OPENCODE_MODEL,
     ),
   ).toThrow('exactly one');
@@ -165,9 +132,9 @@ test('detects OpenCode-not-found errors and invalid overrides', async () => {
   expect(isOpenCodeNotFoundError(new Error('other'))).toBe(false);
 
   await using _environment = createTemporaryEnvironment({
-    CODIFF_OPENCODE_PATH: '/tmp/codiff-missing-opencode',
+    CODOPHON_OPENCODE_PATH: '/tmp/codophon-missing-opencode',
   });
-  expect(() => getOpenCodeCommand()).toThrow('CODIFF_OPENCODE_PATH');
+  expect(() => getOpenCodeCommand()).toThrow('CODOPHON_OPENCODE_PATH');
 });
 
 test('runs OpenCode as an external read-only call', async () => {
@@ -217,11 +184,13 @@ test('runs OpenCode as an external read-only call', async () => {
 });
 
 test('streams semantic progress from the OpenCode event server', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-progress-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-progress-');
   const fakeOpenCodePath = join(directory.path, 'opencode');
   const argsPath = join(directory.path, 'args.txt');
   const requestPath = join(directory.path, 'request.json');
-  await using _environment = createTemporaryEnvironment({ CODIFF_OPENCODE_PATH: fakeOpenCodePath });
+  await using _environment = createTemporaryEnvironment({
+    CODOPHON_OPENCODE_PATH: fakeOpenCodePath,
+  });
 
   await writeFile(
     fakeOpenCodePath,
@@ -427,9 +396,9 @@ test('passes explicit models to OpenCode and falls back when they are unavailabl
 });
 
 test('authenticates OpenCode from the login shell environment when the app inherited none', async () => {
-  await using directory = await createTemporaryDirectory('codiff-opencode-login-env-');
+  await using directory = await createTemporaryDirectory('codophon-opencode-login-env-');
   const fakeShell = join(directory.path, 'fake-login-shell');
-  // A GUI-launched Codiff keeps launchd's minimal environment: no
+  // A GUI-launched Codophon keeps launchd's minimal environment: no
   // OPENAI_API_KEY, even when the user's login shell exports one. Both the
   // event server and the CLI fallback must receive the login shell variables
   // without losing the permission overrides.

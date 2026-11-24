@@ -16,7 +16,7 @@ const createWalkthroughProgressReporter = (webContents, isCurrent = () => true) 
 
     /** @type {import('../core/types.ts').WalkthroughProgressEvent} */
     const progress = { phase };
-    webContents.send('codiff:walkthroughProgress', progress);
+    webContents.send('codophon:walkthroughProgress', progress);
   };
 };
 

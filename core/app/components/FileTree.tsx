@@ -15,8 +15,8 @@ import type { ChangedFile } from '../../types.ts';
 
 const emptyPaths = new Set<string>();
 const emptyViewed: Readonly<Record<string, string>> = {};
-const reloadDeltaGitStatusStyleAttribute = 'data-codiff-reload-delta-git-status';
-const viewedRowStyleAttribute = 'data-codiff-viewed-rows';
+const reloadDeltaGitStatusStyleAttribute = 'data-codophon-reload-delta-git-status';
+const viewedRowStyleAttribute = 'data-codophon-viewed-rows';
 
 export function ReviewFileTree({
   files,
@@ -89,7 +89,7 @@ export function ReviewFileTree({
         --trees-selected-fg-override: var(--chrome-text);
         --trees-selected-focused-border-color-override: var(--chrome-focus);
         --truncate-marker-background-color: transparent;
-        color-scheme: var(--codiff-tree-color-scheme, light dark);
+        color-scheme: var(--codophon-tree-color-scheme, light dark);
         color: var(--chrome-text);
         font: 13px/1.35 var(--font-sans);
       }

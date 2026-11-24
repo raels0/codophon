@@ -309,7 +309,7 @@ test('resetting one subscriber preserves change notifications for other windows'
   coordinator.detach(2);
 });
 
-test('uses exact hashes while suppressing Codiff-authored writes only for their owner', async () => {
+test('uses exact hashes while suppressing Codophon-authored writes only for their owner', async () => {
   let current = baseline;
   const exactPathReads: Array<Array<string>> = [];
   const knownDirtyPathReads: Array<Array<string>> = [];
@@ -376,7 +376,7 @@ test('uses focused, background, and hidden polling intervals', () => {
 });
 
 test('clean and large dirty repository watcher polls use one Git process', async () => {
-  await using directory = await createTemporaryDirectory('codiff-repository-watcher-');
+  await using directory = await createTemporaryDirectory('codophon-repository-watcher-');
   const repository = await realpath(directory.path);
   const largePath = join(repository, 'large.bin');
   const countGitProcesses = async (label: string, knownDirtyPaths: ReadonlyArray<string>) => {
@@ -416,7 +416,7 @@ test('clean and large dirty repository watcher polls use one Git process', async
 }, 15_000);
 
 test('detects same-size edits when the modification time is preserved', async () => {
-  await using directory = await createTemporaryDirectory('codiff-preserved-mtime-');
+  await using directory = await createTemporaryDirectory('codophon-preserved-mtime-');
   const repository = await realpath(directory.path);
   const path = join(repository, 'same-size.txt');
   const fixedTime = 1_700_000_000;
@@ -447,7 +447,7 @@ test('preserves literal backslashes in POSIX repository paths', async () => {
     return;
   }
 
-  await using directory = await createTemporaryDirectory('codiff-backslash-path-');
+  await using directory = await createTemporaryDirectory('codophon-backslash-path-');
   const repository = await realpath(directory.path);
   const path = 'foo\\bar.txt';
 

@@ -51,7 +51,7 @@ test.each([
   'examples/demo.tsx',
   'scripts/release.ts',
   'tools/build.py',
-  'bin/codiff.js',
+  'bin/codophon.js',
   '.github/workflows/test.yml',
   '.gitlab-ci.yml',
   'Dockerfile',

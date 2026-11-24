@@ -175,7 +175,7 @@ const emptyWalkthroughBlockSet: WalkthroughBlockSet = {
 };
 
 // The current-stop accent is not rendered here: it is applied through the
-// `codiff-selected-item` class on the virtualized item container, so the header
+// `codophon-selected-item` class on the virtualized item container, so the header
 // item's content and version stay stable while scrolling moves the selection.
 function StopHeader({ stop }: { stop: WalkthroughStopView }) {
   return (
@@ -664,7 +664,7 @@ export function NarrativeWalkthroughView({
     reviewBlocks,
   ]);
 
-  // j/k and Ctrl+↑/↓ move between stops, matching the prototype and Codiff's
+  // j/k and Ctrl+↑/↓ move between stops, matching the prototype and Codophon's
   // hunk navigation. Ignore while typing into a comment or input.
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {

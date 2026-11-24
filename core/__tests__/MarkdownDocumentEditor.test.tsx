@@ -6,7 +6,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { expect, test, vi } from 'vite-plus/test';
 import { MarkdownDocumentEditor } from '../app/components/MarkdownDocumentEditor.tsx';
-import type { CodiffMarkdownDocument } from '../types.ts';
+import type { CodophonMarkdownDocument } from '../types.ts';
 import { waitFor } from './helpers/react.tsx';
 
 const markdownDocument = {
@@ -15,14 +15,14 @@ const markdownDocument = {
   kind: 'repository',
   path: 'plan.md',
   version: 'initial-version',
-} satisfies CodiffMarkdownDocument;
+} satisfies CodophonMarkdownDocument;
 
 test('unsupported Markdown is never left in a partially editable editor', async () => {
   const saveMarkdownDocument = vi.fn();
-  window.codiff = {
+  window.codophon = {
     onMarkdownDocumentChanged: vi.fn(() => () => {}),
     saveMarkdownDocument,
-  } as unknown as Window['codiff'];
+  } as unknown as Window['codophon'];
 
   const container = document.createElement('div');
   document.body.append(container);
@@ -44,7 +44,7 @@ test('unsupported Markdown is never left in a partially editable editor', async 
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
   });
   expect(container.querySelector('[contenteditable="true"]')).toBeNull();
-  expect(container.querySelector('.codiff-markdown-editor-source')?.textContent).toBe(
+  expect(container.querySelector('.codophon-markdown-editor-source')?.textContent).toBe(
     markdownDocument.content,
   );
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -56,10 +56,10 @@ test('standard Markdown images remain editable', async () => {
     ...markdownDocument,
     content: '# Plan\n\n![Diagram](diagram.png)\n',
   };
-  window.codiff = {
+  window.codophon = {
     onMarkdownDocumentChanged: vi.fn(() => () => {}),
     saveMarkdownDocument: vi.fn(),
-  } as unknown as Window['codiff'];
+  } as unknown as Window['codophon'];
 
   const container = document.createElement('div');
   document.body.append(container);

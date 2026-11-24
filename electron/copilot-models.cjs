@@ -112,7 +112,7 @@ const readCopilotCatalog = (command, options) =>
       method: 'initialize',
       params: {
         clientCapabilities: {},
-        clientInfo: { name: 'codiff', version: '1' },
+        clientInfo: { name: 'codophon', version: '1' },
         protocolVersion: 1,
       },
     });
@@ -148,7 +148,7 @@ const readOpenCodeCopilotModels = async () => {
     throw new Error('Copilot CLI was not found. Install it and sign in to sync models.');
   const opencode = getOpenCodeCommand();
   const env = await getCommandEnvironment();
-  const cwd = await mkdtemp(join(tmpdir(), 'codiff-models-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'codophon-models-'));
   try {
     const [copilotResult, openCodeResult] = await Promise.allSettled([
       readCopilotCatalog(copilot, { cwd, env }),

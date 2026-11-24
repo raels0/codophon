@@ -20,7 +20,7 @@ test('a CLI launch request reaches the app intact, wherever Electron puts it in 
     walkthrough: true,
   });
 
-  expect(readLaunch(['/Applications/Codiff', '--inspect', argument], '/elsewhere')).toEqual({
+  expect(readLaunch(['/Applications/Codophon', '--inspect', argument], '/elsewhere')).toEqual({
     launchOptions: {
       agentBackend: 'claude',
       claudeSessionId: 'session',
@@ -37,7 +37,7 @@ test('a CLI launch request reaches the app intact, wherever Electron puts it in 
 });
 
 test('a bare launch opens the working directory and ignores unknown agents', () => {
-  expect(readLaunch(['/Applications/Codiff'], '/home/me')).toEqual({
+  expect(readLaunch(['/Applications/Codophon'], '/home/me')).toEqual({
     launchOptions: { repositoryPathProvided: false, walkthrough: false },
     repositoryPath: '/home/me',
   });
@@ -48,7 +48,7 @@ test('a bare launch opens the working directory and ignores unknown agents', () 
 });
 
 test('only a bare launch reopens the last repository', async () => {
-  const last = await mkdtemp(join(tmpdir(), 'codiff-last-repo-'));
+  const last = await mkdtemp(join(tmpdir(), 'codophon-last-repo-'));
   try {
     await writeFile(join(last, 'README.md'), '');
     const bare = readLaunch([], '/cwd');

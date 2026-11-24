@@ -20,7 +20,7 @@ const git = async (repo: string, args: ReadonlyArray<string>) => {
 };
 
 test('uses configured git identity without inferring it from the current commit author', async () => {
-  await using directory = await createTemporaryDirectory('codiff-git-identity-');
+  await using directory = await createTemporaryDirectory('codophon-git-identity-');
   await git(directory.path, ['init']);
   await writeFile(join(directory.path, 'README.md'), '# Test\n');
   await git(directory.path, ['add', 'README.md']);
@@ -50,7 +50,7 @@ test('uses configured git identity without inferring it from the current commit 
 });
 
 test('reads the global git identity outside a repository', async () => {
-  await using directory = await createTemporaryDirectory('codiff-global-git-identity-');
+  await using directory = await createTemporaryDirectory('codophon-global-git-identity-');
   const globalConfig = join(directory.path, '.gitconfig');
   await writeFile(globalConfig, '[user]\n\tname = Global User\n\temail = global@example.com\n');
   await using _environment = createTemporaryEnvironment({ GIT_CONFIG_GLOBAL: globalConfig });

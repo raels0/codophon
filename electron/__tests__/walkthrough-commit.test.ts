@@ -34,7 +34,7 @@ const git = async (repoPath: string, args: ReadonlyArray<string>) => {
 
 const withRepo = async (testBody: (repoPath: string) => Promise<void>) => {
   await withGitTestEnvironment(async () => {
-    await using directory = await createTemporaryDirectory('codiff-walkthrough-commit-');
+    await using directory = await createTemporaryDirectory('codophon-walkthrough-commit-');
     await git(directory.path, ['init']);
     await testBody(directory.path);
   });

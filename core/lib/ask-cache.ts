@@ -12,7 +12,7 @@ type AskThread = Omit<ReviewComment, 'codexReply' | 'remoteSubmit'> & {
 };
 
 const cacheKey = ({ root, source }: PRState) =>
-  `codiff:ask-cache:v1:${JSON.stringify([root, getSourceKey(source)])}`;
+  `codophon:ask-cache:v1:${JSON.stringify([root, getSourceKey(source)])}`;
 
 export const getAskReviewKey = (state: RepositoryState) =>
   `${state.root}:${getSourceKey(state.source)}`;

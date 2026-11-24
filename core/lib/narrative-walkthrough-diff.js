@@ -248,7 +248,7 @@ const createSyntheticSectionHunk = (file, section, lineCount = { added: 0, delet
 });
 
 /**
- * Codiff's walkthrough hunk ids identify the smallest reviewable diff unit.
+ * Codophon's walkthrough hunk ids identify the smallest reviewable diff unit.
  * Most are textual patch hunks; non-text or metadata-only sections get one
  * synthetic hunk so walkthroughs remain hunk-based for every visible change.
  *

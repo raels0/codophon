@@ -1,10 +1,11 @@
 // @ts-check
 
-const { git, gitOrEmpty } = require('./common.cjs');
-const { listRepositoryHistory, parseCommitNameStatus } = require('./commit.cjs');
+const { readRepositoryRoot, git, gitOrEmpty } = require('./common.cjs');
+const { listRepositoryHistory } = require('./commit.cjs');
 const {
   readComparisonImageContent,
   readComparisonSectionContent,
+  readComparisonSnapshot,
   readComparisonState,
 } = require('./comparison.cjs');
 const { createAzureDevOpsClient } = require('./azure-devops-api.cjs');
@@ -12,7 +13,6 @@ const { parseRemoteUrl, parseReviewUrl, readReviewRemotes } = require('../review
 
 /**
  * @typedef {import('../../core/types.ts').ReviewSource} ReviewSource
- * @typedef {import('../../core/types.ts').DiffSection} DiffSection
  * @typedef {import('../../core/types.ts').PullRequestReviewComment} PullRequestReviewComment
  * @typedef {import('../../core/types.ts').SubmitPullRequestCommentRequest} SubmitPullRequestCommentRequest
  * @typedef {import('../../core/types.ts').SubmitPullRequestReviewRequest} SubmitPullRequestReviewRequest
@@ -27,7 +27,7 @@ const { parseRemoteUrl, parseReviewUrl, readReviewRemotes } = require('../review
 const parseAzureDevOpsPullRequestUrl = (value) => {
   const parsed = parseReviewUrl(value);
   if (!parsed || parsed.provider !== 'azure-devops') {
-    throw new Error('Codiff expected an Azure DevOps Services pull request URL.');
+    throw new Error('Codophon expected an Azure DevOps Services pull request URL.');
   }
   return parsed;
 };
@@ -127,7 +127,7 @@ const createSource = (pr, metadata, baseSha) => ({
 
 /** @param {string} launchPath @param {PullRequestSource} source */
 const openReview = async (launchPath, source) => {
-  const root = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const root = await readRepositoryRoot(launchPath);
   const pr = parseAzureDevOpsPullRequestUrl(source.url);
   selectRemote(root, pr);
   return { root, pr, client: createAzureDevOpsClient(root, pr) };
@@ -156,20 +156,8 @@ const readSnapshotRefs = async (review, source) => {
 /** @param {Awaited<ReturnType<typeof openReview>>} review @param {PullRequestSource} [source] */
 const readSnapshot = async (review, source) => {
   const { base, head, metadata } = await readSnapshotRefs(review, source);
-  const status = parseCommitNameStatus(
-    await git(review.root, ['diff', '--name-status', '-r', '-z', '-M', base, head]),
-    // Batch patches follow Git's order; the comparison reader sorts the finished files.
-    { sort: false },
-  );
-  return { base, head, status, source: createSource(review.pr, metadata, base) };
+  return readComparisonSnapshot(review.root, head, base, createSource(review.pr, metadata, base));
 };
-
-/** @param {DiffSection} section @param {string} path @param {number} number @returns {DiffSection} */
-const asPullRequestSection = (section, path, number) => ({
-  ...section,
-  id: `${path}:pull-request:${number}`,
-  kind: 'pull-request',
-});
 
 /** @param {AzureComment} comment */
 const getAzureDevOpsCommentBody = (comment) =>
@@ -216,22 +204,8 @@ const normalizeAzureDevOpsReviewComment = (comment, thread, url) => {
 const readAzureDevOpsPullRequestState = async (launchPath, source) => {
   const review = await openReview(launchPath, source);
   const [snapshot, threads] = await Promise.all([readSnapshot(review), review.client.threads()]);
-  const state = await readComparisonState({
-    launchPath,
-    repoRoot: review.root,
-    newRef: snapshot.head,
-    oldRef: snapshot.base,
-    source: snapshot.source,
-    status: snapshot.status,
-  });
   return {
-    ...state,
-    files: state.files.map((file) => ({
-      ...file,
-      sections: file.sections.map((section) =>
-        asPullRequestSection(section, file.path, review.pr.number),
-      ),
-    })),
+    ...(await readComparisonState(launchPath, snapshot)),
     reviewComments: threads
       .filter((thread) => !thread.isDeleted && !isClosedReviewThread(thread))
       .flatMap((thread) =>
@@ -284,40 +258,24 @@ const readAzureDevOpsSectionContent = async (launchPath, request) => {
     throw new Error('An Azure DevOps pull request source is required.');
   }
   const review = await openReview(launchPath, request.source);
-  const snapshot = await readSnapshot(review, request.source);
-  const section = await readComparisonSectionContent(
-    review.root,
-    snapshot.head,
-    snapshot.base,
-    snapshot.status,
-    request.path,
-    'pull request',
-    { force: request.force },
-  );
-  return asPullRequestSection(section, request.path, review.pr.number);
+  return readComparisonSectionContent(await readSnapshot(review, request.source), request.path, {
+    force: request.force,
+  });
 };
 
 /** @param {string} launchPath @param {PullRequestSource} source @param {string} path */
 const readAzureDevOpsImageContent = async (launchPath, source, path) => {
   const review = await openReview(launchPath, source);
-  const snapshot = await readSnapshot(review, source);
-  return readComparisonImageContent(
-    review.root,
-    snapshot.head,
-    snapshot.base,
-    snapshot.status,
-    path,
-    'pull request',
-  );
+  return readComparisonImageContent(await readSnapshot(review, source), path);
 };
 
 /** @param {string} launchPath @param {PullRequestSource} source @param {number} [limit] */
 const listAzureDevOpsHistory = async (launchPath, source, limit = 200) => {
   const review = await openReview(launchPath, source);
-  const snapshot = await readSnapshot(review, source);
+  const { base, head } = await readSnapshotRefs(review, source);
   const [history, changes] = await Promise.all([
-    listRepositoryHistory(review.root, limit, snapshot.base),
-    listRepositoryHistory(review.root, limit, `${snapshot.base}..${snapshot.head}`),
+    listRepositoryHistory(review.root, limit, base),
+    listRepositoryHistory(review.root, limit, `${base}..${head}`),
   ]);
   return {
     root: review.root,

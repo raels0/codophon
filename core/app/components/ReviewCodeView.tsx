@@ -48,7 +48,7 @@ import claudeIconUrl from '../../assets/claude.svg';
 import codexIconUrl from '../../assets/codex.svg';
 import opencodeIconUrl from '../../assets/opencode.svg';
 import { getShortcutLabel, matchesShortcut } from '../../config/keymap.ts';
-import type { CodiffDiffStyle, CodiffKeymap } from '../../config/types.ts';
+import type { CodophonDiffStyle, CodophonKeymap } from '../../config/types.ts';
 import { EDIT_SELECTED_FILE_EVENT } from '../../lib/app-constants.ts';
 import type {
   CodeViewInstance,
@@ -111,7 +111,7 @@ import { applySearchHighlights } from '../../lib/search-highlights.ts';
 import { getSourceKey } from '../../lib/source.ts';
 import type {
   ChangedFile,
-  CodiffPreferences,
+  CodophonPreferences,
   CommitMetadata,
   DefinitionCandidate,
   DefinitionSearchRequest,
@@ -151,7 +151,7 @@ export const preloadReviewMarkdown = () =>
 const PreviewDocument = lazy(loadMarkdownPreview);
 function ReadOnlyMarkdown(props: ComponentProps<typeof PreviewDocument>) {
   return (
-    <Suspense fallback={<div className="codiff-readonly-markdown-loading">Loading…</div>}>
+    <Suspense fallback={<div className="codophon-readonly-markdown-loading">Loading…</div>}>
       <PreviewDocument {...props} />
     </Suspense>
   );
@@ -189,7 +189,7 @@ function CopyFilePathButton({ path }: { path: string }) {
   return (
     <button
       aria-label={copied ? 'Path copied' : 'Copy file path'}
-      className={`codiff-copy-path-button${copied ? ' copied' : ''}`}
+      className={`codophon-copy-path-button${copied ? ' copied' : ''}`}
       onClick={(event) => void handleClick(event)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -200,9 +200,9 @@ function CopyFilePathButton({ path }: { path: string }) {
       type="button"
     >
       {copied ? (
-        <Check aria-hidden className="codiff-copy-path-icon check" size={16} weight="bold" />
+        <Check aria-hidden className="codophon-copy-path-icon check" size={16} weight="bold" />
       ) : (
-        <LucideCopy aria-hidden className="codiff-copy-path-icon" size={16} strokeWidth={2.25} />
+        <LucideCopy aria-hidden className="codophon-copy-path-icon" size={16} strokeWidth={2.25} />
       )}
     </button>
   );
@@ -220,7 +220,7 @@ function FileEditButton({
   disabled: boolean;
   isBusy: boolean;
   item: CodeViewItem<ReviewAnnotationMetadata>;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   meta: CodeViewItemMetadata;
   onEdit: () => void;
   onPrepare?: ReturnType<typeof useCodeEditing>['prepareEdit'];
@@ -236,7 +236,7 @@ function FileEditButton({
     <Button
       aria-keyshortcuts={shortcut}
       aria-label={`Edit ${meta.file.path}`}
-      className="codiff-edit-button"
+      className="codophon-edit-button"
       disabled={disabled || isBusy}
       onClick={onEdit}
       title={`Edit this file in place (${shortcut}). Changes save to disk as you type.`}
@@ -296,14 +296,14 @@ function CodeViewHeader({
 
   return (
     <div
-      className={`codiff-file-header${walkthroughNote ? ' with-note' : ''}${
+      className={`codophon-file-header${walkthroughNote ? ' with-note' : ''}${
         isCollapsed ? ' collapsed' : ''
       }${isSelected ? ' selected' : ''}${isViewed ? ' viewed' : ''}`}
     >
       <div
         aria-expanded={!isCollapsed}
         aria-label={isCollapsed ? 'Expand file' : 'Collapse file'}
-        className="codiff-header-toggle"
+        className="codophon-header-toggle"
         onClick={() => onToggleCollapsed(file, isCollapsed, reviewIdentity.key)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -315,27 +315,27 @@ function CodeViewHeader({
         tabIndex={0}
         title={isCollapsed ? 'Expand' : 'Collapse'}
       >
-        <span className="codiff-chevron-box">
+        <span className="codophon-chevron-box">
           <CaretDown
             aria-hidden
-            className={isCollapsed ? 'codiff-chevron collapsed' : 'codiff-chevron'}
+            className={isCollapsed ? 'codophon-chevron collapsed' : 'codophon-chevron'}
             size={16}
             weight="bold"
           />
         </span>
-        <span className="codiff-file-heading">
-          <span className="codiff-file-path-row">
-            <span className="codiff-file-path" title={file.path}>
+        <span className="codophon-file-heading">
+          <span className="codophon-file-path-row">
+            <span className="codophon-file-path" title={file.path}>
               {directoryEnd > 0 ? (
-                <span className="codiff-file-directory">{file.path.slice(0, directoryEnd)}</span>
+                <span className="codophon-file-directory">{file.path.slice(0, directoryEnd)}</span>
               ) : null}
-              <span className="codiff-file-name">{file.path.slice(directoryEnd)}</span>
+              <span className="codophon-file-name">{file.path.slice(directoryEnd)}</span>
             </span>
             <CopyFilePathButton path={file.path} />
             {!readOnly && onOpenFile ? (
               <button
                 aria-label={`Open ${file.path} in editor`}
-                className="codiff-open-file-button"
+                className="codophon-open-file-button"
                 disabled={!canOpenFile}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -353,39 +353,44 @@ function CodeViewHeader({
               </button>
             ) : null}
           </span>
-          {file.oldPath ? <span className="codiff-file-old-path">{file.oldPath}</span> : null}
+          {file.oldPath ? <span className="codophon-file-old-path">{file.oldPath}</span> : null}
           {walkthroughNote ? (
-            <span className="codiff-file-note">{walkthroughNote.reason}</span>
+            <span className="codophon-file-note">{walkthroughNote.reason}</span>
           ) : null}
         </span>
       </div>
-      <div className="codiff-file-details">
+      <div className="codophon-file-details">
         <DiffLineCountBadge lineCount={lineCount} />
         {sectionCount > 1 ? (
-          <span className={`codiff-section-badge ${section.kind}`}>
+          <span className={`codophon-section-badge ${section.kind}`}>
             {sectionLabel[section.kind]}
           </span>
         ) : null}
         {isGeneratedWalkthroughFile(file) ? (
-          <span className="codiff-generated-badge" title="Generated file">
+          <span className="codophon-generated-badge" title="Generated file">
             Generated
           </span>
         ) : null}
         {canCreateFileComment ? (
           <Button
-            className="codiff-file-comment-button"
+            className="codophon-file-comment-button"
             onClick={onCreateFileComment}
             title="Comment on file"
             type="button"
           >
-            <ChatCircle aria-hidden className="codiff-file-comment-icon" size={14} weight="bold" />
+            <ChatCircle
+              aria-hidden
+              className="codophon-file-comment-icon"
+              size={14}
+              weight="bold"
+            />
             Comment
           </Button>
         ) : null}
         {canRenderMarkdown ? (
           <Button
             aria-pressed={isMarkdownPreview}
-            className={`codiff-markdown-button${isMarkdownPreview ? ' active' : ''}`}
+            className={`codophon-markdown-button${isMarkdownPreview ? ' active' : ''}`}
             disabled={isEditing && !isMarkdownPreview}
             onClick={() => onToggleMarkdownPreview(file, section)}
             title={isMarkdownPreview ? 'View as Diff' : 'View as Markdown'}
@@ -397,7 +402,7 @@ function CodeViewHeader({
         {editActions}
         {canLoadSection && !readOnly ? (
           <button
-            className="codiff-load-button"
+            className="codophon-load-button"
             disabled={isSectionLoading}
             onClick={() => onLoadSection(file, section)}
             title={isSectionLoading ? 'Loading file contents' : 'Load file contents'}
@@ -409,12 +414,14 @@ function CodeViewHeader({
         {!readOnly || allowViewedToggle ? (
           <button
             aria-pressed={isViewed}
-            className={`codiff-viewed-button${isViewed ? ' active' : ''}`}
+            className={`codophon-viewed-button${isViewed ? ' active' : ''}`}
             onClick={() => onToggleViewed(file, isViewed, reviewIdentity)}
             type="button"
           >
-            <span aria-hidden className="codiff-viewed-checkbox">
-              {isViewed ? <Check className="codiff-viewed-check" size={10} weight="bold" /> : null}
+            <span aria-hidden className="codophon-viewed-checkbox">
+              {isViewed ? (
+                <Check className="codophon-viewed-check" size={10} weight="bold" />
+              ) : null}
             </span>
             Viewed
           </button>
@@ -525,7 +532,7 @@ function MarkdownPreview({
       if (
         !content?.isConnected ||
         content.querySelector(
-          '.codiff-markdown-editor-message:not(.error), .codiff-readonly-markdown-loading',
+          '.codophon-markdown-editor-message:not(.error), .codophon-readonly-markdown-loading',
         )
       ) {
         return;
@@ -560,11 +567,11 @@ function MarkdownPreview({
     // Keep the last document height while a recycled editor reloads. Measuring
     // its small loading placeholder would move every following item upward.
     <div
-      data-codiff-markdown-item={itemId}
+      data-codophon-markdown-item={itemId}
       style={{ minHeight: ready ? undefined : heightCache.get(cacheKey) }}
     >
-      <div className={`codiff-markdown-preview${editing ? ' editable' : ''}`} ref={contentRef}>
-        <Suspense fallback={<div className="codiff-markdown-editor-message">Loading…</div>}>
+      <div className={`codophon-markdown-preview${editing ? ' editable' : ''}`} ref={contentRef}>
+        <Suspense fallback={<div className="codophon-markdown-editor-message">Loading…</div>}>
           {editing ? (
             <RepositoryMarkdownEditor
               onHeightChange={measure}
@@ -581,7 +588,7 @@ function MarkdownPreview({
           ) : (
             <ReadOnlyMarkdown
               ariaLabel={`Preview ${path}`}
-              className="codiff-markdown-preview-editor"
+              className="codophon-markdown-preview-editor"
               onHeightChange={measure}
               value={contents}
             />
@@ -632,9 +639,9 @@ function SourceDescriptionHeader({
   title: string;
 }) {
   const heading = (
-    <span className="codiff-file-heading">
-      <span className="codiff-file-path-row">
-        <span className={`codiff-file-path${title ? ' source-description-title' : ''}`}>
+    <span className="codophon-file-heading">
+      <span className="codophon-file-path-row">
+        <span className={`codophon-file-path${title ? ' source-description-title' : ''}`}>
           {title || label}
         </span>
       </span>
@@ -643,7 +650,7 @@ function SourceDescriptionHeader({
 
   return (
     <div
-      className={`codiff-file-header codiff-source-description-header${
+      className={`codophon-file-header codophon-source-description-header${
         isCollapsed ? ' collapsed' : ''
       }`}
     >
@@ -651,15 +658,15 @@ function SourceDescriptionHeader({
         <button
           aria-expanded={!isCollapsed}
           aria-label={isCollapsed ? 'Expand description' : 'Collapse description'}
-          className="codiff-header-toggle"
+          className="codophon-header-toggle"
           onClick={onToggleCollapsed}
           title={isCollapsed ? 'Expand' : 'Collapse'}
           type="button"
         >
-          <span className="codiff-chevron-box">
+          <span className="codophon-chevron-box">
             <CaretDown
               aria-hidden
-              className={isCollapsed ? 'codiff-chevron collapsed' : 'codiff-chevron'}
+              className={isCollapsed ? 'codophon-chevron collapsed' : 'codophon-chevron'}
               size={16}
               weight="bold"
             />
@@ -667,7 +674,7 @@ function SourceDescriptionHeader({
           {heading}
         </button>
       ) : (
-        <div className="codiff-header-toggle codiff-header-toggle-static">{heading}</div>
+        <div className="codophon-header-toggle codophon-header-toggle-static">{heading}</div>
       )}
       {actions}
     </div>
@@ -713,10 +720,10 @@ function SourceDescriptionBody({
           </div>
         ) : null}
         {sanitizedDescription ? (
-          <div className="codiff-markdown-preview source-description-markdown">
+          <div className="codophon-markdown-preview source-description-markdown">
             <ReadOnlyMarkdown
               ariaLabel={ariaLabel}
-              className="codiff-markdown-preview-editor source-description-markdown-editor"
+              className="codophon-markdown-preview-editor source-description-markdown-editor"
               density="compact"
               onHeightChange={() => onLayoutReady(layoutKey)}
               value={sanitizedDescription}
@@ -838,7 +845,7 @@ function ImageDiffPreview({
           setLoadState({
             requestKey: activeRequestKey,
             result: {
-              reason: 'Codiff could not load this image.',
+              reason: 'Codophon could not load this image.',
               status: 'unavailable',
             },
           });
@@ -867,7 +874,7 @@ function ImageDiffPreview({
 
   if (result.status === 'unavailable') {
     return (
-      <div className="codiff-image-preview codiff-image-preview-message">
+      <div className="codophon-image-preview codophon-image-preview-message">
         <ImageBroken aria-hidden size={22} weight="duotone" />
         <span>{result.reason}</span>
       </div>
@@ -880,17 +887,17 @@ function ImageDiffPreview({
   const stageStyle =
     effectiveMode === 'slider'
       ? ({
-          '--codiff-image-split': `${split}%`,
+          '--codophon-image-split': `${split}%`,
           ...(aspectRatio ? { aspectRatio } : {}),
         } as CSSProperties)
       : undefined;
 
   return (
-    <div className="codiff-image-preview">
-      <div className="codiff-image-preview-toolbar">
-        <span className="codiff-image-preview-title">Image</span>
+    <div className="codophon-image-preview">
+      <div className="codophon-image-preview-toolbar">
+        <span className="codophon-image-preview-title">Image</span>
         {canCompare ? (
-          <div className="codiff-image-preview-mode" role="group">
+          <div className="codophon-image-preview-mode" role="group">
             <button
               aria-label="Slider image comparison"
               aria-pressed={effectiveMode === 'slider'}
@@ -915,8 +922,8 @@ function ImageDiffPreview({
         ) : null}
       </div>
       {effectiveMode === 'slider' && oldImage && newImage ? (
-        <div className="codiff-image-slider">
-          <div className="codiff-image-slider-stage" ref={sliderStageRef} style={stageStyle}>
+        <div className="codophon-image-slider">
+          <div className="codophon-image-slider-stage" ref={sliderStageRef} style={stageStyle}>
             <img
               alt={`Old ${file.path}`}
               draggable={false}
@@ -925,7 +932,7 @@ function ImageDiffPreview({
             />
             <img
               alt={`New ${file.path}`}
-              className="codiff-image-slider-new"
+              className="codophon-image-slider-new"
               draggable={false}
               onLoad={handleImageLoad}
               src={newImage.dataUrl}
@@ -935,7 +942,7 @@ function ImageDiffPreview({
               aria-valuemax={100}
               aria-valuemin={0}
               aria-valuenow={Math.round(split)}
-              className="codiff-image-slider-divider"
+              className="codophon-image-slider-divider"
               onKeyDown={handleDividerKeyDown}
               onPointerCancel={handleDividerPointerUp}
               onPointerDown={handleDividerPointerDown}
@@ -947,10 +954,10 @@ function ImageDiffPreview({
           </div>
         </div>
       ) : (
-        <div className="codiff-image-grid">
+        <div className="codophon-image-grid">
           {oldImage ? (
             <figure>
-              <div className="codiff-image-frame">
+              <div className="codophon-image-frame">
                 <img
                   alt={`Old ${file.path}`}
                   draggable={false}
@@ -966,7 +973,7 @@ function ImageDiffPreview({
           ) : null}
           {newImage ? (
             <figure>
-              <div className="codiff-image-frame">
+              <div className="codophon-image-frame">
                 <img
                   alt={`New ${file.path}`}
                   draggable={false}
@@ -997,7 +1004,7 @@ function ReviewAssistantFollowUp({
   disabled: boolean;
   initialQuestion: string;
   inputId: string;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   onDraftChange?: (body: string) => void;
   onSend: (question: string) => void;
 }) {
@@ -1067,7 +1074,7 @@ function ReviewAssistantConversation({
 }: {
   agentLabel: string;
   commentId: string;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   onDraftChange?: (body: string) => void;
   onFollowUp?: (question: string) => void;
   reply: NonNullable<ReviewComment['codexReply']>;
@@ -1186,7 +1193,7 @@ function ReviewCommentEditor({
   focusCommentId: string | null;
   focusEditorRef: (node: MarkdownEditorHandle | null) => void;
   identity: GitIdentity | null;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   onAskCodex?: (commentId: string, followUp?: string) => void;
   onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
   onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
@@ -1518,7 +1525,7 @@ function ReviewCommentThreadGroup({
   focusCommentId: string | null;
   focusEditorRef: (node: MarkdownEditorHandle | null) => void;
   identity: GitIdentity | null;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   onAskCodex?: (commentId: string, followUp?: string) => void;
   onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
   onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
@@ -1617,7 +1624,7 @@ function ReviewAnnotation({
   focusCommentId: string | null;
   focusCommentRequest: number;
   identity: GitIdentity | null;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   onAskCodex?: (commentId: string, followUp?: string) => void;
   onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
   onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
@@ -1869,7 +1876,7 @@ const estimateRenderedLineIndex = (
   fileDiff: FileDiffMetadata,
   lineNumber: number,
   side: 'additions' | 'deletions',
-  diffStyle: CodiffDiffStyle,
+  diffStyle: CodophonDiffStyle,
 ): number => {
   for (const hunk of fileDiff.hunks) {
     const start = side === 'deletions' ? hunk.deletionStart : hunk.additionStart;
@@ -2062,7 +2069,7 @@ export function ReviewCodeView({
   comments: ReadonlyArray<ReviewComment>;
   commitMetadata: CommitMetadata | null;
   diffLineHeight?: number;
-  diffStyle: CodiffDiffStyle;
+  diffStyle: CodophonDiffStyle;
   disableWorkerPool?: boolean;
   expandedReviewKeys?: ReadonlySet<string>;
   expandUnchanged?: boolean;
@@ -2075,7 +2082,7 @@ export function ReviewCodeView({
   initialMarkdownPreviewSectionIds?: ReadonlySet<string>;
   isReadOnly?: boolean;
   itemVersionByKey: Readonly<Record<string, number>>;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   loadingSectionIds: ReadonlySet<string>;
   onActiveBlockChange?: (blockId: string) => void;
   onAskCodex?: (commentId: string, followUp?: string) => void;
@@ -2096,7 +2103,7 @@ export function ReviewCodeView({
   onToggleCollapsed: (file: ChangedFile, isCollapsed: boolean, reviewKey: string) => void;
   onToggleViewed: (file: ChangedFile, isViewed: boolean, reviewIdentity: ReviewIdentity) => void;
   onUpdateComment: (commentId: string, body: string) => void;
-  renderMarkdownAs?: CodiffPreferences['renderMarkdownAs'];
+  renderMarkdownAs?: CodophonPreferences['renderMarkdownAs'];
   scrollTarget: ReviewScrollTarget | null;
   searchQuery: string;
   selectedPath: string | null;
@@ -2106,7 +2113,7 @@ export function ReviewCodeView({
   sourceDescriptionActions?: ReactNode;
   sourceDescriptionFooter?: ReactNode;
   supportsReviewCommentActions: boolean;
-  theme?: CodiffPreferences['theme'];
+  theme?: CodophonPreferences['theme'];
   viewed: Record<string, string>;
   wordWrap: boolean;
 }) {
@@ -2133,7 +2140,7 @@ export function ReviewCodeView({
     () => ({ ...codeViewItemMetrics, diffHeaderHeight: headerHeight }),
     [headerHeight],
   );
-  const codeViewStyle = { '--codiff-file-header-height': `${headerHeight}px` } as CSSProperties;
+  const codeViewStyle = { '--codophon-file-header-height': `${headerHeight}px` } as CSSProperties;
 
   const getPlaceholderFile = useCodeViewPlaceholderFile();
   const getAnnotations = useCodeViewAnnotations();
@@ -2336,7 +2343,7 @@ export function ReviewCodeView({
           // Selection stays out of the version: a scroll-driven current-stop
           // change must not re-measure the header item, or the viewer's scroll
           // anchoring yanks the scroll position at every stop boundary. The
-          // accent is applied through `codiff-selected-item` in onPostRender.
+          // accent is applied through `codophon-selected-item` in onPostRender.
           version: getItemVersion(`${block.id}:walkthrough-header`),
         });
       }
@@ -2627,7 +2634,7 @@ export function ReviewCodeView({
       meta.section.kind === 'unstaged' &&
       isEditableWorkingTreeSection(source.type, meta.file, meta.section) &&
       onLoadSectionContents != null &&
-      window.codiff?.getRepositoryFile != null,
+      window.codophon?.getRepositoryFile != null,
     [isReadOnly, onLoadSectionContents, source.type],
   );
   const startCodeEdit = useCallback(
@@ -3148,28 +3155,28 @@ export function ReviewCodeView({
               .catch(() => {});
           }
           const isWalkthroughHeaderItem = context.item.id.endsWith(':walkthrough-header');
-          node.classList.toggle('codiff-walkthrough-header-item', isWalkthroughHeaderItem);
+          node.classList.toggle('codophon-walkthrough-header-item', isWalkthroughHeaderItem);
           node.classList.toggle(
-            'codiff-selected-item',
+            'codophon-selected-item',
             metadata?.isSelected === true || selectedHeaderItemIds.has(context.item.id),
           );
           node.classList.toggle(
-            'codiff-markdown-preview-item',
+            'codophon-markdown-preview-item',
             metadata?.isMarkdownPreview === true,
           );
           node.classList.toggle(
-            'codiff-image-preview-item',
+            'codophon-image-preview-item',
             context.item.type === 'file' &&
               Boolean(metadata && canRenderImagePreview(metadata.file.path, metadata.section)),
           );
           node.classList.toggle(
-            'codiff-loadable-summary-item',
+            'codophon-loadable-summary-item',
             !context.item.edit &&
               metadata != null &&
               shouldLoadDiffSectionContents(metadata.section),
           );
           node.classList.toggle(
-            'codiff-loading-summary-item',
+            'codophon-loading-summary-item',
             Boolean(metadata && loadingSectionIds.has(metadata.section.id)),
           );
           if (definitionModifierActiveRef.current) {
@@ -3599,8 +3606,8 @@ export function ReviewCodeView({
       const meta = itemMetadata.get(item.id);
       if (meta?.isMarkdownPreview && !meta.isCollapsed && codeViewElement) {
         const preview = [
-          ...codeViewElement.querySelectorAll<HTMLElement>('[data-codiff-markdown-item]'),
-        ].find((element) => element.dataset.codiffMarkdownItem === item.id);
+          ...codeViewElement.querySelectorAll<HTMLElement>('[data-codophon-markdown-item]'),
+        ].find((element) => element.dataset.codophonMarkdownItem === item.id);
         const changes = preview?.querySelectorAll<HTMLElement>('[data-markdown-change]');
         if (changes?.length) {
           for (const [index, change] of [...changes].entries()) {
@@ -4029,7 +4036,7 @@ export function ReviewCodeView({
   // by the viewer automatically.
   const renderCodeViewHeader = useCallback(
     () => (
-      <div className="codiff-source-description-panel codiff-code-view-source-description">
+      <div className="codophon-source-description-panel codophon-code-view-source-description">
         <SourceDescriptionHeader
           actions={sourceDescriptionActions}
           canCollapse={sourceDescription.length > 0}
@@ -4039,7 +4046,7 @@ export function ReviewCodeView({
           title={sourceTitle}
         />
         {!sourceDescriptionCollapsed && sourceDescriptionHasContent ? (
-          <div className="codiff-source-description-panel-body">
+          <div className="codophon-source-description-panel-body">
             <SourceDescriptionBody
               ariaLabel={sourceDescriptionAriaLabel}
               author={sourceAuthor}
@@ -4048,7 +4055,7 @@ export function ReviewCodeView({
               onLayoutReady={noopLayoutReady}
             />
             {sourceDescriptionFooter ? (
-              <div className="codiff-source-description-footer">{sourceDescriptionFooter}</div>
+              <div className="codophon-source-description-footer">{sourceDescriptionFooter}</div>
             ) : null}
           </div>
         ) : null}
@@ -4094,7 +4101,7 @@ export function ReviewCodeView({
                   {editSession ? (
                     <Button
                       aria-label={`${editSession?.hasChanges ? 'Revert edits to' : 'Cancel editing'} ${meta.file.path}`}
-                      className="codiff-edit-revert-button"
+                      className="codophon-edit-revert-button"
                       data-autosaving={isAutosaving ? '' : undefined}
                       disabled={isBusy || editSession.saving}
                       onClick={() => void codeEditing.revertEdit(item.id)}
@@ -4109,7 +4116,7 @@ export function ReviewCodeView({
                       {editSession?.hasChanges ? 'Revert' : 'Cancel'}
                     </Button>
                   ) : null}
-                  <span className="codiff-edit-mode-badge" role="status">
+                  <span className="codophon-edit-mode-badge" role="status">
                     <PencilSimple aria-hidden size={12} weight="bold" />
                     Editing
                   </span>
@@ -4173,7 +4180,7 @@ export function ReviewCodeView({
             readOnly={isReadOnly}
           />
           {editError ? (
-            <div className="codiff-code-edit-error" role="alert">
+            <div className="codophon-code-edit-error" role="alert">
               {editError}
             </div>
           ) : null}

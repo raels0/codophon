@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { getShortcutLabel } from '../../config/keymap.ts';
-import type { CodiffKeymap } from '../../config/types.ts';
+import type { CodophonKeymap } from '../../config/types.ts';
 import type { Command } from '../../lib/command-registry.ts';
 import { filterCommands } from '../../lib/command-registry.ts';
 
@@ -11,7 +11,7 @@ export function CommandBar({
   visible,
 }: {
   commands: ReadonlyArray<Command>;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   onClose: () => void;
   visible: boolean;
 }) {

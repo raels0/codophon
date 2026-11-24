@@ -15,7 +15,7 @@ import type { NativeKeyboardLayout } from '../config/keyboard-layout.ts';
 
 afterEach(() => {
   resetKeyboardLayout();
-  delete (window as { codiff?: unknown }).codiff;
+  delete (window as { codophon?: unknown }).codophon;
 });
 
 test('resolves a character to the key position that produces it', () => {
@@ -292,7 +292,7 @@ test('reads the layout from the desktop shell when tracking starts', async () =>
 });
 
 test('stays without a layout when no desktop shell is present', () => {
-  // Arrange: the web build and the test environment have no `window.codiff`,
+  // Arrange: the web build and the test environment have no `window.codophon`,
   // and the matcher stays on its US tables there.
 
   // Act
@@ -418,7 +418,7 @@ function createTestContext({
   const pushCallbacks: Array<(layout: NativeKeyboardLayout) => void> = [];
   const pendingReads: Array<(layout: NativeKeyboardLayout | null) => void> = [];
 
-  (window as { codiff?: unknown }).codiff = {
+  (window as { codophon?: unknown }).codophon = {
     getKeyboardLayout: () => {
       if (failReads) {
         return Promise.reject(new Error('ipc failure'));

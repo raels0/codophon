@@ -1,19 +1,19 @@
 {
-  "name": "codiff",
+  "name": "codophon",
   "version": "1.19.2",
   "private": true,
-  "description": "A fast local diff viewer.",
+  "description": "Desktop code review for Git, GitHub, and Azure DevOps.",
   "license": "MIT",
-  "author": {
-    "name": "Christoph Nakazawa",
-    "email": "christoph.pojer@gmail.com"
-  },
+  "author": "Ramee El",
+  "contributors": [
+    "Christoph Nakazawa"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/nkzw-tech/codiff.git"
+    "url": "https://github.com/raels0/codophon.git"
   },
   "bin": {
-    "codiff": "./bin/codiff.js"
+    "codophon": "./bin/codophon.js"
   },
   "files": [
     "bin",
@@ -27,9 +27,9 @@
   "main": "./electron/main.cjs",
   "scripts": {
     "build": "vp build",
-    "codiff": "node ./bin/codiff.js",
+    "codophon": "node ./bin/codophon.js",
     "dev": "vp dev --host 127.0.0.1",
-    "dev:app": "ELECTRON_RENDERER_URL=http://127.0.0.1:5173 node ./bin/codiff.js",
+    "dev:app": "ELECTRON_RENDERER_URL=http://127.0.0.1:5173 node ./bin/codophon.js",
     "electron": "electron .",
     "forge:make": "electron-forge make",
     "forge:package": "electron-forge package",
@@ -90,8 +90,8 @@
   },
   "packageManager": "pnpm@12.16.1",
   "build": {
-    "appId": "dev.nkzw-tech.codiff",
-    "copyright": "Copyright © 2026-current Nakazawa Tech",
-    "productName": "Codiff"
+    "appId": "com.github.raels0.codophon",
+    "copyright": "Copyright © 2026 Nakazawa Tech and Codophon contributors",
+    "productName": "Codophon"
   }
 }

@@ -29,7 +29,7 @@ const { submitPullRequestReview } = require('../git-state/pull-request.cjs') as 
 const execFileAsync = promisify(execFile);
 
 test('submits normalized GitHub review payloads through the GitHub CLI', async () => {
-  await using directory = await createTemporaryDirectory('codiff-pull-request-review-');
+  await using directory = await createTemporaryDirectory('codophon-pull-request-review-');
   const repo = join(directory.path, 'repo');
   const fakeBin = join(directory.path, 'bin');
   const fakeGh = join(fakeBin, 'gh');
@@ -43,7 +43,7 @@ test('submits normalized GitHub review payloads through the GitHub CLI', async (
     'remote',
     'add',
     'origin',
-    'git@github.com:nkzw-tech/codiff.git',
+    'git@github.com:raels0/codophon.git',
   ]);
   await writeFile(
     fakeGh,
@@ -55,11 +55,11 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
 process.stdin.on('end', () => {
   appendFileSync(
-    process.env.CODIFF_GITHUB_REVIEW_TEST_CALLS,
+    process.env.CODOPHON_GITHUB_REVIEW_TEST_CALLS,
     JSON.stringify({ args, input }) + '\\n',
   );
   process.stdout.write(
-    args.includes('repos/nkzw-tech/codiff/pulls/12')
+    args.includes('repos/raels0/codophon/pulls/12')
       ? '{"head":{"sha":"0123456789abcdef0123456789abcdef01234567"}}'
       : '{}',
   );
@@ -69,7 +69,7 @@ process.stdin.on('end', () => {
   await chmod(fakeGh, 0o755);
 
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GITHUB_REVIEW_TEST_CALLS: callsPath,
+    CODOPHON_GITHUB_REVIEW_TEST_CALLS: callsPath,
     PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
     SHELL: undefined,
   });
@@ -77,7 +77,7 @@ process.stdin.on('end', () => {
   const source = {
     provider: 'github' as const,
     type: 'pull-request' as const,
-    url: 'https://github.com/nkzw-tech/codiff/pull/12',
+    url: 'https://github.com/raels0/codophon/pull/12',
   };
 
   await submitPullRequestReview(repo, {
@@ -123,7 +123,7 @@ process.stdin.on('end', () => {
         },
     );
   const reviewCalls = calls.filter((call) =>
-    call.args.includes('repos/nkzw-tech/codiff/pulls/12/reviews'),
+    call.args.includes('repos/raels0/codophon/pulls/12/reviews'),
   );
   expect(reviewCalls).toHaveLength(3);
   expect(JSON.parse(reviewCalls[0].input)).toEqual({

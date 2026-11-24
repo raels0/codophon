@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
-// Launcher for the Codiff `codiff` skill, shared by Claude Code, Codex and OpenCode.
-// The agent has already authored a narrative walkthrough JSON file; this opens Codiff
+// Launcher for the Codophon `codophon` skill, shared by Claude Code, Codex and OpenCode.
+// The agent has already authored a narrative walkthrough JSON file; this opens Codophon
 // pointed at it and links the agent's session so follow-up questions reuse the
 // conversation.
 //
 // Usage:
-//   node scripts/open-codiff.mjs [--agent claude|codex|opencode] --file <path> [target]
-//   node scripts/open-codiff.mjs --guide
+//   node scripts/open-codophon.mjs [--agent claude|codex|opencode] --file <path> [target]
+//   node scripts/open-codophon.mjs --guide
 //
-// `--file <path>` is forwarded to Codiff as `--walkthrough-file`. Any non-flag target
+// `--file <path>` is forwarded to Codophon as `--walkthrough-file`. Any non-flag target
 // (commit, HEAD, PR number, or repository path) is forwarded verbatim; when no repository
 // path is given the session's working directory is used.
 
@@ -22,7 +22,7 @@ import process from 'node:process';
 
 // The skill directory is symlinked from the app, so this resolves inside the app bundle.
 const skillRoot = resolve(import.meta.dirname, '..');
-const codiffRoot = resolve(skillRoot, '../..');
+const codophonRoot = resolve(skillRoot, '../..');
 const maxSessionScanFiles = 20_000;
 const maxSessionReadBytes = 16 * 1024 * 1024;
 
@@ -119,7 +119,7 @@ const isWithin = (parent, child) => {
 /**
  * What differs between agents: where the skill is installed, and how to find the current
  * session and where it ran.
- * Everything else about launching Codiff is shared.
+ * Everything else about launching Codophon is shared.
  */
 const AGENTS = {
   claude: {
@@ -171,7 +171,7 @@ const AGENTS = {
       }
       // OpenCode doesn't export the session id; link the newest session for this project.
       const commands = [
-        process.env.CODIFF_OPENCODE_PATH?.trim(),
+        process.env.CODOPHON_OPENCODE_PATH?.trim(),
         'opencode',
         join(homedir(), '.opencode/bin/opencode'),
         '/opt/homebrew/bin/opencode',
@@ -206,21 +206,21 @@ const AGENTS = {
   },
 };
 
-const getCodiffCommand = () => {
-  if (process.env.CODIFF_COMMAND) {
-    return { args: [], command: process.env.CODIFF_COMMAND };
+const getCodophonCommand = () => {
+  if (process.env.CODOPHON_COMMAND) {
+    return { args: [], command: process.env.CODOPHON_COMMAND };
   }
 
-  const appCli = join(codiffRoot, 'bin/codiff-app');
+  const appCli = join(codophonRoot, 'bin/codophon-app');
   if (
     process.platform === 'darwin' &&
-    codiffRoot.includes('.app/Contents/Resources/app') &&
+    codophonRoot.includes('.app/Contents/Resources/app') &&
     existsSync(appCli)
   ) {
     return { args: [], command: appCli };
   }
 
-  const devCli = join(codiffRoot, 'bin/codiff.js');
+  const devCli = join(codophonRoot, 'bin/codophon.js');
   if (existsSync(devCli)) {
     return { args: [devCli], command: process.execPath };
   }
@@ -229,7 +229,7 @@ const getCodiffCommand = () => {
     return { args: [], command: appCli };
   }
 
-  return { args: [], command: 'codiff' };
+  return { args: [], command: 'codophon' };
 };
 
 const run = (command, args, options = {}) => {
@@ -243,11 +243,11 @@ const run = (command, args, options = {}) => {
 
 const rawArgs = process.argv.slice(2);
 
-// `--guide`: print Codiff's current walkthrough authoring guide and exit. The
-// guidance lives in Codiff (not this skill), so it stays current across updates.
+// `--guide`: print Codophon's current walkthrough authoring guide and exit. The
+// guidance lives in Codophon (not this skill), so it stays current across updates.
 if (rawArgs.includes('--guide')) {
-  const codiff = getCodiffCommand();
-  run(codiff.command, [...codiff.args, '--walkthrough-guide']);
+  const codophon = getCodophonCommand();
+  run(codophon.command, [...codophon.args, '--walkthrough-guide']);
 }
 
 const forwardedArgs = [];
@@ -278,7 +278,7 @@ for (let index = 0; index < rawArgs.length; index += 1) {
 
 if (agentName && !Object.hasOwn(AGENTS, agentName)) {
   process.stderr.write(
-    `open-codiff: unknown agent "${agentName}". Use claude, codex, or opencode.\n`,
+    `open-codophon: unknown agent "${agentName}". Use claude, codex, or opencode.\n`,
   );
   process.exit(1);
 }
@@ -291,19 +291,19 @@ agentName ||=
   '';
 
 if (!walkthroughFile) {
-  process.stderr.write('open-codiff: missing --file <path> to the walkthrough JSON.\n');
+  process.stderr.write('open-codophon: missing --file <path> to the walkthrough JSON.\n');
   process.exit(1);
 }
 
 const fallbackCwd =
   process.cwd() === skillRoot || process.cwd().startsWith(`${skillRoot}${sep}`)
-    ? codiffRoot
+    ? codophonRoot
     : process.cwd();
 const session = agentName ? AGENTS[agentName].session(fallbackCwd) : { cwd: fallbackCwd, id: '' };
 
 const walkthroughFilePath = resolve(session.cwd, walkthroughFile);
 if (!existsSync(walkthroughFilePath)) {
-  process.stderr.write(`open-codiff: walkthrough file not found at ${walkthroughFilePath}.\n`);
+  process.stderr.write(`open-codophon: walkthrough file not found at ${walkthroughFilePath}.\n`);
   process.exit(1);
 }
 
@@ -311,9 +311,9 @@ const hasRepositoryTarget = forwardedArgs.some(
   (arg) => !arg.startsWith('-') && existsSync(resolve(session.cwd, arg)),
 );
 
-const codiff = getCodiffCommand();
-run(codiff.command, [
-  ...codiff.args,
+const codophon = getCodophonCommand();
+run(codophon.command, [
+  ...codophon.args,
   '-w',
   ...(agentName ? ['--agent', agentName] : []),
   '--walkthrough-file',

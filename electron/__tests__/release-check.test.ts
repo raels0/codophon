@@ -10,7 +10,7 @@ const { createReleaseCheck } =
 
 let stateDirectory = '';
 beforeEach(async () => {
-  stateDirectory = await mkdtemp(join(tmpdir(), 'codiff-release-check-'));
+  stateDirectory = await mkdtemp(join(tmpdir(), 'codophon-release-check-'));
 });
 afterEach(() => rm(stateDirectory, { force: true, recursive: true }));
 

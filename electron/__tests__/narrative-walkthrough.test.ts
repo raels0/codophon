@@ -767,7 +767,7 @@ test('builds cache keys from semantic generation inputs', () => {
       provider: 'github',
       reviewStatus: { approved: false },
       type: 'pull-request',
-      url: 'https://github.com/nkzw-tech/codiff/pull/42',
+      url: 'https://github.com/raels0/codophon/pull/42',
     },
   };
   const agent = {
@@ -895,7 +895,7 @@ test('prompts generated walkthroughs with PR descriptions as orientation only', 
       number: 42,
       provider: 'github',
       type: 'pull-request',
-      url: 'https://github.com/nkzw-tech/codiff/pull/42',
+      url: 'https://github.com/raels0/codophon/pull/42',
     },
   });
 
@@ -918,7 +918,7 @@ test('truncates long PR descriptions in generated walkthrough prompts', () => {
       number: 42,
       provider: 'github',
       type: 'pull-request',
-      url: 'https://github.com/nkzw-tech/codiff/pull/42',
+      url: 'https://github.com/raels0/codophon/pull/42',
     },
   });
 

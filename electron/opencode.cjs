@@ -3,24 +3,22 @@
 const { createServer } = require('node:net');
 const { homedir } = require('node:os');
 const { join } = require('node:path');
-const { resolveAgentCommandTransport } = require('./agent-command.cjs');
-const { getCommandEnvironment } = require('./login-shell-environment.cjs');
 const {
-  buildSchemaReminder,
-  findExecutableOnPath,
-  isExecutableFile,
-  normalizeStructuredOutput,
-  oneLine,
-} = require('./agent-shared.cjs');
+  collectAgentOutput,
+  findAgentCommand,
+  resolveAgentCommandTransport,
+} = require('./agent-command.cjs');
+const { getCommandEnvironment } = require('./login-shell-environment.cjs');
+const { buildSchemaReminder, normalizeStructuredOutput, oneLine } = require('./agent-shared.cjs');
 
 const OPENCODE_TIMEOUT_MS = 300_000;
 const DEFAULT_OPENCODE_MODEL = 'opencode-default';
 const FALLBACK_OPENCODE_MODEL = DEFAULT_OPENCODE_MODEL;
-const OPENCODE_COMMAND_MODEL_PLACEHOLDER = '{{CODIFF_OPENCODE_MODEL}}';
+const OPENCODE_COMMAND_MODEL_PLACEHOLDER = '{{CODOPHON_OPENCODE_MODEL}}';
 const OPENCODE_NOT_FOUND_CODE = 'OPENCODE_NOT_FOUND';
 const OPENCODE_STREAMING_UNAVAILABLE_CODE = 'OPENCODE_STREAMING_UNAVAILABLE';
 const OPENCODE_NOT_FOUND_MESSAGE =
-  'OpenCode CLI was not found. Install OpenCode and verify `opencode --version` works in Terminal. Codiff searches PATH, ~/.opencode/bin/opencode, /opt/homebrew/bin/opencode, and /usr/local/bin/opencode. If OpenCode is installed somewhere else, launch Codiff with `CODIFF_OPENCODE_PATH=/absolute/path/to/opencode codiff -w`.';
+  'OpenCode CLI was not found. Install OpenCode and verify `opencode --version` works in Terminal. Codophon searches PATH, ~/.opencode/bin/opencode, /opt/homebrew/bin/opencode, and /usr/local/bin/opencode. If OpenCode is installed somewhere else, launch Codophon with `CODOPHON_OPENCODE_PATH=/absolute/path/to/opencode codophon -w`.';
 
 /** @type {ReadonlyArray<{id: string; label: string}>} */
 const OPENCODE_MODELS = Object.freeze([
@@ -37,35 +35,17 @@ const createOpenCodeNotFoundError = (detail) =>
     { code: OPENCODE_NOT_FOUND_CODE },
   );
 
-const getOpenCodeCommand = () => {
-  const opencodePath = process.env.CODIFF_OPENCODE_PATH?.trim();
-  if (opencodePath) {
-    if (isExecutableFile(opencodePath)) {
-      return opencodePath;
-    }
-
-    throw createOpenCodeNotFoundError(
-      `CODIFF_OPENCODE_PATH is set to ${JSON.stringify(opencodePath)}, but that file is not executable.`,
-    );
-  }
-
-  const pathCommand = findExecutableOnPath('opencode');
-  if (pathCommand) {
-    return pathCommand;
-  }
-
-  for (const path of [
-    join(homedir(), '.opencode/bin/opencode'),
-    '/opt/homebrew/bin/opencode',
-    '/usr/local/bin/opencode',
-  ]) {
-    if (isExecutableFile(path)) {
-      return path;
-    }
-  }
-
-  throw createOpenCodeNotFoundError();
-};
+const getOpenCodeCommand = () =>
+  findAgentCommand(
+    'opencode',
+    'CODOPHON_OPENCODE_PATH',
+    [
+      join(homedir(), '.opencode/bin/opencode'),
+      '/opt/homebrew/bin/opencode',
+      '/usr/local/bin/opencode',
+    ],
+    createOpenCodeNotFoundError,
+  );
 
 /** @param {unknown} error */
 const isOpenCodeNotFoundError = (error) =>
@@ -346,92 +326,37 @@ const runOpenCode = async (
   /** @param {string} openCodeModel */
   const invokeOpenCodeCli = async (openCodeModel) => {
     const environment = await getCommandEnvironment();
-    return /** @type {Promise<string>} */ (
-      new Promise((resolve, reject) => {
-        let stderr = '';
-        /** @type {Error | null} */
-        let stdinError = null;
-        let stdout = '';
-        let finished = false;
-
-        const commandTransport = resolveAgentCommandTransport(
-          options.commandTransport,
-          getOpenCodeCommand,
-        );
-        const opencodeArgs = [
-          'run',
-          '--format',
-          'json',
-          '--pure',
-          '--agent',
-          'build',
-          '--dir',
-          repoRoot,
-          ...(openCodeModel === DEFAULT_OPENCODE_MODEL ? [] : ['--model', openCodeModel]),
-        ];
-        const child = commandTransport.spawn(commandTransport.command, opencodeArgs, {
-          cwd: repoRoot,
-          env: {
-            ...environment,
-            OPENCODE_PERMISSION: JSON.stringify({ '*': 'deny' }),
-          },
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
-
-        const timer = setTimeout(() => {
-          if (!finished) {
-            finished = true;
-            child.kill('SIGTERM');
-            reject(new Error(timeoutMessage));
-          }
-        }, timeoutMs);
-
-        child.stdout.on('data', (chunk) => {
-          stdout += chunk.toString();
-        });
-        child.stderr.on('data', (chunk) => {
-          stderr += chunk.toString();
-        });
-        child.stdin.on('error', (error) => {
-          stdinError = error;
-        });
-        child.on('error', (error) => {
-          finished = true;
-          clearTimeout(timer);
-          reject(getOpenCodeLaunchError(error));
-        });
-        child.on('close', (code, signal) => {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-          clearTimeout(timer);
-
-          if (code !== 0) {
-            reject(
-              new Error(
-                oneLine(
-                  stderr || stdout || stdinError?.message,
-                  signal
-                    ? `OpenCode was terminated by ${signal}.`
-                    : `OpenCode exited with code ${code}.`,
-                ),
-              ),
-            );
-            return;
-          }
-
-          try {
-            resolve(normalizeOpenCodeOutput(stdout, schema));
-          } catch (error) {
-            reject(error);
-          }
-        });
-
-        child.stdin.end(effectivePrompt, () => {});
-      })
+    const commandTransport = resolveAgentCommandTransport(
+      options.commandTransport,
+      getOpenCodeCommand,
     );
+    const opencodeArgs = [
+      'run',
+      '--format',
+      'json',
+      '--pure',
+      '--agent',
+      'build',
+      '--dir',
+      repoRoot,
+      ...(openCodeModel === DEFAULT_OPENCODE_MODEL ? [] : ['--model', openCodeModel]),
+    ];
+    const child = commandTransport.spawn(commandTransport.command, opencodeArgs, {
+      cwd: repoRoot,
+      env: {
+        ...environment,
+        OPENCODE_PERMISSION: JSON.stringify({ '*': 'deny' }),
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const stdout = await collectAgentOutput(child, {
+      label: 'OpenCode',
+      getLaunchError: getOpenCodeLaunchError,
+      prompt: effectivePrompt,
+      timeoutMessage,
+      timeoutMs,
+    });
+    return normalizeOpenCodeOutput(stdout, schema);
   };
 
   /** @param {string} openCodeModel */
@@ -536,7 +461,7 @@ const runOpenCode = async (
         body: JSON.stringify({
           agent: 'build',
           permission: [{ action: 'deny', pattern: '*', permission: '*' }],
-          title: 'Codiff walkthrough',
+          title: 'Codophon walkthrough',
         }),
         headers: { 'content-type': 'application/json' },
         method: 'POST',

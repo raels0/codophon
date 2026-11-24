@@ -9,7 +9,7 @@ const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
 
 class MarkdownDocumentConflictError extends Error {
   /**
-   * @param {import('../core/types.ts').CodiffMarkdownDocument} document
+   * @param {import('../core/types.ts').CodophonMarkdownDocument} document
    */
   constructor(document) {
     super(`Markdown document changed on disk: ${document.path}`);
@@ -80,7 +80,7 @@ const resolveMarkdownPath = (request, context) => {
 
 /**
  * @param {{absolutePath: string; id: string; kind: 'repository'; path: string}} resolved
- * @returns {Promise<import('../core/types.ts').CodiffMarkdownDocument>}
+ * @returns {Promise<import('../core/types.ts').CodophonMarkdownDocument>}
  */
 const readResolvedMarkdownDocument = async (resolved) => {
   const [content, fileStat] = await Promise.all([
@@ -162,7 +162,7 @@ const writeMarkdownDocument = async (request, context) => {
  * Watches parent directories so atomic file replacement does not detach the watcher.
  *
  * @param {{
- *   onChange: (document: import('../core/types.ts').CodiffMarkdownDocument) => void;
+ *   onChange: (document: import('../core/types.ts').CodophonMarkdownDocument) => void;
  *   onDelete?: (id: string) => void;
  *   resolved: {absolutePath: string; id: string; kind: 'repository'; path: string};
  * }} options

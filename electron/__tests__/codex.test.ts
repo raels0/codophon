@@ -1,56 +1,19 @@
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { beforeEach, expect, test } from 'vite-plus/test';
 import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-import { createCommandTransport, type FakeCommandProcess } from './helpers/command-transport.ts';
-
-type CommandTransport = ReturnType<typeof createCommandTransport>['transport'];
-
-const require = createRequire(import.meta.url);
-const {
+import {
   CODEX_NOT_FOUND_CODE,
   DEFAULT_OPENAI_MODEL,
   getCodexCommand,
   getCodexInstallPaths,
   normalizeOpenAIModel,
   runCodex,
-} = require('../codex.cjs') as {
-  CODEX_NOT_FOUND_CODE: string;
-  DEFAULT_OPENAI_MODEL: string;
-  getCodexCommand: (installPaths?: ReadonlyArray<string>) => string;
-  getCodexInstallPaths: (platform: NodeJS.Platform, home: string) => string[];
-  normalizeOpenAIModel: (value: unknown) => string;
-  runCodex: (
-    repoRoot: string,
-    prompt: string,
-    schema: unknown,
-    outputName?: string,
-    timeoutMessage?: string,
-    options?: {
-      fallbackModel?: string;
-      commandTransport?: CommandTransport;
-      model?: string;
-      onMetrics?: (metrics: {
-        transport: string;
-        usage?: {
-          cachedInputTokens: number;
-          inputTokens: number;
-          outputTokens: number;
-          reasoningOutputTokens: number;
-          totalTokens: number;
-        };
-      }) => void;
-      onModelFallback?: (fallbackModel: string, originalModel: string) => void;
-      onProgress?: (phase: string) => void;
-      reasoningEffort?: string;
-      timeoutMs?: number;
-    },
-  ) => Promise<string>;
-};
+} from '../codex.cjs';
+import { createCommandTransport, type FakeCommandProcess } from './helpers/command-transport.ts';
 
 const getArgumentValue = (args: ReadonlyArray<string>, name: string) => {
   const index = args.indexOf(name);
@@ -96,10 +59,10 @@ test('uses the default model only for empty or invalid preferences', () => {
 
 test('rejects invalid explicit Codex CLI overrides', async () => {
   await using _environment = createTemporaryEnvironment({
-    CODIFF_CODEX_PATH: '/tmp/codiff-missing-codex',
+    CODOPHON_CODEX_PATH: '/tmp/codophon-missing-codex',
   });
 
-  expect(() => getCodexCommand()).toThrow('CODIFF_CODEX_PATH');
+  expect(() => getCodexCommand()).toThrow('CODOPHON_CODEX_PATH');
   try {
     getCodexCommand();
   } catch (error) {
@@ -110,7 +73,7 @@ test('rejects invalid explicit Codex CLI overrides', async () => {
 test.each(['codex', 'codex-cli/bin/codex'])(
   'resolves the ChatGPT app CLI at %s without a codex command on PATH',
   async (entryPoint) => {
-    await using directory = await createTemporaryDirectory('codiff-chatgpt-cli-');
+    await using directory = await createTemporaryDirectory('codophon-chatgpt-cli-');
     const bundledCLI = join(
       directory.path,
       'Applications/ChatGPT.app/Contents/Resources',
@@ -120,7 +83,7 @@ test.each(['codex', 'codex-cli/bin/codex'])(
     await writeFile(bundledCLI, '#!/bin/sh\n');
     await chmod(bundledCLI, 0o755);
     await using _environment = createTemporaryEnvironment({
-      CODIFF_CODEX_PATH: undefined,
+      CODOPHON_CODEX_PATH: undefined,
       PATH: directory.path,
     });
 
@@ -340,10 +303,10 @@ test.each([
 });
 
 test('streams Codex app-server reasoning and message deltas as semantic progress', async () => {
-  await using directory = await createTemporaryDirectory('codiff-codex-progress-');
+  await using directory = await createTemporaryDirectory('codophon-codex-progress-');
   const fakeCodexPath = join(directory.path, 'codex');
   const requestsPath = join(directory.path, 'requests.txt');
-  await using _environment = createTemporaryEnvironment({ CODIFF_CODEX_PATH: fakeCodexPath });
+  await using _environment = createTemporaryEnvironment({ CODOPHON_CODEX_PATH: fakeCodexPath });
 
   await writeFile(
     fakeCodexPath,
@@ -588,9 +551,9 @@ test('surfaces structured Codex CLI errors without the full prompt stream', asyn
 });
 
 test('authenticates Codex from the login shell environment when the app inherited none', async () => {
-  await using directory = await createTemporaryDirectory('codiff-codex-login-env-');
+  await using directory = await createTemporaryDirectory('codophon-codex-login-env-');
   const fakeShell = join(directory.path, 'fake-login-shell');
-  // A GUI-launched Codiff keeps launchd's minimal environment: no
+  // A GUI-launched Codophon keeps launchd's minimal environment: no
   // OPENAI_API_KEY, even when the user's login shell exports one. Both the
   // app-server and exec transports must receive the login shell variables.
   await writeFile(

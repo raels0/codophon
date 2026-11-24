@@ -6,7 +6,7 @@ import { afterEach, expect, test, vi } from 'vite-plus/test';
 import { applyKeyboardLayout, resetKeyboardLayout } from '../config/keyboard-layout.ts';
 import type { NativeKeyboardLayout } from '../config/keyboard-layout.ts';
 import { matchesShortcut } from '../config/keymap.ts';
-import type { CodiffKeymap } from '../config/types.ts';
+import type { CodophonKeymap } from '../config/types.ts';
 
 afterEach(() => {
   resetKeyboardLayout();
@@ -944,7 +944,7 @@ function resolvePhysicalKey(spelling: string, shiftKey: boolean): string | null 
 function createTestContext({
   platform = 'MacIntel',
   ...overrides
-}: { platform?: string } & Partial<CodiffKeymap> = {}) {
+}: { platform?: string } & Partial<CodophonKeymap> = {}) {
   vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue(platform);
 
   const keymap = {
@@ -966,7 +966,7 @@ function createTestContext({
     toggleSidebar: 'Mod+Shift+b',
     toggleWordWrap: 'Alt+z',
     ...overrides,
-  } satisfies CodiffKeymap;
+  } satisfies CodophonKeymap;
 
   return { keydown, keymap };
 }

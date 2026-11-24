@@ -35,120 +35,57 @@
   }
 
   :root {
-    --app-bg: #f8f8f6;
-    --code-bg: #ffffff;
-    --codiff-font-mono: 'Fira Code', monospace;
-    --codiff-font-sans:
+    --app-bg: light-dark(#f8f8f6, #141414);
+    --code-bg: light-dark(#ffffff, #1c1c1c);
+    --codophon-font-mono: 'Fira Code', monospace;
+    --codophon-font-sans:
       Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --codiff-link: var(--tree-selection-focus);
-    --codiff-tree-color-scheme: light;
-    --danger: #a33a3a;
-    --diff-addition: rgb(31 122 68);
-    --diff-deletion: rgb(184 49 47);
-    --file-bg: rgb(255 255 255 / 0.78);
-    --file-border: rgb(17 17 17 / 0.09);
-    --inline-code-bg: rgb(242 242 242);
-    --hover-wash: rgb(127 127 127 / 0.1);
-    --copy-icon: rgb(17 17 17 / 0.62);
-    --muted: rgb(17 17 17 / 0.48);
-    --sidebar-bg: rgb(255 255 255 / 0.58);
-    --sidebar-border: rgb(17 17 17 / 0.1);
-    --sidebar-ref: #c56e0e;
-    --sidebar-text: rgb(17 17 17 / 0.76);
-    --sidebar-vibrancy-tint: rgb(255 255 255 / 0.34);
-    --text: #111111;
-    --tree-selection-bg: #c2e8ff50;
+    --codophon-link: var(--tree-selection-focus);
+    --codophon-tree-color-scheme: light;
+    --danger: light-dark(#a33a3a, #e07878);
+    --diff-addition: var(--viewed);
+    --diff-deletion: light-dark(rgb(184 49 47), rgb(238 126 126));
+    --file-bg: light-dark(rgb(255 255 255 / 0.78), rgb(38 38 38 / 0.72));
+    --file-border: light-dark(rgb(17 17 17 / 0.09), rgb(230 230 230 / 0.1));
+    --inline-code-bg: light-dark(rgb(242 242 242), rgb(39 39 39));
+    --hover-wash: light-dark(rgb(127 127 127 / 0.1), rgb(127 127 127 / 0.14));
+    --copy-icon: light-dark(rgb(17 17 17 / 0.62), rgb(230 230 230 / 0.68));
+    --muted: light-dark(rgb(17 17 17 / 0.48), rgb(230 230 230 / 0.48));
+    --sidebar-bg: light-dark(rgb(255 255 255 / 0.58), rgb(38 38 38 / 0.58));
+    --sidebar-border: light-dark(rgb(17 17 17 / 0.1), rgb(230 230 230 / 0.1));
+    --sidebar-ref: light-dark(#c56e0e, #eb9a3d);
+    --sidebar-text: light-dark(rgb(17 17 17 / 0.76), rgb(230 230 230 / 0.78));
+    --sidebar-vibrancy-tint: light-dark(rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.06));
+    --text: light-dark(#111111, rgb(230 230 230));
+    --tree-selection-bg: light-dark(#c2e8ff50, #a5a5a540);
     --tree-selection-focus: #3d87f5;
-    --viewed: rgb(31 122 68);
-    --font-mono: var(--codiff-font-mono);
-    --font-sans: var(--codiff-font-sans);
-    color-scheme: light;
+    --viewed: light-dark(rgb(31 122 68), rgb(111 208 148));
+    --font-mono: var(--codophon-font-mono);
+    --font-sans: var(--codophon-font-sans);
+  }
+
+  :root,
+  .app-shell[data-theme] {
+    color-scheme: var(--codophon-tree-color-scheme);
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --app-bg: #141414;
-      --code-bg: #1c1c1c;
-      --codiff-link: var(--tree-selection-focus);
-      --codiff-tree-color-scheme: dark;
-      --danger: #e07878;
-      --diff-addition: rgb(111 208 148);
-      --diff-deletion: rgb(238 126 126);
-      --file-bg: rgb(38 38 38 / 0.72);
-      --file-border: rgb(230 230 230 / 0.1);
-      --inline-code-bg: rgb(39 39 39);
-      --hover-wash: rgb(127 127 127 / 0.14);
-      --copy-icon: rgb(230 230 230 / 0.68);
-      --muted: rgb(230 230 230 / 0.48);
-      --sidebar-bg: rgb(38 38 38 / 0.58);
-      --sidebar-border: rgb(230 230 230 / 0.1);
-      --sidebar-ref: #eb9a3d;
-      --sidebar-text: rgb(230 230 230 / 0.78);
-      --sidebar-vibrancy-tint: rgb(255 255 255 / 0.06);
-      --text: rgb(230 230 230);
-      --tree-selection-bg: #a5a5a540;
-      --tree-selection-focus: #3d87f5;
-      --viewed: rgb(111 208 148);
-      color-scheme: dark;
+      --codophon-tree-color-scheme: dark;
     }
   }
 
   :root[data-theme='light'],
   .app-shell[data-theme='light'] {
-    --app-bg: #f8f8f6;
-    --code-bg: #ffffff;
-    --codiff-link: var(--tree-selection-focus);
-    --codiff-tree-color-scheme: light;
-    --danger: #a33a3a;
-    --diff-addition: rgb(31 122 68);
-    --diff-deletion: rgb(184 49 47);
-    --file-bg: rgb(255 255 255 / 0.78);
-    --file-border: rgb(17 17 17 / 0.09);
-    --inline-code-bg: rgb(242 242 242);
-    --hover-wash: rgb(127 127 127 / 0.1);
-    --copy-icon: rgb(17 17 17 / 0.62);
-    --muted: rgb(17 17 17 / 0.48);
-    --sidebar-bg: rgb(255 255 255 / 0.58);
-    --sidebar-border: rgb(17 17 17 / 0.1);
-    --sidebar-ref: #c56e0e;
-    --sidebar-text: rgb(17 17 17 / 0.76);
-    --sidebar-vibrancy-tint: rgb(255 255 255 / 0.34);
-    --text: #111111;
-    --tree-selection-bg: #c2e8ff50;
-    --tree-selection-focus: #3d87f5;
-    --viewed: rgb(31 122 68);
-    color-scheme: light;
+    --codophon-tree-color-scheme: light;
   }
 
   :root[data-theme='dark'],
   .app-shell[data-theme='dark'] {
-    --app-bg: #141414;
-    --code-bg: #1c1c1c;
-    --codiff-link: var(--tree-selection-focus);
-    --codiff-tree-color-scheme: dark;
-    --danger: #e07878;
-    --diff-addition: rgb(111 208 148);
-    --diff-deletion: rgb(238 126 126);
-    --file-bg: rgb(38 38 38 / 0.72);
-    --file-border: rgb(230 230 230 / 0.1);
-    --inline-code-bg: rgb(39 39 39);
-    --hover-wash: rgb(127 127 127 / 0.14);
-    --copy-icon: rgb(230 230 230 / 0.68);
-    --muted: rgb(230 230 230 / 0.48);
-    --sidebar-bg: rgb(38 38 38 / 0.58);
-    --sidebar-border: rgb(230 230 230 / 0.1);
-    --sidebar-ref: #eb9a3d;
-    --sidebar-text: rgb(230 230 230 / 0.78);
-    --sidebar-vibrancy-tint: rgb(255 255 255 / 0.06);
-    --text: rgb(230 230 230);
-    --tree-selection-bg: #a5a5a540;
-    --tree-selection-focus: #3d87f5;
-    --viewed: rgb(111 208 148);
-    color-scheme: dark;
+    --codophon-tree-color-scheme: dark;
   }
 
-  :root[data-review-theme='blue-amber'],
-  :root[data-review-theme='blue-amber'] .app-shell {
+  :root[data-review-theme='blue-amber'] {
     --diff-addition: light-dark(#1d5eaa, #75b8ff);
     --diff-deletion: light-dark(#945200, #e9b86b);
   }
@@ -228,7 +165,7 @@
     overflow: hidden;
   }
 
-  html[data-codiff-platform='darwin'] body {
+  html[data-codophon-platform='darwin'] body {
     background: transparent;
   }
 
@@ -281,7 +218,7 @@
   height: 40px;
 }
 
-html[data-codiff-platform='darwin'] .workspace-top-bar {
+html[data-codophon-platform='darwin'] .workspace-top-bar {
   backdrop-filter: none;
   background: var(--sidebar-vibrancy-tint);
 }
@@ -290,10 +227,7 @@ html[data-codiff-platform='darwin'] .workspace-top-bar {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.app-shell.sidebar-collapsed .sidebar {
-  display: none;
-}
-
+.app-shell.sidebar-collapsed .sidebar,
 .app-shell.sidebar-collapsed .sidebar-resizer {
   display: none;
 }
@@ -320,7 +254,8 @@ html[data-codiff-platform='darwin'] .workspace-top-bar {
 }
 
 .review-top-bar-left,
-.review-top-bar-right {
+.review-top-bar-right,
+.review-top-bar-context {
   align-items: center;
   display: flex;
   gap: 8px;
@@ -335,24 +270,6 @@ html[data-codiff-platform='darwin'] .workspace-top-bar {
 .review-top-bar-right {
   grid-column: 3;
   justify-content: flex-end;
-}
-
-.review-top-bar-center {
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  left: 50%;
-  max-width: min(38%, 320px);
-  min-width: 0;
-  pointer-events: none;
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.review-top-bar-center .review-top-bar-branch {
-  max-width: 100%;
-  pointer-events: auto;
 }
 
 .review-top-bar-repository-slot {
@@ -417,6 +334,8 @@ html[data-codiff-platform='darwin'] .workspace-top-bar {
 
 .review-top-bar-branch {
   align-items: center;
+  background: var(--chrome-sidebar);
+  border: 1px solid var(--chrome-divider);
   border-radius: var(--chrome-control-radius);
   color: var(--chrome-secondary);
   corner-shape: squircle;
@@ -430,18 +349,15 @@ html[data-codiff-platform='darwin'] .workspace-top-bar {
   white-space: nowrap;
 }
 
-a.review-top-bar-repository,
 a.review-top-bar-source {
   color: inherit;
   text-decoration: none;
 }
 
-a.review-top-bar-repository:hover,
 a.review-top-bar-source:hover {
   color: var(--text);
 }
 
-a.review-top-bar-repository:focus-visible,
 a.review-top-bar-source:focus-visible {
   border-radius: 3px;
   outline: 2px solid var(--chrome-focus);
@@ -459,13 +375,6 @@ a.review-top-bar-source:focus-visible {
   white-space: nowrap;
 }
 
-.review-top-bar-context {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-}
-
 .review-top-bar-actions {
   -webkit-app-region: no-drag;
   align-items: center;
@@ -475,25 +384,12 @@ a.review-top-bar-source:focus-visible {
   min-width: 0;
 }
 
-.review-top-bar-settings,
-.review-top-bar-settings > * {
-  align-items: center;
-  display: flex;
-  flex: none;
-  width: auto;
-}
-
 .review-mode-control {
   -webkit-app-region: no-drag;
   align-items: center;
   display: inline-flex;
   flex: none;
   gap: 2px;
-}
-
-.review-top-bar-branch {
-  background: var(--chrome-sidebar);
-  border: 1px solid var(--chrome-divider);
 }
 
 .review-mode-control button {
@@ -513,12 +409,14 @@ a.review-top-bar-source:focus-visible {
   white-space: nowrap;
 }
 
-.review-mode-control button:hover {
+.review-mode-control button:hover,
+.review-top-bar-icon-button:hover {
   background: var(--chrome-hover);
   color: var(--chrome-text);
 }
 
-.review-mode-control button[aria-selected='true'] {
+.review-mode-control button[aria-selected='true'],
+.review-top-bar-icon-button:active {
   background: var(--chrome-selected);
   color: var(--chrome-text);
 }
@@ -529,17 +427,6 @@ a.review-top-bar-source:focus-visible {
   text-overflow: ellipsis;
 }
 
-.review-mode-count {
-  background: rgb(127 127 127 / 0.16);
-  border-radius: 999px;
-  color: inherit;
-  flex: none;
-  font: 700 10px/1 var(--font-mono);
-  min-width: 16px;
-  padding: 3px 5px;
-  text-align: center;
-}
-
 .review-mode-dot {
   background: var(--sidebar-ref);
   border-radius: 50%;
@@ -548,7 +435,8 @@ a.review-top-bar-source:focus-visible {
   width: 6px;
 }
 
-.review-top-bar-icon-button {
+.review-top-bar-icon-button,
+.copy-comments-button {
   -webkit-app-region: no-drag;
   align-items: center;
   background: transparent;
@@ -561,21 +449,14 @@ a.review-top-bar-source:focus-visible {
   flex: none;
   height: 28px;
   justify-content: center;
-  padding: 0;
   transition:
     background 120ms ease,
     color 120ms ease;
+}
+
+.review-top-bar-icon-button {
+  padding: 0;
   width: 28px;
-}
-
-.review-top-bar-icon-button:hover {
-  background: var(--chrome-hover);
-  color: var(--chrome-text);
-}
-
-.review-top-bar-icon-button:active {
-  background: var(--chrome-selected);
-  color: var(--chrome-text);
 }
 
 .review-top-bar-text-button {
@@ -639,39 +520,45 @@ a.review-top-bar-source:focus-visible {
   transition: background 120ms ease;
 }
 
-.repository-change-banner {
+.repository-change-banner,
+.walkthrough-outdated-banner {
   -webkit-app-region: no-drag;
-  align-items: center;
-  background: color-mix(in srgb, var(--viewed) 10%, var(--code-bg));
-  border: 1px solid color-mix(in srgb, var(--viewed) 18%, transparent);
   border-radius: 14px;
-  box-shadow: 0 16px 46px -30px color-mix(in srgb, var(--viewed) 52%, rgb(0 0 0));
-  color: color-mix(in srgb, var(--viewed) 36%, var(--text));
   corner-shape: squircle;
-  display: inline-flex;
   font-size: 13px;
-  font-weight: 600;
-  gap: 8px;
   left: 50%;
-  line-height: 1.25;
-  padding: 8px 8px 8px 13px;
   pointer-events: none;
   position: fixed;
   top: 18px;
-  transform: translate(-50%, -66px);
   transition:
     opacity 180ms ease,
     transform 320ms cubic-bezier(0.2, 0.82, 0.22, 1);
   z-index: 22;
 }
 
-.repository-change-banner.visible {
+.repository-change-banner {
+  align-items: center;
+  background: color-mix(in srgb, var(--viewed) 10%, var(--code-bg));
+  border: 1px solid color-mix(in srgb, var(--viewed) 18%, transparent);
+  box-shadow: 0 16px 46px -30px color-mix(in srgb, var(--viewed) 52%, rgb(0 0 0));
+  color: color-mix(in srgb, var(--viewed) 36%, var(--text));
+  display: inline-flex;
+  font-weight: 600;
+  gap: 8px;
+  line-height: 1.25;
+  padding: 8px 8px 8px 13px;
+  transform: translate(-50%, -66px);
+}
+
+.repository-change-banner.visible,
+.walkthrough-outdated-banner.visible {
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, 0);
 }
 
-.repository-change-banner:not(.visible) {
+.repository-change-banner:not(.visible),
+.walkthrough-outdated-banner:not(.visible) {
   opacity: 0;
 }
 
@@ -733,39 +620,17 @@ a.review-top-bar-source:focus-visible {
 }
 
 .walkthrough-outdated-banner {
-  -webkit-app-region: no-drag;
   align-items: flex-start;
   background: color-mix(in srgb, #d9822b 12%, var(--code-bg));
   border: 1px solid color-mix(in srgb, #d9822b 32%, transparent);
-  border-radius: 14px;
   box-shadow: 0 16px 46px -30px color-mix(in srgb, #d9822b 52%, rgb(0 0 0));
   color: color-mix(in srgb, #d9822b 32%, var(--text));
-  corner-shape: squircle;
   display: flex;
-  font-size: 13px;
   gap: 10px;
-  left: 50%;
   line-height: 1.35;
   max-width: min(620px, calc(100vw - 48px));
   padding: 10px 10px 10px 14px;
-  pointer-events: none;
-  position: fixed;
-  top: 18px;
   transform: translate(-50%, -76px);
-  transition:
-    opacity 180ms ease,
-    transform 320ms cubic-bezier(0.2, 0.82, 0.22, 1);
-  z-index: 22;
-}
-
-.walkthrough-outdated-banner.visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate(-50%, 0);
-}
-
-.walkthrough-outdated-banner:not(.visible) {
-  opacity: 0;
 }
 
 .walkthrough-outdated-banner-content {
@@ -871,14 +736,14 @@ a.review-top-bar-source:focus-visible {
   flex: none;
 }
 
-.codiff-search-mark {
+.codophon-search-mark {
   background: rgb(255 216 92 / 0.65);
   border-radius: 3px;
   color: inherit;
   padding: 0 1px;
 }
 
-.codiff-search-mark.active {
+.codophon-search-mark.active {
   background: rgb(255 176 46 / 0.96);
   box-shadow: 0 0 0 1px rgb(255 142 36 / 0.4);
 }
@@ -1090,12 +955,6 @@ a.review-top-bar-source:focus-visible {
   margin-top: 0;
 }
 
-.history-entry-subject {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .history-entry-ref {
   align-self: center;
   color: var(--chrome-secondary);
@@ -1114,6 +973,9 @@ a.review-top-bar-source:focus-visible {
   color: var(--text);
   font: 12px/1.35 var(--font-sans);
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-entry-meta {
@@ -1126,7 +988,8 @@ a.review-top-bar-source:focus-visible {
   white-space: nowrap;
 }
 
-.history-entry-meta > span:first-child {
+.history-entry-meta > span:first-child,
+.history-entry-author > span:last-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1140,12 +1003,6 @@ a.review-top-bar-source:focus-visible {
   align-items: center;
   display: inline-flex;
   gap: 5px;
-}
-
-.history-entry-author > span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .history-loading {
@@ -1269,7 +1126,7 @@ a.review-top-bar-source:focus-visible {
 }
 
 .code-view {
-  --codiff-diff-radius: 22px;
+  --codophon-diff-radius: 22px;
   background: var(--app-bg);
   contain: strict;
   display: block;
@@ -1314,7 +1171,7 @@ a.review-top-bar-source:focus-visible {
 }
 
 .definition-popover-header code {
-  font-family: var(--codiff-font-mono);
+  font-family: var(--codophon-font-mono);
 }
 
 .definition-popover-header button {
@@ -1393,19 +1250,19 @@ a.review-top-bar-source:focus-visible {
 .definition-popover-result code {
   color: var(--muted);
   display: block;
-  font-family: var(--codiff-font-mono);
+  font-family: var(--codophon-font-mono);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.codiff-header-toggle.codiff-header-toggle-static {
+.codophon-header-toggle.codophon-header-toggle-static {
   cursor: default;
   grid-template-columns: minmax(0, 1fr);
 }
 
-.codiff-file-path.source-description-title {
+.codophon-file-path.source-description-title {
   font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 600;
@@ -1419,9 +1276,9 @@ a.review-top-bar-source:focus-visible {
   justify-content: flex-end;
 }
 
-.codiff-source-description-panel {
+.codophon-source-description-panel {
   background: var(--code-bg);
-  border-radius: var(--codiff-diff-radius);
+  border-radius: var(--codophon-diff-radius);
   box-shadow:
     0 0 0 1px var(--file-border),
     6px 18px 80px -54px rgb(0 0 0 / 0.78);
@@ -1430,35 +1287,35 @@ a.review-top-bar-source:focus-visible {
   overflow: clip;
 }
 
-.codiff-source-description-panel {
+.codophon-source-description-panel {
   font-size: 14px;
 }
 
 /* The PR/commit description card renders in CodeView's non-virtualized header
    region at the top of the scroll content; the host div inherits the
    scroller's inline padding, so only vertical spacing is needed here. */
-.code-view [data-diffs-code-view-header] .codiff-code-view-source-description {
+.code-view [data-diffs-code-view-header] .codophon-code-view-source-description {
   margin-top: 11px;
 }
 
 /* The title bar sticks to the top of the scroller while the card is in view
    and unsticks naturally as the card scrolls past (sticky cannot escape the
    panel; `overflow: clip` does not create a scroll container). */
-.code-view [data-diffs-code-view-header] .codiff-source-description-header {
+.code-view [data-diffs-code-view-header] .codophon-source-description-header {
   position: sticky;
   top: 0;
   z-index: 3;
 }
 
-.codiff-source-description-panel-body {
+.codophon-source-description-panel-body {
   background: var(--code-bg);
 }
 
-.codiff-source-description-footer {
+.codophon-source-description-footer {
   padding: 0 8px 8px 50px;
 }
 
-.source-description-comment-anonymous + .codiff-source-description-footer {
+.source-description-comment-anonymous + .codophon-source-description-footer {
   padding-left: 8px;
 }
 
@@ -1484,13 +1341,13 @@ a.review-top-bar-source:focus-visible {
   font-size: 14px;
 }
 
-.source-description-markdown.codiff-markdown-preview:not(.editable) {
+.source-description-markdown.codophon-markdown-preview:not(.editable) {
   --mdx-editor-font-size: 14px;
 
   padding: 0;
 }
 
-.source-description-markdown.codiff-markdown-preview:not(.editable) :is(h1, h2, h3, h4, h5, h6) {
+.source-description-markdown.codophon-markdown-preview:not(.editable) :is(h1, h2, h3, h4, h5, h6) {
   border-bottom: none;
   font-size: 14px;
   margin: 14px 0 6px;
@@ -1515,19 +1372,19 @@ a.review-top-bar-source:focus-visible {
   padding: 8px 12px;
 }
 
-.codiff-safe-markdown-view {
+.codophon-safe-markdown-view {
   display: block;
 }
 
-.codiff-safe-markdown-view .codiff-safe-markdown-segment {
+.codophon-safe-markdown-view .codophon-safe-markdown-segment {
   min-height: 0;
 }
 
-.codiff-safe-markdown-view .codiff-safe-markdown-segment .mdx-editor-content {
+.codophon-safe-markdown-view .codophon-safe-markdown-segment .mdx-editor-content {
   min-height: 0;
 }
 
-.codiff-markdown-details {
+.codophon-markdown-details {
   background: color-mix(in srgb, var(--file-bg) 98%, var(--text) 2%);
   border: 1px solid var(--file-border);
   border-radius: 12px;
@@ -1536,7 +1393,7 @@ a.review-top-bar-source:focus-visible {
   overflow: clip;
 }
 
-.codiff-markdown-details > summary {
+.codophon-markdown-details > summary {
   align-items: center;
   color: var(--text);
   cursor: pointer;
@@ -1547,23 +1404,23 @@ a.review-top-bar-source:focus-visible {
   padding: 8px 10px;
 }
 
-.codiff-markdown-details-summary-label {
+.codophon-markdown-details-summary-label {
   flex: 1;
   min-width: 0;
 }
 
-.codiff-markdown-details > summary .codiff-copy-code-button {
+.codophon-markdown-details > summary .codophon-copy-code-button {
   height: 24px;
   margin: -4px 0;
   opacity: 1;
   width: 24px;
 }
 
-.codiff-markdown-details > summary::-webkit-details-marker {
+.codophon-markdown-details > summary::-webkit-details-marker {
   display: none;
 }
 
-.codiff-markdown-details > summary::before {
+.codophon-markdown-details > summary::before {
   content: '\25B8';
   display: inline-block;
   flex: none;
@@ -1571,19 +1428,19 @@ a.review-top-bar-source:focus-visible {
   line-height: 0.5;
 }
 
-.codiff-markdown-details > summary:hover {
+.codophon-markdown-details > summary:hover {
   background: var(--hover-wash);
 }
 
-.codiff-markdown-details[open] > summary {
+.codophon-markdown-details[open] > summary {
   border-bottom: 1px solid var(--file-border);
 }
 
-.codiff-markdown-details[open] > summary::before {
+.codophon-markdown-details[open] > summary::before {
   content: '\25BE';
 }
 
-.codiff-markdown-details > summary code {
+.codophon-markdown-details > summary code {
   background: var(--inline-code-bg);
   border-radius: 6px;
   corner-shape: squircle;
@@ -1595,7 +1452,7 @@ a.review-top-bar-source:focus-visible {
 .code-view diffs-container {
   background: var(--code-bg);
   background-clip: padding-box;
-  border-radius: var(--codiff-diff-radius);
+  border-radius: var(--codophon-diff-radius);
   box-shadow:
     0 0 0 1px var(--file-border),
     6px 18px 80px -54px rgb(0 0 0 / 0.78);
@@ -1605,14 +1462,14 @@ a.review-top-bar-source:focus-visible {
   overflow: clip;
 }
 
-.codiff-markdown-preview {
+.codophon-markdown-preview {
   box-sizing: border-box;
   inline-size: 100%;
   min-inline-size: 0;
   padding: 0;
 }
 
-.codiff-markdown-preview:not(.editable) {
+.codophon-markdown-preview:not(.editable) {
   color: var(--text);
   font: 14px/1.55 var(--font-sans);
   overflow-wrap: anywhere;
@@ -1621,21 +1478,21 @@ a.review-top-bar-source:focus-visible {
   word-break: normal;
 }
 
-.codiff-markdown-change {
+.codophon-markdown-change {
   border-left: 3px solid var(--file-border);
   margin: 12px -12px 18px;
   padding: 8px 12px 2px;
 }
 
-.codiff-markdown-change.added {
+.codophon-markdown-change.added {
   border-color: var(--diff-addition);
 }
 
-.codiff-markdown-change.removed {
+.codophon-markdown-change.removed {
   border-color: var(--diff-deletion);
 }
 
-.codiff-markdown-change-header {
+.codophon-markdown-change-header {
   align-items: baseline;
   color: var(--muted);
   display: flex;
@@ -1646,15 +1503,15 @@ a.review-top-bar-source:focus-visible {
   margin-bottom: 8px;
 }
 
-.codiff-markdown-change.added .codiff-markdown-change-header > span:first-child {
+.codophon-markdown-change.added .codophon-markdown-change-header > span:first-child {
   color: var(--diff-addition);
 }
 
-.codiff-markdown-change.removed .codiff-markdown-change-header > span:first-child {
+.codophon-markdown-change.removed .codophon-markdown-change-header > span:first-child {
   color: var(--diff-deletion);
 }
 
-.codiff-markdown-source-anchor {
+.codophon-markdown-source-anchor {
   background: transparent;
   border: 0;
   border-radius: 4px;
@@ -1665,18 +1522,18 @@ a.review-top-bar-source:focus-visible {
   padding: 2px 4px;
 }
 
-.codiff-markdown-source-anchor:hover {
+.codophon-markdown-source-anchor:hover {
   background: var(--hover-wash);
   color: var(--text);
 }
 
-.codiff-markdown-insertion,
-.codiff-markdown-source-change .added,
-.codiff-markdown-after {
+.codophon-markdown-insertion,
+.codophon-markdown-source-change .added,
+.codophon-markdown-after {
   background: color-mix(in srgb, var(--diff-addition) 15%, transparent);
 }
 
-.codiff-markdown-insertion {
+.codophon-markdown-insertion {
   border-radius: 3px;
   padding-inline: 2px;
   text-decoration-color: var(--diff-addition);
@@ -1684,54 +1541,54 @@ a.review-top-bar-source:focus-visible {
   text-underline-offset: 3px;
 }
 
-.codiff-markdown-deletion,
-.codiff-markdown-source-change .removed,
-.codiff-markdown-before {
+.codophon-markdown-deletion,
+.codophon-markdown-source-change .removed,
+.codophon-markdown-before {
   background: color-mix(in srgb, var(--diff-deletion) 15%, transparent);
 }
 
-.codiff-markdown-deletion {
+.codophon-markdown-deletion {
   border-radius: 3px;
   padding-inline: 2px;
   text-decoration-color: var(--diff-deletion);
 }
 
-.codiff-markdown-before,
-.codiff-markdown-after {
+.codophon-markdown-before,
+.codophon-markdown-after {
   border-radius: 6px;
   margin-bottom: 8px;
   padding: 10px 12px;
 }
 
-.codiff-markdown-preview:not(.editable)
-  :is(.codiff-markdown-before, .codiff-markdown-after)
+.codophon-markdown-preview:not(.editable)
+  :is(.codophon-markdown-before, .codophon-markdown-after)
   > :last-child {
   margin-bottom: 0;
 }
 
-.codiff-markdown-attribute-change {
+.codophon-markdown-attribute-change {
   border-top: 1px solid var(--file-border);
   font-size: 12px;
   margin: 10px 0;
   padding-top: 8px;
 }
 
-.codiff-markdown-attribute-change > span {
+.codophon-markdown-attribute-change > span {
   color: var(--muted);
 }
 
-.codiff-markdown-attribute-change > div {
+.codophon-markdown-attribute-change > div {
   font-family: var(--font-mono);
   margin-top: 4px;
 }
 
-.codiff-markdown-unchanged,
-.codiff-markdown-source-change {
+.codophon-markdown-unchanged,
+.codophon-markdown-source-change {
   margin: 12px 0;
 }
 
-.codiff-markdown-unchanged > summary,
-.codiff-markdown-source-change > summary {
+.codophon-markdown-unchanged > summary,
+.codophon-markdown-source-change > summary {
   border-radius: 5px;
   color: var(--muted);
   cursor: pointer;
@@ -1739,132 +1596,132 @@ a.review-top-bar-source:focus-visible {
   padding: 6px 8px;
 }
 
-.codiff-markdown-unchanged > summary {
+.codophon-markdown-unchanged > summary {
   background: color-mix(in srgb, var(--muted) 7%, transparent);
 }
 
-.codiff-markdown-context {
+.codophon-markdown-context {
   opacity: 0.82;
 }
 
-.codiff-markdown-diff img {
+.codophon-markdown-diff img {
   height: auto;
   max-width: 100%;
 }
 
-.codiff-markdown-diff table {
+.codophon-markdown-diff table {
   border-collapse: collapse;
   display: block;
   max-width: 100%;
   overflow-x: auto;
 }
 
-.codiff-markdown-diff :is(td, th) {
+.codophon-markdown-diff :is(td, th) {
   border: 1px solid var(--file-border);
   padding: 6px 10px;
 }
 
-.codiff-markdown-preview:not(.editable) .codiff-markdown-source-change pre {
+.codophon-markdown-preview:not(.editable) .codophon-markdown-source-change pre {
   max-height: 360px;
   overflow: auto;
   white-space: pre-wrap;
 }
 
-.codiff-markdown-source-change pre span {
+.codophon-markdown-source-change pre span {
   display: block;
 }
 
-.codiff-markdown-preview:not(.editable) a {
-  color: var(--codiff-link, var(--tree-selection-focus, #3d87f5));
+.codophon-markdown-preview:not(.editable) a {
+  color: var(--codophon-link, var(--tree-selection-focus, #3d87f5));
   text-decoration: none;
 }
 
-.codiff-markdown-preview:not(.editable) a:hover {
+.codophon-markdown-preview:not(.editable) a:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.codiff-markdown-preview:not(.editable) a:focus-visible {
+.codophon-markdown-preview:not(.editable) a:focus-visible {
   border-radius: 3px;
   corner-shape: squircle;
-  outline: 1px solid var(--codiff-link, var(--tree-selection-focus, #3d87f5));
+  outline: 1px solid var(--codophon-link, var(--tree-selection-focus, #3d87f5));
   outline-offset: 2px;
 }
 
-.codiff-markdown-preview:not(.editable) > :first-child {
+.codophon-markdown-preview:not(.editable) > :first-child {
   margin-top: 0;
 }
 
-.codiff-markdown-preview:not(.editable) > :last-child {
+.codophon-markdown-preview:not(.editable) > :last-child {
   margin-bottom: 0;
 }
 
-.codiff-markdown-preview:not(.editable) h1,
-.codiff-markdown-preview:not(.editable) h2,
-.codiff-markdown-preview:not(.editable) h3,
-.codiff-markdown-preview:not(.editable) h4,
-.codiff-markdown-preview:not(.editable) h5,
-.codiff-markdown-preview:not(.editable) h6 {
+.codophon-markdown-preview:not(.editable) h1,
+.codophon-markdown-preview:not(.editable) h2,
+.codophon-markdown-preview:not(.editable) h3,
+.codophon-markdown-preview:not(.editable) h4,
+.codophon-markdown-preview:not(.editable) h5,
+.codophon-markdown-preview:not(.editable) h6 {
   color: var(--text);
   font-weight: 700;
   line-height: 1.2;
   margin: 22px 0 10px;
 }
 
-.codiff-markdown-preview:not(.editable) h1 {
+.codophon-markdown-preview:not(.editable) h1 {
   border-bottom: 1px solid var(--file-border);
   font-size: 24px;
   padding-bottom: 8px;
 }
 
-.codiff-markdown-preview:not(.editable) h2 {
+.codophon-markdown-preview:not(.editable) h2 {
   border-bottom: 1px solid var(--file-border);
   font-size: 20px;
   padding-bottom: 6px;
 }
 
-.codiff-markdown-preview:not(.editable) h3 {
+.codophon-markdown-preview:not(.editable) h3 {
   font-size: 17px;
 }
 
-.codiff-markdown-preview:not(.editable) p,
-.codiff-markdown-preview:not(.editable) blockquote,
-.codiff-markdown-preview:not(.editable) ol,
-.codiff-markdown-preview:not(.editable) ul,
-.codiff-markdown-preview:not(.editable) pre,
-.codiff-markdown-preview:not(.editable) table {
+.codophon-markdown-preview:not(.editable) p,
+.codophon-markdown-preview:not(.editable) blockquote,
+.codophon-markdown-preview:not(.editable) ol,
+.codophon-markdown-preview:not(.editable) ul,
+.codophon-markdown-preview:not(.editable) pre,
+.codophon-markdown-preview:not(.editable) table {
   margin: 0 0 14px;
 }
 
-.codiff-markdown-preview:not(.editable) ol,
-.codiff-markdown-preview:not(.editable) ul {
+.codophon-markdown-preview:not(.editable) ol,
+.codophon-markdown-preview:not(.editable) ul {
   padding-left: 22px;
 }
 
-.codiff-markdown-preview:not(.editable) ol {
+.codophon-markdown-preview:not(.editable) ol {
   list-style: decimal;
 }
 
-.codiff-markdown-preview:not(.editable) ul {
+.codophon-markdown-preview:not(.editable) ul {
   list-style: disc;
 }
 
-.codiff-markdown-preview:not(.editable) li::marker {
+.codophon-markdown-preview:not(.editable) li::marker {
   color: var(--tree-selection-focus);
 }
 
-.codiff-markdown-preview:not(.editable) li + li {
+.codophon-markdown-preview:not(.editable) li + li {
   margin-top: 4px;
 }
 
-.codiff-markdown-preview:not(.editable) blockquote {
+.codophon-markdown-preview:not(.editable) blockquote {
   background: rgb(127 127 127 / 0.06);
   border-left: 3px solid var(--file-border);
   color: var(--muted);
   padding-left: 12px;
 }
 
-.codiff-markdown-preview:not(.editable) pre {
+.codophon-markdown-preview:not(.editable) pre {
   background: rgb(127 127 127 / 0.09);
   border: 1px solid rgb(127 127 127 / 0.14);
   border-radius: 8px;
@@ -1876,72 +1733,72 @@ a.review-top-bar-source:focus-visible {
   word-break: break-word;
 }
 
-.codiff-markdown-preview:not(.editable) code {
+.codophon-markdown-preview:not(.editable) code {
   font-family: var(--font-mono);
 }
 
-.codiff-markdown-preview:not(.editable) hr {
+.codophon-markdown-preview:not(.editable) hr {
   border: 0;
   border-top: 1px solid var(--file-border);
   margin: 20px 0;
 }
 
-.codiff-markdown-document-editor,
-.codiff-markdown-preview-editor,
-.codiff-readonly-markdown-editor {
+.codophon-markdown-document-editor,
+.codophon-markdown-preview-editor,
+.codophon-readonly-markdown-editor {
   --mdx-editor-accent: var(--tree-selection-focus);
   --mdx-editor-accent-contrast: #fff;
   --mdx-editor-accent-soft: var(--tree-selection-bg);
   --mdx-editor-bg: transparent;
   --mdx-editor-border: var(--file-border);
   --mdx-editor-code-bg: var(--inline-code-bg);
-  --mdx-editor-font: var(--codiff-font-sans);
+  --mdx-editor-font: var(--codophon-font-sans);
   --mdx-editor-hover: var(--hover-wash);
-  --mdx-editor-mono-font: var(--codiff-font-mono);
+  --mdx-editor-mono-font: var(--codophon-font-mono);
   --mdx-editor-muted: var(--muted);
   --mdx-editor-selection: var(--tree-selection-bg);
   --mdx-editor-text: var(--text);
 }
 
-.codiff-markdown-document-editor {
+.codophon-markdown-document-editor {
   --mdx-editor-font-size: 14px;
   --mdx-editor-line-height: 1.55;
   --mdx-editor-padding: 8px 12px;
 }
 
-.codiff-mermaid-viewer {
+.codophon-mermaid-viewer {
   margin: 18px 0;
   position: relative;
 }
 
-.codiff-mermaid-viewport {
+.codophon-mermaid-viewport {
   cursor: grab;
   min-height: 120px;
   overflow: hidden;
   user-select: none;
 }
 
-.codiff-mermaid-viewport.dragging {
+.codophon-mermaid-viewport.dragging {
   cursor: grabbing;
 }
 
-.codiff-mermaid-diagram {
+.codophon-mermaid-diagram {
   display: block;
   height: auto;
   max-width: 100%;
   transform-origin: 0 0;
 }
 
-.codiff-mermaid-source {
+.codophon-mermaid-source {
   position: relative;
 }
 
-.codiff-mermaid-source [class*='codeMirrorToolbar'] {
+.codophon-mermaid-source [class*='codeMirrorToolbar'] {
   display: none;
 }
 
-.codiff-mermaid-actions,
-.codiff-mermaid-pan-zoom {
+.codophon-mermaid-actions,
+.codophon-mermaid-pan-zoom {
   opacity: 0;
   position: absolute;
   right: 8px;
@@ -1949,13 +1806,13 @@ a.review-top-bar-source:focus-visible {
   z-index: 1;
 }
 
-.codiff-mermaid-actions {
+.codophon-mermaid-actions {
   display: flex;
   gap: 4px;
   top: 8px;
 }
 
-.codiff-mermaid-pan-zoom {
+.codophon-mermaid-pan-zoom {
   bottom: 8px;
   display: grid;
   gap: 2px;
@@ -1963,19 +1820,19 @@ a.review-top-bar-source:focus-visible {
   grid-template-rows: repeat(3, 24px);
 }
 
-.codiff-mermaid-block:is(:hover, :has(:focus-visible))
-  :is(.codiff-mermaid-actions, .codiff-mermaid-pan-zoom) {
+.codophon-mermaid-block:is(:hover, :has(:focus-visible))
+  :is(.codophon-mermaid-actions, .codophon-mermaid-pan-zoom) {
   opacity: 1;
 }
 
 @media (hover: none) {
-  .codiff-mermaid-actions,
-  .codiff-mermaid-pan-zoom {
+  .codophon-mermaid-actions,
+  .codophon-mermaid-pan-zoom {
     opacity: 1;
   }
 }
 
-.codiff-mermaid-block .codiff-mermaid-control {
+.codophon-mermaid-block .codophon-mermaid-control {
   align-items: center;
   background: color-mix(in srgb, var(--mdx-editor-code-bg) 88%, transparent);
   border: 1px solid var(--mdx-editor-border);
@@ -1991,49 +1848,49 @@ a.review-top-bar-source:focus-visible {
   width: 24px;
 }
 
-.codiff-mermaid-block .codiff-mermaid-control:hover {
+.codophon-mermaid-block .codophon-mermaid-control:hover {
   background: color-mix(in srgb, var(--mdx-editor-code-bg) 80%, rgb(127 127 127));
 }
 
-.codiff-mermaid-block .codiff-mermaid-control.copied {
+.codophon-mermaid-block .codophon-mermaid-control.copied {
   color: var(--viewed);
 }
 
-.codiff-mermaid-pan-zoom > .zoom-in {
+.codophon-mermaid-pan-zoom > .zoom-in {
   grid-area: 1 / 3;
 }
 
-.codiff-mermaid-pan-zoom > .zoom-out {
+.codophon-mermaid-pan-zoom > .zoom-out {
   grid-area: 3 / 3;
 }
 
-.codiff-mermaid-pan-zoom > .reset {
+.codophon-mermaid-pan-zoom > .reset {
   grid-area: 2 / 2;
 }
 
-.codiff-mermaid-pan-zoom > .up {
+.codophon-mermaid-pan-zoom > .up {
   grid-area: 1 / 2;
 }
 
-.codiff-mermaid-pan-zoom > .down {
+.codophon-mermaid-pan-zoom > .down {
   grid-area: 3 / 2;
 }
 
-.codiff-mermaid-pan-zoom > .left {
+.codophon-mermaid-pan-zoom > .left {
   grid-area: 2 / 1;
 }
 
-.codiff-mermaid-pan-zoom > .right {
+.codophon-mermaid-pan-zoom > .right {
   grid-area: 2 / 3;
 }
 
-.codiff-mermaid-error {
+.codophon-mermaid-error {
   color: var(--muted);
   font-size: 12px;
   margin: -12px 0 18px;
 }
 
-.codiff-markdown-document-editor
+.codophon-markdown-document-editor
   .mdx-editor-content
   li[role='checkbox'][aria-checked='true']::after,
 .review-comment-markdown-editor
@@ -2042,7 +1899,7 @@ a.review-top-bar-source:focus-visible {
   border-color: var(--mdx-editor-accent-contrast);
 }
 
-.codiff-markdown-editor-message {
+.codophon-markdown-editor-message {
   align-items: center;
   color: var(--muted);
   display: flex;
@@ -2052,21 +1909,21 @@ a.review-top-bar-source:focus-visible {
   padding: 24px;
 }
 
-.codiff-markdown-editor-message.error {
+.codophon-markdown-editor-message.error {
   color: var(--danger);
   font-style: normal;
 }
 
-.codiff-markdown-editor-unsupported {
+.codophon-markdown-editor-unsupported {
   min-block-size: 180px;
 }
 
-.codiff-markdown-editor-unsupported .codiff-markdown-editor-message {
+.codophon-markdown-editor-unsupported .codophon-markdown-editor-message {
   min-height: auto;
   padding-bottom: 12px;
 }
 
-.codiff-markdown-editor-source {
+.codophon-markdown-editor-source {
   box-sizing: border-box;
   color: var(--text);
   font: 13px/1.55 var(--font-mono);
@@ -2076,7 +1933,7 @@ a.review-top-bar-source:focus-visible {
   white-space: pre-wrap;
 }
 
-.codiff-image-preview {
+.codophon-image-preview {
   box-sizing: border-box;
   color: var(--text);
   display: flex;
@@ -2089,24 +1946,24 @@ a.review-top-bar-source:focus-visible {
   width: 100%;
 }
 
-.codiff-image-preview-item [data-column-number],
-.codiff-image-preview-item [data-gutter-buffer='annotation'],
-.codiff-image-preview-item [data-content] > [data-line] {
+.codophon-image-preview-item [data-column-number],
+.codophon-image-preview-item [data-gutter-buffer='annotation'],
+.codophon-image-preview-item [data-content] > [data-line] {
   display: none;
 }
 
-.codiff-image-preview-item [data-code] {
+.codophon-image-preview-item [data-code] {
   padding-block: 0;
 }
 
-.codiff-image-preview-message {
+.codophon-image-preview-message {
   align-items: center;
   color: var(--muted);
   flex-direction: row;
   min-height: 120px;
 }
 
-.codiff-image-preview-toolbar {
+.codophon-image-preview-toolbar {
   align-items: center;
   display: flex;
   gap: 10px;
@@ -2114,14 +1971,14 @@ a.review-top-bar-source:focus-visible {
   min-width: 0;
 }
 
-.codiff-image-preview-title {
+.codophon-image-preview-title {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
-.codiff-image-preview-mode {
+.codophon-image-preview-mode {
   background: rgb(127 127 127 / 0.09);
   border: 1px solid rgb(127 127 127 / 0.15);
   border-radius: 8px;
@@ -2130,7 +1987,7 @@ a.review-top-bar-source:focus-visible {
   padding: 2px;
 }
 
-.codiff-image-preview-mode button {
+.codophon-image-preview-mode button {
   align-items: center;
   background: transparent;
   border: 0;
@@ -2145,20 +2002,20 @@ a.review-top-bar-source:focus-visible {
   width: 30px;
 }
 
-.codiff-image-preview-mode button:hover,
-.codiff-image-preview-mode button.active {
+.codophon-image-preview-mode button:hover,
+.codophon-image-preview-mode button.active {
   background: var(--file-bg);
   color: var(--text);
 }
 
-.codiff-image-grid {
+.codophon-image-grid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   min-width: 0;
 }
 
-.codiff-image-grid figure {
+.codophon-image-grid figure {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2166,8 +2023,8 @@ a.review-top-bar-source:focus-visible {
   min-width: 0;
 }
 
-.codiff-image-frame,
-.codiff-image-slider-stage {
+.codophon-image-frame,
+.codophon-image-slider-stage {
   background:
     linear-gradient(45deg, rgb(127 127 127 / 0.1) 25%, transparent 25%),
     linear-gradient(-45deg, rgb(127 127 127 / 0.1) 25%, transparent 25%),
@@ -2187,21 +2044,21 @@ a.review-top-bar-source:focus-visible {
   overflow: hidden;
 }
 
-.codiff-image-frame {
+.codophon-image-frame {
   align-items: center;
   display: flex;
   justify-content: center;
   padding: 10px;
 }
 
-.codiff-image-frame img {
+.codophon-image-frame img {
   display: block;
   max-height: min(62vh, 720px);
   max-width: 100%;
   object-fit: contain;
 }
 
-.codiff-image-grid figcaption {
+.codophon-image-grid figcaption {
   color: var(--muted);
   display: flex;
   font: 12px/1.2 var(--font-mono);
@@ -2209,15 +2066,15 @@ a.review-top-bar-source:focus-visible {
   min-width: 0;
 }
 
-.codiff-image-slider {
+.codophon-image-slider {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
 }
 
-.codiff-image-slider-stage {
-  --codiff-image-split: 50%;
+.codophon-image-slider-stage {
+  --codophon-image-split: 50%;
 
   aspect-ratio: 16 / 9;
   max-height: min(68vh, 760px);
@@ -2225,7 +2082,7 @@ a.review-top-bar-source:focus-visible {
   position: relative;
 }
 
-.codiff-image-slider-stage img {
+.codophon-image-slider-stage img {
   display: block;
   height: 100%;
   inset: 0;
@@ -2234,14 +2091,14 @@ a.review-top-bar-source:focus-visible {
   width: 100%;
 }
 
-.codiff-image-slider-new {
-  clip-path: inset(0 calc(100% - var(--codiff-image-split)) 0 0);
+.codophon-image-slider-new {
+  clip-path: inset(0 calc(100% - var(--codophon-image-split)) 0 0);
 }
 
-.codiff-image-slider-divider {
+.codophon-image-slider-divider {
   bottom: 0;
   cursor: ew-resize;
-  left: var(--codiff-image-split);
+  left: var(--codophon-image-split);
   outline: none;
   position: absolute;
   top: 0;
@@ -2250,7 +2107,7 @@ a.review-top-bar-source:focus-visible {
   width: 28px;
 }
 
-.codiff-image-slider-divider::before {
+.codophon-image-slider-divider::before {
   background: color-mix(in srgb, var(--tree-selection-focus) 82%, white 18%);
   bottom: 0;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.38);
@@ -2262,7 +2119,7 @@ a.review-top-bar-source:focus-visible {
   width: 2px;
 }
 
-.codiff-image-slider-divider::after {
+.codophon-image-slider-divider::after {
   background: var(--tree-selection-focus);
   border: 2px solid var(--code-bg);
   border-radius: 999px;
@@ -2276,13 +2133,13 @@ a.review-top-bar-source:focus-visible {
   width: 18px;
 }
 
-.codiff-image-slider-divider:focus-visible::after {
+.codophon-image-slider-divider:focus-visible::after {
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--tree-selection-focus) 34%, transparent),
     0 8px 22px -14px rgb(0 0 0 / 0.82);
 }
 
-.codiff-file-header {
+.codophon-file-header {
   -webkit-app-region: no-drag;
   align-items: center;
   backdrop-filter: blur(4px) saturate(1.18);
@@ -2294,25 +2151,25 @@ a.review-top-bar-source:focus-visible {
   grid-auto-columns: max-content;
   grid-auto-flow: column;
   gap: 10px;
-  height: var(--codiff-file-header-height, 54px);
+  height: var(--codophon-file-header-height, 54px);
   grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
   padding: 9px 10px;
 }
 
-.codiff-file-details {
+.codophon-file-details {
   align-items: center;
   display: flex;
   gap: 10px;
   min-width: 0;
 }
 
-.codiff-edit-revert-button {
+.codophon-edit-revert-button {
   width: 64px;
 }
 
 /* Edit mode is a deliberate state, so the header says so next to Done. */
-.codiff-edit-mode-badge {
+.codophon-edit-mode-badge {
   align-items: center;
   background: var(--tree-selection-bg);
   border-radius: 999px;
@@ -2325,14 +2182,14 @@ a.review-top-bar-source:focus-visible {
   white-space: nowrap;
 }
 
-.compact-file-headers .codiff-file-header:has(.codiff-file-details) {
+.compact-file-headers .codophon-file-header:has(.codophon-file-details) {
   gap: 6px;
   grid-auto-flow: row;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) 30px;
 }
 
-.compact-file-headers .codiff-file-details {
+.compact-file-headers .codophon-file-details {
   gap: 6px;
   justify-content: safe flex-end;
   margin: -4px;
@@ -2341,68 +2198,62 @@ a.review-top-bar-source:focus-visible {
   scrollbar-width: none;
 }
 
-.compact-file-headers .codiff-file-details .codiff-button,
-.compact-file-headers .codiff-file-details .codiff-viewed-button,
-.compact-file-headers .codiff-file-details .codiff-load-button {
+.compact-file-headers .codophon-file-details .codophon-button,
+.compact-file-headers .codophon-file-details .codophon-viewed-button,
+.compact-file-headers .codophon-file-details .codophon-load-button {
   padding-inline: 8px;
 }
 
-.compact-file-headers .codiff-copy-path-button,
-.compact-file-headers .codiff-open-file-button {
+.compact-file-headers .codophon-copy-path-button,
+.compact-file-headers .codophon-open-file-button {
   height: 20px;
   width: 24px;
 }
 
-.compact-file-headers .codiff-file-details > .codiff-line-count,
-.compact-file-headers .codiff-file-details > .codiff-section-badge,
-.compact-file-headers .codiff-file-details > .codiff-generated-badge {
+.compact-file-headers .codophon-file-details > .codophon-line-count,
+.compact-file-headers .codophon-file-details > .codophon-section-badge,
+.compact-file-headers .codophon-file-details > .codophon-generated-badge {
   flex: none;
 }
 
-.codiff-walkthrough-header-item {
+.codophon-walkthrough-header-item {
   background: transparent !important;
   box-shadow: none !important;
 }
 
-.codiff-file-header.selected {
+.codophon-file-header.selected {
   box-shadow:
     inset 0 -1px 0 var(--file-border),
     inset 0 0 0 1px rgb(61 135 245 / 0.52);
-  border-radius: var(--codiff-diff-radius) var(--codiff-diff-radius) 0 0;
+  border-radius: var(--codophon-diff-radius) var(--codophon-diff-radius) 0 0;
   corner-shape: squircle;
 }
 
-.codiff-file-header.collapsed {
-  border-radius: var(--codiff-diff-radius);
+.codophon-file-header.collapsed {
+  border-radius: var(--codophon-diff-radius);
   box-shadow: none;
   corner-shape: squircle;
 }
 
-.codiff-file-header.collapsed.selected {
+.codophon-file-header.collapsed.selected {
   box-shadow: inset 0 0 0 1px rgb(61 135 245 / 0.52);
 }
 
-.codiff-file-header.stuck {
+.codophon-file-header.stuck {
   border-radius: 0;
 }
 
-.codiff-file-header.viewed .codiff-file-path,
-.codiff-file-header.viewed .codiff-file-note {
+.codophon-file-header:is(.viewed, .collapsed) :is(.codophon-file-path, .codophon-file-note) {
   color: var(--muted);
 }
 
-.codiff-file-header.collapsed .codiff-file-path,
-.codiff-file-header.collapsed .codiff-file-note {
-  color: var(--muted);
-}
-
-.codiff-header-toggle,
-.codiff-file-comment-button,
-.codiff-markdown-button,
-.codiff-button,
-.codiff-viewed-button,
-.codiff-copy-path-button,
-.codiff-open-file-button {
+.codophon-header-toggle,
+.codophon-file-comment-button,
+.codophon-markdown-button,
+.codophon-button,
+.codophon-viewed-button,
+.codophon-copy-path-button,
+.codophon-open-file-button {
   -webkit-app-region: no-drag;
   align-items: center;
   background: transparent;
@@ -2414,8 +2265,8 @@ a.review-top-bar-source:focus-visible {
   justify-content: center;
 }
 
-.codiff-copy-path-button,
-.codiff-open-file-button {
+.codophon-copy-path-button,
+.codophon-open-file-button {
   border-radius: 12px;
   color: var(--copy-icon);
   corner-shape: squircle;
@@ -2432,43 +2283,44 @@ a.review-top-bar-source:focus-visible {
   width: 30px;
 }
 
-.codiff-file-header:hover .codiff-copy-path-button,
-.codiff-file-header:hover .codiff-open-file-button,
-.codiff-copy-path-button:focus-visible,
-.codiff-open-file-button:focus-visible,
-.codiff-copy-path-button.copied {
+.codophon-file-header:hover .codophon-copy-path-button,
+.codophon-file-header:hover .codophon-open-file-button,
+.codophon-copy-path-button:focus-visible,
+.codophon-open-file-button:focus-visible,
+.codophon-copy-path-button.copied {
   opacity: 1;
 }
 
-.codiff-copy-path-button:hover,
-.codiff-open-file-button:hover:not(:disabled) {
+.codophon-copy-path-button:hover,
+.codophon-open-file-button:hover:not(:disabled) {
   background: rgb(127 127 127 / 0.11);
   color: var(--copy-icon);
 }
 
-.codiff-copy-path-button.copied {
+.codophon-copy-path-button.copied {
   color: var(--viewed);
 }
 
-.codiff-open-file-button:disabled {
+.codophon-open-file-button:disabled {
   cursor: default;
 }
 
-.codiff-open-file-button:disabled svg {
+.codophon-open-file-button:disabled svg {
   opacity: 0.4;
 }
 
-.codiff-copy-path-icon {
+.codophon-copy-path-icon,
+.copy-comments-icon {
   display: block;
   flex: none;
   transform: scaleX(-1);
 }
 
-.codiff-copy-path-icon.check {
+.codophon-copy-path-icon.check {
   transform: translateY(-1px);
 }
 
-.codiff-header-toggle {
+.codophon-header-toggle {
   display: grid;
   gap: 10px;
   grid-template-columns: 30px minmax(0, 1fr);
@@ -2478,11 +2330,11 @@ a.review-top-bar-source:focus-visible {
   text-align: left;
 }
 
-.codiff-header-toggle:hover {
+.codophon-header-toggle:hover {
   color: var(--text);
 }
 
-.codiff-chevron-box {
+.codophon-chevron-box {
   align-items: center;
   border-radius: 12px;
   corner-shape: squircle;
@@ -2492,80 +2344,81 @@ a.review-top-bar-source:focus-visible {
   width: 30px;
 }
 
-.codiff-header-toggle:hover:not(
-    :has(.codiff-copy-path-button:hover, .codiff-open-file-button:hover)
+.codophon-header-toggle:hover:not(
+    :has(.codophon-copy-path-button:hover, .codophon-open-file-button:hover)
   )
-  .codiff-chevron-box,
-.codiff-file-comment-button:hover,
-.codiff-markdown-button:hover,
-.codiff-button:hover:is(:not(:disabled), [data-autosaving]),
-.codiff-viewed-button:hover {
+  .codophon-chevron-box,
+.codophon-file-comment-button:hover,
+.codophon-markdown-button:hover,
+.codophon-button:hover:is(:not(:disabled), [data-autosaving]),
+.codophon-viewed-button:hover {
   background: rgb(127 127 127 / 0.11);
 }
 
-.codiff-chevron {
+.codophon-chevron {
   display: block;
   flex: none;
   transition: transform 160ms ease;
 }
 
-.codiff-chevron.collapsed {
+.codophon-chevron.collapsed {
   transform: rotate(-90deg);
 }
 
-.codiff-file-heading {
+.codophon-file-heading {
   min-width: 0;
 }
 
-.codiff-file-path-row {
+.codophon-file-path-row {
   align-items: center;
   display: flex;
   gap: 6px;
   min-width: 0;
 }
 
-.codiff-file-heading:has(.codiff-file-note):not(:has(.codiff-file-old-path)) .codiff-file-path-row {
+.codophon-file-heading:has(.codophon-file-note):not(:has(.codophon-file-old-path))
+  .codophon-file-path-row {
   height: 18px;
 }
 
-.codiff-file-path,
-.codiff-file-old-path {
+.codophon-file-path,
+.codophon-file-old-path {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.codiff-file-path {
+.codophon-file-path {
   font: 13px/1.35 var(--font-mono);
   min-width: 0;
   transition: color 160ms ease;
 }
 
-.codiff-file-path:has(.codiff-file-name) {
+.codophon-file-path:has(.codophon-file-name) {
   display: flex;
 }
 
-.codiff-file-directory {
+.codophon-file-directory {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.codiff-file-name {
+.codophon-file-name {
   flex: none;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.codiff-file-old-path {
+.codophon-file-old-path {
   color: var(--muted);
   font: 11px/1.35 var(--font-mono);
   margin-top: 2px;
 }
 
-.codiff-file-note {
+.codophon-file-note {
   color: var(--text);
   display: block;
   font: 12px/1.35 var(--font-sans);
@@ -2575,59 +2428,59 @@ a.review-top-bar-source:focus-visible {
   white-space: nowrap;
 }
 
-.codiff-section-badge,
-.codiff-generated-badge,
-.codiff-line-count,
-.codiff-file-comment-button,
-.codiff-load-button,
-.codiff-markdown-button,
-.codiff-viewed-button {
+.codophon-section-badge,
+.codophon-generated-badge,
+.codophon-line-count,
+.codophon-file-comment-button,
+.codophon-load-button,
+.codophon-markdown-button,
+.codophon-viewed-button {
   border-radius: 12px;
   corner-shape: squircle;
   font: 600 12px/1 var(--font-sans);
 }
 
-.codiff-section-badge,
-.codiff-generated-badge,
-.codiff-line-count {
+.codophon-section-badge,
+.codophon-generated-badge,
+.codophon-line-count {
   background: rgb(127 127 127 / 0.11);
   color: var(--muted);
   padding: 5px 9px;
   white-space: nowrap;
 }
 
-.codiff-generated-badge {
+.codophon-generated-badge {
   background: color-mix(in srgb, var(--sidebar-ref) 15%, transparent);
   color: var(--sidebar-ref);
 }
 
-.codiff-line-count {
+.codophon-line-count {
   display: inline-flex;
   font-family: var(--font-mono);
   gap: 8px;
   padding: 5px 9px 4px 9px;
 }
 
-.codiff-line-count-added {
+.codophon-line-count-added {
   color: var(--diff-addition);
 }
 
-.codiff-line-count-deleted {
+.codophon-line-count-deleted {
   color: var(--diff-deletion);
 }
 
-.codiff-section-badge.unstaged {
+.codophon-section-badge.unstaged {
   color: rgb(31 122 68);
 }
 
-.codiff-section-badge.staged {
+.codophon-section-badge.staged {
   color: rgb(143 93 24);
 }
 
-.codiff-markdown-button,
-.codiff-load-button,
-.codiff-file-comment-button,
-.codiff-viewed-button {
+.codophon-markdown-button,
+.codophon-load-button,
+.codophon-file-comment-button,
+.codophon-viewed-button {
   border: 1px solid rgb(127 127 127 / 0.18);
   flex: none;
   gap: 7px;
@@ -2636,28 +2489,29 @@ a.review-top-bar-source:focus-visible {
   white-space: nowrap;
 }
 
-.codiff-file-comment-button {
+.codophon-file-comment-button {
   gap: 5px;
 }
 
-.codiff-markdown-button.active {
+.codophon-markdown-button.active {
   border-color: rgb(127 127 127 / 0.18);
   color: var(--text);
 }
 
-.codiff-load-button {
+.codophon-load-button {
   color: var(--text);
 }
 
-.codiff-load-button:disabled {
+.codophon-load-button:disabled {
   color: var(--muted);
   cursor: progress;
   opacity: 0.72;
 }
 
-.codiff-button,
-.codiff-copy-path-button,
-.codiff-open-file-button {
+.codophon-button,
+.codophon-copy-path-button,
+.codophon-open-file-button,
+.empty-panel-actions button {
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0) inset,
     0 10px 32px -24px rgb(0 0 0 / 0),
@@ -2665,7 +2519,7 @@ a.review-top-bar-source:focus-visible {
   transform: scale(1);
 }
 
-.codiff-button {
+.codophon-button {
   border-radius: var(--chrome-control-radius);
   corner-shape: squircle;
   font: 600 12px/1 var(--font-sans);
@@ -2678,86 +2532,88 @@ a.review-top-bar-source:focus-visible {
   white-space: nowrap;
 }
 
-.codiff-button-size-default {
+.codophon-button-size-default {
   min-height: 30px;
   padding: 0 12px;
 }
 
-.codiff-button-size-sm {
+.codophon-button-size-sm {
   min-height: 26px;
   padding: 0 9px;
 }
 
-.codiff-button-size-lg {
+.codophon-button-size-lg {
   min-height: 36px;
   padding: 0 16px;
 }
 
-.codiff-button-size-icon {
+.codophon-button-size-icon {
   height: 30px;
   padding: 0;
   width: 30px;
 }
 
-.codiff-button-default,
-.codiff-button-outline {
+.codophon-button-default,
+.codophon-button-outline {
   border: 1px solid rgb(127 127 127 / 0.18);
 }
 
-.codiff-button-secondary {
+.codophon-button-secondary {
   background: var(--hover-wash);
   border: 1px solid transparent;
 }
 
-.codiff-button-destructive {
+.codophon-button-destructive {
   border: 1px solid color-mix(in srgb, var(--danger) 38%, transparent);
   color: var(--danger);
 }
 
-.codiff-button-ghost,
-.codiff-button-link {
+.codophon-button-ghost,
+.codophon-button-link {
   border: 1px solid transparent;
 }
 
-.codiff-button-link {
+.codophon-button-link {
   box-shadow: none;
-  color: var(--codiff-link);
+  color: var(--codophon-link);
 }
 
-.codiff-button-link:hover:not(:disabled) {
+.codophon-button-link:hover:not(:disabled) {
   text-decoration: underline;
 }
 
-.codiff-button:hover:is(:not(:disabled), [data-autosaving]),
-.codiff-copy-path-button:hover:not(:disabled),
-.codiff-open-file-button:hover:not(:disabled) {
+.codophon-button:hover:is(:not(:disabled), [data-autosaving]),
+.codophon-copy-path-button:hover:not(:disabled),
+.codophon-open-file-button:hover:not(:disabled),
+.empty-panel-actions button:hover:not(:disabled) {
   box-shadow:
     0 10px 32px -24px rgb(0 0 0 / 0.92),
     0 8px 20px -16px rgb(0 0 0 / 0.82);
   transform: scale(1.05);
 }
 
-.codiff-button:active:not(:disabled):not(:has(.review-submit-toggle:active)),
-.codiff-copy-path-button:active:not(:disabled),
-.codiff-open-file-button:active:not(:disabled) {
+.codophon-button:active:not(:disabled):not(:has(.review-submit-toggle:active)),
+.codophon-copy-path-button:active:not(:disabled),
+.codophon-open-file-button:active:not(:disabled),
+.empty-panel-actions button:active:not(:disabled) {
   transform: scale(0.95);
 }
 
-.codiff-button:disabled {
+.codophon-button:disabled {
   cursor: default;
 }
 
-.codiff-button:disabled:not([data-autosaving]) {
+.codophon-button:disabled:not([data-autosaving]) {
   color: var(--muted);
   opacity: 0.55;
 }
 
-.codiff-viewed-button.active {
+.codophon-viewed-button.active {
   border-color: color-mix(in srgb, var(--viewed) 44%, transparent);
   color: var(--viewed);
 }
 
-.codiff-viewed-checkbox {
+.codophon-viewed-checkbox {
   align-items: center;
   border: 1.5px solid rgb(127 127 127 / 0.42);
   border-radius: 8px;
@@ -2770,12 +2626,12 @@ a.review-top-bar-source:focus-visible {
   width: 16px;
 }
 
-.codiff-viewed-button.active .codiff-viewed-checkbox {
+.codophon-viewed-button.active .codophon-viewed-checkbox {
   background: var(--viewed);
   border-color: var(--viewed);
 }
 
-.codiff-viewed-check {
+.codophon-viewed-check {
   color: var(--code-bg);
   display: block;
 }
@@ -2819,15 +2675,6 @@ diffs-container .review-comment-thread {
   display: inline-flex;
   flex: none;
   gap: 6px;
-}
-
-.review-comment-thread-error {
-  color: var(--danger);
-  flex: 1;
-  font: 12px/1.35 var(--font-sans);
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-  text-align: right;
 }
 
 .review-comment {
@@ -3023,7 +2870,7 @@ diffs-container .review-comment-thread {
   --mdx-editor-bg: transparent;
   --mdx-editor-border: transparent;
   --mdx-editor-code-bg: var(--inline-code-bg);
-  --mdx-editor-font: var(--codiff-font-sans);
+  --mdx-editor-font: var(--codophon-font-sans);
   --mdx-editor-font-size: 13px;
   --mdx-editor-hover: var(--hover-wash);
   --mdx-editor-line-height: 1.45;
@@ -3257,27 +3104,10 @@ diffs-container .review-comment-thread {
   word-break: break-word;
 }
 
-/* Matches .review-top-bar-icon-button, the sidebar toggle two controls over,
-   so the two read as siblings rather than as different kinds of control. */
 .copy-comments-button {
-  -webkit-app-region: no-drag;
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: var(--chrome-control-radius);
-  color: var(--chrome-secondary);
-  corner-shape: squircle;
-  cursor: pointer;
-  display: inline-flex;
-  flex: none;
   font: 600 12px/1 var(--font-sans);
   gap: 5px;
-  height: 28px;
-  justify-content: center;
   padding: 0 8px;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
 }
 
 .review-submit-button {
@@ -3289,7 +3119,7 @@ diffs-container .review-comment-thread {
   position: relative;
 }
 
-.codiff-source-description-header:has(.review-submit-popover) {
+.codophon-source-description-header:has(.review-submit-popover) {
   position: relative;
   z-index: 13;
 }
@@ -3347,7 +3177,8 @@ diffs-container .review-comment-thread {
   transform: rotate(180deg);
 }
 
-.review-submit-button[data-disabled='true'] {
+.review-submit-button[data-disabled='true'],
+.review-submit-button:disabled {
   cursor: default;
   opacity: 0.58;
 }
@@ -3366,15 +3197,14 @@ diffs-container .review-comment-thread {
   cursor: default;
 }
 
-.review-submit-button.approve {
+.review-submit-button.approve,
+.review-submit-popover-submit.approve {
   color: var(--viewed);
 }
 
-.review-submit-button.comment {
-  color: var(--text);
-}
-
-.review-submit-button.close {
+.review-submit-button.comment,
+.review-submit-button.close,
+.review-submit-popover-submit.comment {
   color: var(--text);
 }
 
@@ -3421,14 +3251,6 @@ diffs-container .review-comment-thread {
   padding: 8px;
 }
 
-.review-submit-popover-submit.approve {
-  color: var(--viewed);
-}
-
-.review-submit-popover-submit.comment {
-  color: var(--text);
-}
-
 .copy-comments-button:hover:not(:disabled) {
   background: rgb(127 127 127 / 0.14);
   color: var(--sidebar-text);
@@ -3445,19 +3267,8 @@ diffs-container .review-comment-thread {
   opacity: 0.5;
 }
 
-.review-submit-button:disabled {
-  cursor: default;
-  opacity: 0.58;
-}
-
 .copy-comments-count {
   font: 700 11px/1 var(--font-mono);
-}
-
-.copy-comments-icon {
-  display: block;
-  flex: none;
-  transform: scaleX(-1);
 }
 
 .copy-comments-icon.check {
@@ -3509,13 +3320,6 @@ diffs-container .review-comment-thread {
   to {
     opacity: 1;
   }
-}
-
-.walkthrough-status {
-  height: auto;
-  min-height: 200px;
-  padding: 32px 16px;
-  transform: none;
 }
 
 @keyframes codex-loading-pulse {
@@ -3570,10 +3374,6 @@ diffs-container .review-comment-thread {
   background: var(--text);
   border: 0;
   border-radius: var(--chrome-control-radius);
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0) inset,
-    0 10px 32px -24px rgb(0 0 0 / 0),
-    0 8px 20px -16px rgb(0 0 0 / 0);
   color: var(--app-bg);
   corner-shape: squircle;
   cursor: pointer;
@@ -3581,22 +3381,10 @@ diffs-container .review-comment-thread {
   font-weight: 700;
   min-height: 34px;
   padding: 0 14px;
-  transform: scale(1);
   transition:
     background 160ms ease,
     box-shadow 250ms ease,
     transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.empty-panel-actions button:hover:not(:disabled) {
-  box-shadow:
-    0 10px 32px -24px rgb(0 0 0 / 0.92),
-    0 8px 20px -16px rgb(0 0 0 / 0.82);
-  transform: scale(1.05);
-}
-
-.empty-panel-actions button:active:not(:disabled) {
-  transform: scale(0.95);
 }
 
 .empty-panel-actions button:disabled {
@@ -3615,16 +3403,16 @@ diffs-container .review-comment-thread {
     font-size: 12px;
   }
 
-  .codiff-file-header {
+  .codophon-file-header {
     gap: 7px;
     padding-inline: 8px;
   }
 
-  .codiff-markdown-button,
-  .codiff-load-button,
-  .codiff-file-comment-button,
-  .codiff-button,
-  .codiff-viewed-button {
+  .codophon-markdown-button,
+  .codophon-load-button,
+  .codophon-file-comment-button,
+  .codophon-button,
+  .codophon-viewed-button {
     padding-inline: 9px;
   }
 }
@@ -4102,7 +3890,6 @@ diffs-container .review-comment-thread {
 
 @media (max-width: 720px) {
   .review-top-bar-repository-slot,
-  .review-top-bar-center,
   .review-top-bar-context {
     display: none;
   }
@@ -4117,7 +3904,7 @@ diffs-container .review-comment-thread {
     display: none;
   }
 }
-.codiff-code-edit-error {
+.codophon-code-edit-error {
   padding: 8px 16px;
   color: var(--danger);
   background: var(--app-bg);

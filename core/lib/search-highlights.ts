@@ -1,7 +1,7 @@
 import type { DiffSearchMatch } from './app-types.ts';
 import { clearIdentifierNavigationWrappers } from './identifier-navigation.ts';
 
-const searchMarkSelector = 'mark.codiff-search-mark';
+const searchMarkSelector = 'mark.codophon-search-mark';
 
 const clearSearchHighlights = (root: ParentNode) => {
   for (const mark of Array.from(root.querySelectorAll<HTMLElement>(searchMarkSelector))) {
@@ -63,7 +63,7 @@ const highlightTextContainer = (
       }
 
       const mark = document.createElement('mark');
-      mark.className = `codiff-search-mark${isActiveLine ? ' active' : ''}`;
+      mark.className = `codophon-search-mark${isActiveLine ? ' active' : ''}`;
       mark.textContent = text.slice(matchIndex, matchIndex + normalizedQuery.length);
       fragment.append(mark);
       offset = matchIndex + normalizedQuery.length;

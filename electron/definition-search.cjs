@@ -320,8 +320,8 @@ const resolveSearchRevision = async (request, repoPath) => {
     head = source.headSha || null;
     base = source.baseSha || null;
   } else if (source.type === 'pull-request' && source.number != null) {
-    head = `refs/codiff/pull-requests/${source.number}/head`;
-    base = `refs/codiff/pull-requests/${source.number}/base`;
+    head = `refs/codophon/pull-requests/${source.number}/head`;
+    base = `refs/codophon/pull-requests/${source.number}/base`;
     mergeBase = true;
   }
 

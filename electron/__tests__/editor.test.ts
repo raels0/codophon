@@ -24,17 +24,17 @@ const { createEditorOpener } = require('../main/editor.cjs') as {
   };
 };
 
-const originalCodiffEditor = process.env.CODIFF_EDITOR;
+const originalCodophonEditor = process.env.CODOPHON_EDITOR;
 
 beforeEach(() => {
-  delete process.env.CODIFF_EDITOR;
+  delete process.env.CODOPHON_EDITOR;
 });
 
 afterEach(() => {
-  if (originalCodiffEditor === undefined) {
-    delete process.env.CODIFF_EDITOR;
+  if (originalCodophonEditor === undefined) {
+    delete process.env.CODOPHON_EDITOR;
   } else {
-    process.env.CODIFF_EDITOR = originalCodiffEditor;
+    process.env.CODOPHON_EDITOR = originalCodophonEditor;
   }
 });
 
@@ -53,8 +53,8 @@ test('falls back to the macOS default text editor for text files without app ass
     platform: 'darwin',
   });
 
-  expect(opener.getEditorCommands('/Users/test/.codiff/codiff.jsonc')).toContainEqual({
-    args: ['-t', '/Users/test/.codiff/codiff.jsonc'],
+  expect(opener.getEditorCommands('/Users/test/.codophon/codophon.jsonc')).toContainEqual({
+    args: ['-t', '/Users/test/.codophon/codophon.jsonc'],
     command: 'open',
   });
 });
@@ -129,8 +129,8 @@ test('appends the file path when the configured editor command only uses the rep
   });
 });
 
-test('lets CODIFF_EDITOR override the configured editor command', () => {
-  process.env.CODIFF_EDITOR = 'zed --wait';
+test('lets CODOPHON_EDITOR override the configured editor command', () => {
+  process.env.CODOPHON_EDITOR = 'zed --wait';
 
   const opener = createOpener({
     getEditorCommand: () => 'cursor --goto "{file}"',

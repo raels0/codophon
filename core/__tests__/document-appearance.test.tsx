@@ -8,8 +8,8 @@ import {
   normalizeCodeFontSizePreference,
   useDocumentAppearance,
 } from '../app/hooks/useDocumentAppearance.ts';
-import type { CodiffReviewTheme } from '../config/types.ts';
-import type { CodiffTheme } from '../types.ts';
+import type { CodophonReviewTheme } from '../config/types.ts';
+import type { CodophonTheme } from '../types.ts';
 import { renderReact } from './helpers/react.tsx';
 
 function DocumentAppearanceHarness({
@@ -24,8 +24,8 @@ function DocumentAppearanceHarness({
   clearEmptyCodeFontFamily?: boolean;
   codeFontFamily: string;
   codeFontSize: number;
-  reviewTheme?: CodiffReviewTheme;
-  theme: CodiffTheme;
+  reviewTheme?: CodophonReviewTheme;
+  theme: CodophonTheme;
 }) {
   useDocumentAppearance({
     cleanupCodeFontProperties,

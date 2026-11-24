@@ -34,7 +34,7 @@ const { readMarkdownDocument, writeMarkdownDocument } = require('../markdown-doc
 };
 
 test('reads and atomically writes repository Markdown documents', async () => {
-  await using directory = await createTemporaryDirectory('codiff-markdown-');
+  await using directory = await createTemporaryDirectory('codophon-markdown-');
   const path = join(directory.path, 'plan.md');
   const context = { repositoryRoot: directory.path };
 
@@ -56,7 +56,7 @@ test('reads and atomically writes repository Markdown documents', async () => {
 });
 
 test('preserves repository Markdown file permissions when saving', async () => {
-  await using directory = await createTemporaryDirectory('codiff-markdown-mode-');
+  await using directory = await createTemporaryDirectory('codophon-markdown-mode-');
   const path = join(directory.path, 'executable.md');
   const context = { repositoryRoot: directory.path };
 
@@ -81,7 +81,7 @@ test('preserves repository Markdown file permissions when saving', async () => {
 });
 
 test('returns the disk document when a stale version attempts to overwrite it', async () => {
-  await using directory = await createTemporaryDirectory('codiff-markdown-conflict-');
+  await using directory = await createTemporaryDirectory('codophon-markdown-conflict-');
   const path = join(directory.path, 'plan.md');
   const context = { repositoryRoot: directory.path };
 
@@ -108,8 +108,8 @@ test('returns the disk document when a stale version attempts to overwrite it', 
 });
 
 test('rejects repository Markdown paths that resolve outside through a symlink', async () => {
-  await using root = await createTemporaryDirectory('codiff-markdown-symlink-root-');
-  await using outside = await createTemporaryDirectory('codiff-markdown-symlink-outside-');
+  await using root = await createTemporaryDirectory('codophon-markdown-symlink-root-');
+  await using outside = await createTemporaryDirectory('codophon-markdown-symlink-outside-');
   const outsidePath = join(outside.path, 'outside.md');
 
   await writeFile(outsidePath, '# Outside\n');

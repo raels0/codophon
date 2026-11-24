@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Codophon, expect, test } from './harness.ts';
 
@@ -9,13 +9,22 @@ test('the command palette runs commands and the setting persists to config', asy
   repo.commit('init', { 'math.ts': 'export const add = 1;\n' });
   repo.write({ 'math.ts': 'export const add = 2;\n' });
 
+  const previousDir = join(home, '.codiff');
+  mkdirSync(previousDir);
+  const previousConfig = '{ "settings": { "codeFontSize": 19 } }';
+  const previousPath = join(previousDir, 'codiff.jsonc');
+  writeFileSync(previousPath, previousConfig);
   const app = await Codophon.launch(home, { repositoryPath: repo.path });
   try {
+    expect(readFileSync(previousPath, 'utf8')).toBe(previousConfig);
+    expect(readFileSync(join(home, '.codophon/codophon.jsonc'), 'utf8')).toMatch(
+      /"codeFontSize":\s*19/,
+    );
     await app.page.keyboard.press('ControlOrMeta+k');
     await app.page.keyboard.type('word wrap');
     await app.page.keyboard.press('Enter');
     await expect
-      .poll(() => readFileSync(join(home, '.codiff/codiff.jsonc'), 'utf8'))
+      .poll(() => readFileSync(join(home, '.codophon/codophon.jsonc'), 'utf8'))
       .toMatch(/"wordWrap":\s*true/);
   } finally {
     await app.close();
@@ -24,7 +33,10 @@ test('the command palette runs commands and the setting persists to config', asy
 
 test('Markdown changes render as a document with inline word changes', async ({ home, repo }) => {
   repo.commit('init', { 'docs/flow.md': '# Flow\n\nOld text.\n' });
-  repo.write({ 'docs/flow.md': '# Flow\n\nNew text.\n\n## Next steps\n' });
+  repo.write({
+    'docs/flow.md':
+      '# Flow\n\nNew text.\n\n## Next steps\n\n```mermaid\nflowchart LR\n  A --> B\n```\n',
+  });
 
   const app = await Codophon.launch(home, { repositoryPath: repo.path });
   try {
@@ -32,6 +44,11 @@ test('Markdown changes render as a document with inline word changes', async ({ 
     await expect(app.page.getByRole('deletion').filter({ hasText: 'Old' })).toBeVisible();
     await expect(app.page.getByRole('insertion').filter({ hasText: 'New' })).toBeVisible();
     await expect(app.page.getByRole('heading', { name: 'Next steps' })).toBeVisible();
+    const diagram = app.page.getByRole('img', { name: 'Mermaid diagram' });
+    await expect(diagram).toBeVisible();
+    await expect
+      .poll(() => diagram.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
   } finally {
     await app.close();
   }
@@ -54,6 +71,27 @@ test('reviewing a branch against main includes its commits and uncommitted work'
     await expect(app.treeRow('feature.ts')).toBeVisible();
     await expect(app.treeRow('wip.ts')).toBeVisible();
     await expect(app.treeRow('math.ts')).toHaveCount(0);
+  } finally {
+    await app.close();
+  }
+});
+
+test('a reviewer can find a definition from its use in a changed line', async ({ home, repo }) => {
+  repo.commit('init', {
+    'helpers.ts': 'export function computeTotal() { return 2; }\n',
+    'view.ts': 'export const total = 1;\n',
+  });
+  repo.write({
+    'view.ts': "import { computeTotal } from './helpers';\nexport const total = computeTotal();\n",
+  });
+  const app = await Codophon.launch(home, { repositoryPath: repo.path });
+  try {
+    const usage = app.page
+      .locator('diffs-container [data-line="2"][data-line-type="change-addition"]')
+      .getByText('computeTotal', { exact: true });
+    await usage.click({ modifiers: ['ControlOrMeta'] });
+    const results = app.page.getByRole('dialog', { name: 'Definitions for computeTotal' });
+    await expect(results.getByRole('button', { name: /helpers\.ts:1/ })).toBeVisible();
   } finally {
     await app.close();
   }

@@ -99,7 +99,7 @@ test('patch-only text sections hydrate lazily instead of eager loading', () => {
       ...patchOnlySection,
       summary: {
         canLoad: false,
-        reason: 'Codiff could not load full file context.',
+        reason: 'Codophon could not load full file context.',
       },
     }),
   ).toBe(false);
@@ -131,7 +131,7 @@ test('patch-only text sections hydrate lazily instead of eager loading', () => {
       patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n',
       summary: {
         canLoad: false,
-        reason: 'Codiff could not load full file context.',
+        reason: 'Codophon could not load full file context.',
       },
     }),
   ).toBe(false);
@@ -208,7 +208,7 @@ test('non-loadable and placeholder diffs are not registered for hydration', () =
           'diff --git a/src/locked.ts b/src/locked.ts\n--- a/src/locked.ts\n+++ b/src/locked.ts\n@@ -1 +1 @@\n-old\n+new\n',
         summary: {
           canLoad: false,
-          reason: 'Codiff could not load full file context.',
+          reason: 'Codophon could not load full file context.',
         },
       },
     ],
@@ -616,7 +616,7 @@ test('repository load errors hide raw git output for non-repositories', () => {
   expect(error).toEqual({
     kind: 'not-a-repository',
     message:
-      'Codiff was opened outside a Git repository. Run `codiff` from inside a repo, or choose File → Open Folder… to open one.',
+      'Codophon was opened outside a Git repository. Run `codophon` from inside a repo, or choose File → Open Folder… to open one.',
   });
 });
 

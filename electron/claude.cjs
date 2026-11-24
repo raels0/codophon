@@ -2,14 +2,13 @@
 
 const { homedir } = require('node:os');
 const { join } = require('node:path');
-const { resolveAgentCommandTransport } = require('./agent-command.cjs');
-const { getCommandEnvironment } = require('./login-shell-environment.cjs');
 const {
-  findExecutableOnPath,
-  isExecutableFile,
-  normalizeEnum,
-  oneLine,
-} = require('./agent-shared.cjs');
+  collectAgentOutput,
+  findAgentCommand,
+  resolveAgentCommandTransport,
+} = require('./agent-command.cjs');
+const { getCommandEnvironment } = require('./login-shell-environment.cjs');
+const { normalizeEnum, oneLine } = require('./agent-shared.cjs');
 
 // Claude Code can be slower to first token than Codex, so allow a longer budget.
 const CLAUDE_TIMEOUT_MS = 90_000;
@@ -17,7 +16,7 @@ const DEFAULT_CLAUDE_MODEL = 'sonnet';
 const FALLBACK_CLAUDE_MODEL = 'haiku';
 const CLAUDE_NOT_FOUND_CODE = 'CLAUDE_NOT_FOUND';
 const CLAUDE_NOT_FOUND_MESSAGE =
-  'Claude Code CLI was not found. Install Claude Code and verify `claude --version` works in Terminal. Codiff searches PATH, ~/.local/bin/claude, /opt/homebrew/bin/claude, and /usr/local/bin/claude. If Claude Code is installed somewhere else, launch Codiff with `CODIFF_CLAUDE_PATH=/absolute/path/to/claude codiff -w`.';
+  'Claude Code CLI was not found. Install Claude Code and verify `claude --version` works in Terminal. Codophon searches PATH, ~/.local/bin/claude, /opt/homebrew/bin/claude, and /usr/local/bin/claude. If Claude Code is installed somewhere else, launch Codophon with `CODOPHON_CLAUDE_PATH=/absolute/path/to/claude codophon -w`.';
 const CLAUDE_NOT_LOGGED_IN_MESSAGE =
   'Claude Code is not logged in. Run `claude` in Terminal and complete `/login`, then try again.';
 
@@ -63,35 +62,13 @@ const createClaudeNotFoundError = (detail) =>
     },
   );
 
-const getClaudeCommand = () => {
-  const claudePath = process.env.CODIFF_CLAUDE_PATH?.trim();
-  if (claudePath) {
-    if (isExecutableFile(claudePath)) {
-      return claudePath;
-    }
-
-    throw createClaudeNotFoundError(
-      `CODIFF_CLAUDE_PATH is set to ${JSON.stringify(claudePath)}, but that file is not executable.`,
-    );
-  }
-
-  const pathCommand = findExecutableOnPath('claude');
-  if (pathCommand) {
-    return pathCommand;
-  }
-
-  for (const path of [
-    join(homedir(), '.local/bin/claude'),
-    '/opt/homebrew/bin/claude',
-    '/usr/local/bin/claude',
-  ]) {
-    if (isExecutableFile(path)) {
-      return path;
-    }
-  }
-
-  throw createClaudeNotFoundError();
-};
+const getClaudeCommand = () =>
+  findAgentCommand(
+    'claude',
+    'CODOPHON_CLAUDE_PATH',
+    [join(homedir(), '.local/bin/claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'],
+    createClaudeNotFoundError,
+  );
 
 /** @param {unknown} error */
 const isClaudeNotFoundError = (error) =>
@@ -242,120 +219,61 @@ const runClaude = async (
   /** @param {string} claudeModel @returns {Promise<string>} */
   const invokeClaude = async (claudeModel) => {
     const environment = await getCommandEnvironment();
-    return /** @type {Promise<string>} */ (
-      new Promise((resolve, reject) => {
-        let stderr = '';
-        /** @type {Error | null} */
-        let stdinError = null;
-        let stdout = '';
-        let finished = false;
-
-        const commandTransport = resolveAgentCommandTransport(
-          options.commandTransport,
-          getClaudeCommand,
-        );
-        const streamProgress = Boolean(options.onProgress);
-        const claudeArgs = [
-          '-p',
-          '--output-format',
-          streamProgress ? 'stream-json' : 'json',
-          ...(streamProgress ? ['--verbose', '--include-partial-messages'] : []),
-          '--json-schema',
-          JSON.stringify(schema),
-          '--model',
-          claudeModel,
-          '--add-dir',
-          repoRoot,
-          '--permission-mode',
-          'dontAsk',
-          '--no-session-persistence',
-          '--tools',
-          '',
-        ];
-        const child = commandTransport.spawn(commandTransport.command, claudeArgs, {
-          cwd: repoRoot,
-          env: environment,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        const streamParser = streamProgress ? createClaudeStreamParser(options.onProgress) : null;
-
-        const timer = setTimeout(() => {
-          if (!finished) {
-            finished = true;
-            child.kill('SIGTERM');
-            reject(new Error(timeoutMessage));
-          }
-        }, timeoutMs);
-
-        child.stdout.on('data', (chunk) => {
-          const text = chunk.toString();
-          stdout += text;
-          streamParser?.push(text);
-        });
-        child.stderr.on('data', (chunk) => {
-          stderr += chunk.toString();
-        });
-        child.stdin.on('error', (error) => {
-          stdinError = error;
-        });
-        child.on('error', (error) => {
-          finished = true;
-          clearTimeout(timer);
-          reject(getClaudeLaunchError(error));
-        });
-        child.on('close', (code, signal) => {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-          clearTimeout(timer);
-
-          if (code !== 0) {
-            const message = oneLine(
-              stderr || stdout || stdinError?.message,
-              signal
-                ? `Claude Code was terminated by ${signal}.`
-                : `Claude Code exited with code ${code}.`,
-            );
-            reject(new Error(message));
-            return;
-          }
-
-          /** @type {any} */
-          let envelope = streamParser?.flush();
-          if (!envelope) {
-            try {
-              envelope = JSON.parse(stdout);
-            } catch {
-              reject(new Error(oneLine(stdout, 'Claude Code did not return JSON.')));
-              return;
-            }
-          }
-
-          const resultText = typeof envelope?.result === 'string' ? envelope.result : '';
-          if (envelope?.is_error) {
-            reject(
-              new Error(
-                isClaudeNotLoggedInError(resultText)
-                  ? CLAUDE_NOT_LOGGED_IN_MESSAGE
-                  : oneLine(resultText, 'Claude Code reported an error.'),
-              ),
-            );
-            return;
-          }
-
-          if (envelope?.structured_output && typeof envelope.structured_output === 'object') {
-            resolve(JSON.stringify(envelope.structured_output));
-            return;
-          }
-
-          resolve(resultText);
-        });
-
-        child.stdin.end(prompt, () => {});
-      })
+    const commandTransport = resolveAgentCommandTransport(
+      options.commandTransport,
+      getClaudeCommand,
     );
+    const streamProgress = Boolean(options.onProgress);
+    const claudeArgs = [
+      '-p',
+      '--output-format',
+      streamProgress ? 'stream-json' : 'json',
+      ...(streamProgress ? ['--verbose', '--include-partial-messages'] : []),
+      '--json-schema',
+      JSON.stringify(schema),
+      '--model',
+      claudeModel,
+      '--add-dir',
+      repoRoot,
+      '--permission-mode',
+      'dontAsk',
+      '--no-session-persistence',
+      '--tools',
+      '',
+    ];
+    const child = commandTransport.spawn(commandTransport.command, claudeArgs, {
+      cwd: repoRoot,
+      env: environment,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const streamParser = streamProgress ? createClaudeStreamParser(options.onProgress) : null;
+    const stdout = await collectAgentOutput(child, {
+      label: 'Claude Code',
+      getLaunchError: getClaudeLaunchError,
+      onStdout: streamParser?.push,
+      prompt,
+      timeoutMessage,
+      timeoutMs,
+    });
+    let envelope = streamParser?.flush();
+    if (!envelope) {
+      try {
+        envelope = JSON.parse(stdout);
+      } catch {
+        throw new Error(oneLine(stdout, 'Claude Code did not return JSON.'));
+      }
+    }
+    const resultText = typeof envelope?.result === 'string' ? envelope.result : '';
+    if (envelope?.is_error) {
+      throw new Error(
+        isClaudeNotLoggedInError(resultText)
+          ? CLAUDE_NOT_LOGGED_IN_MESSAGE
+          : oneLine(resultText, 'Claude Code reported an error.'),
+      );
+    }
+    return envelope?.structured_output && typeof envelope.structured_output === 'object'
+      ? JSON.stringify(envelope.structured_output)
+      : resultText;
   };
 
   try {

@@ -1,21 +1,19 @@
 // @ts-check
 
-const { git, gitOrEmpty, parseStatus, validateRepositoryPath } = require('./git-state/common.cjs');
+const {
+  readRepositoryRoot,
+  git,
+  gitOrEmpty,
+  parseStatus,
+  validateRepositoryPath,
+} = require('./git-state/common.cjs');
 const {
   listRepositoryHistory,
-  readBranchImageContent,
-  readBranchSectionContent,
-  readBranchState,
-  readBranchWorkingTreeImageContent,
-  readBranchWorkingTreeSectionContent,
   readBranchWorkingTreeState,
-  readCommitImageContent,
-  readCommitSectionContent,
-  readCommitState,
+  readComparisonSourceImageContent,
+  readComparisonSourceSectionContent,
+  readComparisonSourceState,
   readResolvedCommitState,
-  readRangeImageContent,
-  readRangeSectionContent,
-  readRangeState,
 } = require('./git-state/commit.cjs');
 const { parseRepositoryWatcherStatus } = require('./repository-watcher.cjs');
 const {
@@ -68,28 +66,24 @@ const { annotateGeneratedFiles } = require('./generated-files.cjs');
 
 /** @param {string} launchPath @param {ReviewSource} [source] @param {{showWhitespace?: boolean}} [options] @returns {Promise<RepositoryState>} */
 const readRepositoryState = async (launchPath, source = { type: 'working-tree' }, options = {}) => {
-  const state =
-    source.type === 'pull-request'
-      ? await getPullRequestProvider(source).readState(launchPath, source)
-      : source.type === 'commit'
-        ? await readCommitState(launchPath, source.ref)
-        : source.type === 'range'
-          ? await readRangeState(launchPath, source.base, source.head, source.symmetric)
-          : source.type === 'branch' || source.type === 'branch-diff'
-            ? await readBranchState(launchPath, source)
-            : source.type === 'branch-working-tree'
-              ? await readBranchWorkingTreeState(launchPath, source, {
-                  showWhitespace: options.showWhitespace,
-                })
-              : await readWorkingTreeState(launchPath, {
-                  eagerContents: false,
-                  showWhitespace: options.showWhitespace,
-                });
   const comparisonState =
     source.type === 'commit' ||
     source.type === 'range' ||
     source.type === 'branch' ||
     source.type === 'branch-diff';
+  const state =
+    source.type === 'pull-request'
+      ? await getPullRequestProvider(source).readState(launchPath, source)
+      : comparisonState
+        ? await readComparisonSourceState(launchPath, source)
+        : source.type === 'branch-working-tree'
+          ? await readBranchWorkingTreeState(launchPath, source, {
+              showWhitespace: options.showWhitespace,
+            })
+          : await readWorkingTreeState(launchPath, {
+              eagerContents: false,
+              showWhitespace: options.showWhitespace,
+            });
   const [branch, annotatedState] = await Promise.all([
     gitOrEmpty(state.root, ['symbolic-ref', '--short', 'HEAD']),
     comparisonState ? state : annotateGeneratedFiles(state),
@@ -111,7 +105,7 @@ const readWalkthroughRepositoryState = async (launchPath, source, options = {}) 
     return readRepositoryState(launchPath, source, options);
   }
 
-  const repoRoot = (await git(launchPath, ['rev-parse', '--show-toplevel'])).trim();
+  const repoRoot = await readRepositoryRoot(launchPath);
   const status = parseRepositoryWatcherStatus(
     await git(repoRoot, [
       'status',
@@ -186,51 +180,58 @@ const readRepositoryHistory = (launchPath, limit, source) =>
           : undefined,
       );
 
-/** @param {string} launchPath @param {DiffSectionContentRequest} request */
-const readDiffSectionContent = async (launchPath, request) =>
-  request.source?.type === 'pull-request' &&
-  parseReviewUrl(request.source.url)?.provider === 'azure-devops'
-    ? readAzureDevOpsSectionContent(launchPath, request)
-    : request.source?.type === 'range'
-      ? readRangeSectionContent(
-          launchPath,
-          request.source.base,
-          request.source.head,
-          request.source.symmetric,
-          request.path,
-          { force: request.force },
-        )
-      : request.source?.type === 'branch' || request.source?.type === 'branch-diff'
-        ? readBranchSectionContent(launchPath, request.source, request.path, {
-            force: request.force,
+/**
+ * The comparison whose Git trees hold a lazily loaded section or image, or
+ * null when it comes from the working tree. A branch-working-tree source mixes
+ * both: its staged and unstaged sections are working-tree reads.
+ * @param {DiffSectionContentRequest | DiffImageContentRequest} request
+ */
+const getContentComparisonSource = ({ kind, source }) =>
+  source?.type === 'range' || source?.type === 'branch' || source?.type === 'branch-diff'
+    ? source
+    : source?.type === 'branch-working-tree'
+      ? kind === 'staged' || kind === 'unstaged'
+        ? null
+        : source
+      : kind === 'commit' || source?.type === 'commit'
+        ? /** @type {const} */ ({
+            ref: source?.type === 'commit' ? source.ref : 'HEAD',
+            type: 'commit',
           })
-        : request.source?.type === 'branch-working-tree'
-          ? readBranchWorkingTreeSectionContent(launchPath, request)
-          : request.kind === 'commit' || request.source?.type === 'commit'
-            ? readCommitSectionContent(launchPath, request.source?.ref || 'HEAD', request.path, {
-                force: request.force,
-              })
-            : readWorkingTreeDiffSectionContent(launchPath, request);
+        : null;
+
+/** @param {string} launchPath @param {DiffSectionContentRequest} request */
+const readDiffSectionContent = async (launchPath, request) => {
+  if (
+    request.source?.type === 'pull-request' &&
+    parseReviewUrl(request.source.url)?.provider === 'azure-devops'
+  ) {
+    return readAzureDevOpsSectionContent(launchPath, request);
+  }
+
+  const source = getContentComparisonSource(request);
+  return source
+    ? readComparisonSourceSectionContent(launchPath, source, request.path, {
+        force: request.force,
+      })
+    : readWorkingTreeDiffSectionContent(launchPath, request);
+};
 
 /** @param {string} launchPath @param {DiffImageContentRequest} request @returns {Promise<DiffImageContentResult>} */
-const readDiffImageContent = (launchPath, request) =>
-  request.source?.type === 'pull-request'
-    ? getPullRequestProvider(request.source).readImage(launchPath, request.source, request.path)
-    : request.source?.type === 'range'
-      ? readRangeImageContent(
-          launchPath,
-          request.source.base,
-          request.source.head,
-          request.source.symmetric,
-          request.path,
-        )
-      : request.source?.type === 'branch' || request.source?.type === 'branch-diff'
-        ? readBranchImageContent(launchPath, request.source, request.path)
-        : request.source?.type === 'branch-working-tree'
-          ? readBranchWorkingTreeImageContent(launchPath, request)
-          : request.kind === 'commit' || request.source?.type === 'commit'
-            ? readCommitImageContent(launchPath, request.source?.ref || 'HEAD', request.path)
-            : readWorkingTreeDiffImageContent(launchPath, request);
+const readDiffImageContent = (launchPath, request) => {
+  if (request.source?.type === 'pull-request') {
+    return getPullRequestProvider(request.source).readImage(
+      launchPath,
+      request.source,
+      request.path,
+    );
+  }
+
+  const source = getContentComparisonSource(request);
+  return source
+    ? readComparisonSourceImageContent(launchPath, source, request.path)
+    : readWorkingTreeDiffImageContent(launchPath, request);
+};
 
 module.exports = {
   PENDING_REVIEW_COMMENT_ERROR,
@@ -247,12 +248,10 @@ module.exports = {
   parseAzureDevOpsPullRequestUrl,
   parseGitHubPullRequestUrl,
   selectUnresolvedReviewComments,
-  readBranchState,
   readDiffSectionContent,
   readDiffImageContent,
   readGitIdentity,
   readRepositoryChangeSignature,
-  readCommitState,
   readPullRequestState,
   readRepositoryState,
   readWalkthroughRepositoryState,

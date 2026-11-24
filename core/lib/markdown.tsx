@@ -90,7 +90,7 @@ const MarkdownImage = ({
   return (
     <img
       alt={alt}
-      className="codiff-markdown-image"
+      className="codophon-markdown-image"
       decoding="async"
       height={height}
       loading="lazy"

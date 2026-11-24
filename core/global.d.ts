@@ -5,15 +5,14 @@ import type {
   AgentPromptModule,
   AgentPromptOverrides,
   AgentSettingsSection,
-  CodiffAgentBackend,
-  CodiffConfig,
+  CodophonAgentBackend,
+  CodophonConfig,
 } from './config/types.ts';
 import type {
   AgentSkillStatus,
-  CodiffLaunchOptions,
-  CodiffMarkdownDocument,
-  CodiffPreferences,
-  CodiffUpdateStatus,
+  CodophonLaunchOptions,
+  CodophonMarkdownDocument,
+  CodophonUpdateStatus,
   DefinitionSearchRequest,
   DefinitionSearchResult,
   DiffImageContentRequest,
@@ -51,32 +50,31 @@ declare module '*.css';
 
 declare global {
   interface Window {
-    codiff: {
+    codophon: {
       askReviewAssistant: (request: ReviewAssistantRequest) => Promise<ReviewAssistantResult>;
       createWalkthroughCommit: (
         request: WalkthroughCommitRequest,
       ) => Promise<WalkthroughCommitResult>;
       decreaseCodeFontSize: () => Promise<void>;
-      dismissUpdate: () => Promise<CodiffUpdateStatus>;
+      dismissUpdate: () => Promise<CodophonUpdateStatus>;
       findDefinitions: (request: DefinitionSearchRequest) => Promise<DefinitionSearchResult>;
       getAgentModelCatalog?: (refresh?: boolean) => Promise<AgentModelCatalog>;
       getAgentPrompts?: () => Promise<Array<AgentPromptModule>>;
       getAgentSkillStatus: () => Promise<AgentSkillStatus>;
-      getConfig: () => Promise<CodiffConfig>;
+      getConfig: () => Promise<CodophonConfig>;
       getDiffImageContent: (request: DiffImageContentRequest) => Promise<DiffImageContentResult>;
       getDiffSectionContent: (request: DiffSectionContentRequest) => Promise<DiffSection>;
       getGitIdentity: () => Promise<GitIdentity>;
       getKeyboardLayout: () => Promise<NativeKeyboardLayout | null>;
-      getLaunchOptions: () => Promise<CodiffLaunchOptions>;
+      getLaunchOptions: () => Promise<CodophonLaunchOptions>;
       getMarkdownDocument: (request: {
-        kind: CodiffMarkdownDocument['kind'];
+        kind: CodophonMarkdownDocument['kind'];
         path: string;
-      }) => Promise<CodiffMarkdownDocument>;
+      }) => Promise<CodophonMarkdownDocument>;
       getNarrativeWalkthrough: (
         source?: ReviewSource,
         options?: NarrativeWalkthroughRequestOptions,
       ) => Promise<NarrativeWalkthroughResult>;
-      getPreferences: () => Promise<CodiffPreferences>;
       getRepositoryFile: (path: string) => Promise<RepositoryFileDocument>;
       getRepositoryHistory: (limit?: number, source?: ReviewSource) => Promise<RepositoryHistory>;
       getRepositoryState: (source?: ReviewSource) => Promise<RepositoryState>;
@@ -84,13 +82,13 @@ declare global {
         source: Extract<ReviewSource, { type: 'pull-request' }>,
       ) => Promise<Array<ReviewBriefPostedComment>>;
       getTerminalHelperStatus: () => Promise<TerminalHelperStatus>;
-      getUpdateStatus: () => Promise<CodiffUpdateStatus>;
+      getUpdateStatus: () => Promise<CodophonUpdateStatus>;
       increaseCodeFontSize: () => Promise<void>;
       installAgentSkill: () => Promise<AgentSkillStatus>;
       installTerminalHelper: () => Promise<TerminalHelperStatus>;
       isWindowFullScreen: () => Promise<boolean>;
       markWindowReady: () => void;
-      onConfigChanged: (callback: (config: CodiffConfig) => void) => () => void;
+      onConfigChanged: (callback: (config: CodophonConfig) => void) => () => void;
       onCopyPendingCommentsRequest: (callback: () => string | Promise<string>) => () => void;
       onFindInDiffs: (callback: () => void) => () => void;
       onKeyboardLayoutChanged: (callback: (layout: NativeKeyboardLayout) => void) => () => void;
@@ -98,14 +96,14 @@ declare global {
         callback: (
           change:
             | { deleted: true; id: string }
-            | { deleted: false; document: CodiffMarkdownDocument; id: string },
+            | { deleted: false; document: CodophonMarkdownDocument; id: string },
         ) => void,
       ) => () => void;
       onOpenAgentSettings?: (callback: (section: AgentSettingsSection) => void) => () => void;
       onOpenReviewSource: (callback: (kind: OpenReviewSourceKind) => void) => () => void;
       onRefreshRequest: (callback: () => void) => () => void;
       onRepositoryChanged: (callback: (change: { root: string }) => void) => () => void;
-      onUpdateStatusChanged: (callback: (status: CodiffUpdateStatus) => void) => () => void;
+      onUpdateStatusChanged: (callback: (status: CodophonUpdateStatus) => void) => () => void;
       onWalkthroughCommitOutput: (callback: (chunk: string) => void) => () => void;
       onWalkthroughProgress: (callback: (progress: WalkthroughProgressEvent) => void) => () => void;
       onWindowFullScreenChanged: (callback: (isFullScreen: boolean) => void) => () => void;
@@ -119,14 +117,13 @@ declare global {
         request: SaveMarkdownDocumentRequest,
       ) => Promise<SaveMarkdownDocumentResult>;
       saveRepositoryFile: (request: SaveRepositoryFileRequest) => Promise<SaveRepositoryFileResult>;
-      selectAgentModel?: (agent: CodiffAgentBackend, model: string) => Promise<void>;
+      selectAgentModel?: (agent: CodophonAgentBackend, model: string) => Promise<void>;
       setAgentPrompt?: (id: AgentPromptId, text: string | null) => Promise<AgentPromptOverrides>;
-      setDiffStyle: (value: CodiffPreferences['diffStyle']) => Promise<void>;
+      setDiffStyle: (value: CodophonPreferences['diffStyle']) => Promise<void>;
       setPullRequestFileViewed: (request: SetPullRequestFileViewedRequest) => Promise<void>;
-      setReviewTheme: (value: CodiffPreferences['reviewTheme']) => Promise<void>;
+      setReviewTheme: (value: CodophonPreferences['reviewTheme']) => Promise<void>;
       setShowOutdated: (value: boolean) => Promise<void>;
       setWordWrap: (value: boolean) => Promise<void>;
-      showInFolder: (path: string) => Promise<void>;
       submitPullRequestComment: (
         request: SubmitPullRequestCommentRequest,
       ) => Promise<PullRequestExistingReviewComment>;

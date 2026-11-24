@@ -1,36 +1,11 @@
-import { createRequire } from 'node:module';
 import { expect, test } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-const {
+import {
   detectInitialAgentBackend,
   getAgent,
   getAgentMenuModels,
   listAgents,
   normalizeAgentBackend,
-} = require('../agent.cjs') as {
-  detectInitialAgentBackend: (
-    isAvailable?: (agent: { id: 'codex' | 'claude' | 'opencode' }) => boolean,
-  ) => string;
-  getAgent: (backendId: unknown) => {
-    id: string;
-    isAvailable: () => boolean;
-    label: string;
-    models: ReadonlyArray<{ id: string; label: string }>;
-    modelSettingKey: string;
-    sessionLaunchOptionKey: string;
-    notFoundCode: string;
-    run: unknown;
-    readSessionContext: unknown;
-  };
-  getAgentMenuModels: (
-    agent: ReturnType<typeof getAgent>,
-    selectedModel: string,
-    models?: ReadonlyArray<{ id: string; label: string }>,
-  ) => ReadonlyArray<{ id: string; label: string }>;
-  listAgents: () => ReadonlyArray<{ id: string }>;
-  normalizeAgentBackend: (value: unknown) => string;
-};
+} from '../agent.cjs';
 
 test('normalizes unknown agent backends to the default', () => {
   expect(normalizeAgentBackend('claude')).toBe('claude');

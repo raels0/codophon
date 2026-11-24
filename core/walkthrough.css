@@ -1,6 +1,6 @@
 /* ============================================================================
    Narrative walkthrough — variation C (hybrid arc + focus) and D (order toggle).
-   Ported from the design handoff (wt-styles.css). Uses Codiff design tokens.
+   Ported from the design handoff (wt-styles.css). Uses Codophon design tokens.
    ============================================================================ */
 
 /* ---- Narrative sidebar (replaces the file tree in walkthrough mode) -------- */
@@ -527,7 +527,7 @@
 /* The current-stop accent comes from the virtualized item container so the
    header's own content never re-renders (and never re-measures) when scrolling
    moves the selection. */
-.codiff-selected-item .wt-stop-block-header {
+.codophon-selected-item .wt-stop-block-header {
   box-shadow: inset 3px 0 0 var(--tree-selection-focus);
 }
 
@@ -740,7 +740,7 @@
 /* ============================================================================
    Commit composer — the walkthrough's terminal stop. The reviewed staging set
    becomes a commit: the reviewer writes the subject; the agent drafts the body
-   from the live file selection. Built only on Codiff tokens.
+   from the live file selection. Built only on Codophon tokens.
    ============================================================================ */
 .wt-toc-chapter-icon.commit {
   color: var(--viewed);
@@ -1210,7 +1210,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.wt-stage-file .codiff-line-count {
+.wt-stage-file .codophon-line-count {
   background: transparent;
   padding: 0;
 }
@@ -1325,7 +1325,7 @@
   display: flex;
   gap: 8px;
 }
-.codiff-button.wt-commit-btn {
+.codophon-button.wt-commit-btn {
   background: var(--viewed);
   border-color: color-mix(in srgb, var(--viewed) 46%, transparent);
   box-shadow:
@@ -1335,7 +1335,7 @@
     0 10px 30px -16px color-mix(in srgb, var(--viewed) 90%, transparent);
   color: #fff;
 }
-.codiff-button.wt-commit-btn:hover:not(:disabled) {
+.codophon-button.wt-commit-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--viewed) 92%, #fff);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.2) inset,
@@ -1344,10 +1344,10 @@
     0 10px 30px -16px color-mix(in srgb, var(--viewed) 90%, transparent);
   transform: scale(1.05);
 }
-.codiff-button.wt-commit-btn:active:not(:disabled) {
+.codophon-button.wt-commit-btn:active:not(:disabled) {
   transform: scale(0.95);
 }
-.codiff-button.wt-commit-btn:disabled {
+.codophon-button.wt-commit-btn:disabled {
   background: var(--hover-wash);
   border-color: rgb(127 127 127 / 0.18);
   box-shadow: none;

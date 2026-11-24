@@ -139,7 +139,7 @@ export const renderMermaidDiagram = (code: string, theme: MermaidTheme) => {
       throw new Error('Images are not supported in Mermaid diagrams');
     }
 
-    const { svg } = await mermaid.render(`codiff-mermaid-${++renderCount}`, code);
+    const { svg } = await mermaid.render(`codophon-mermaid-${++renderCount}`, code);
     const diagram: MermaidDiagram = { ...getSvgSize(svg), src: toSvgDataUrl(svg) };
     cache.set(key, diagram);
     if (cache.size > cacheLimit) {

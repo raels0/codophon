@@ -10,13 +10,14 @@ import {
   type MarkdownBlock,
   type MarkdownChange,
 } from '../../lib/markdown-diff.ts';
+import { MermaidDiagramBlock } from './MermaidCodeBlock.tsx';
 
 const safeURL = (value: unknown, image = false) => {
   if (typeof value !== 'string') {
     return undefined;
   }
   try {
-    const url = new URL(value, 'https://codiff.invalid');
+    const url = new URL(value, 'https://codophon.invalid');
     return ['http:', 'https:', ...(image ? [] : ['mailto:'])].includes(url.protocol)
       ? value
       : undefined;
@@ -26,6 +27,16 @@ const safeURL = (value: unknown, image = false) => {
 };
 
 const renderElement = (node: Element, children: ReactNode): ReactNode => {
+  const code = node.children[0];
+  if (
+    node.tagName === 'pre' &&
+    code?.type === 'element' &&
+    code.tagName === 'code' &&
+    Array.isArray(code.properties.className) &&
+    code.properties.className.includes('language-mermaid')
+  ) {
+    return <MermaidDiagramBlock code={getMarkdownText(code)} />;
+  }
   const properties = node.properties;
   const props = {
     alt: typeof properties.alt === 'string' ? properties.alt : undefined,
@@ -93,11 +104,11 @@ const renderInlineDiff = (before: RootContent, after: RootContent): ReactNode =>
     ];
     return parts.map((part, index) =>
       part.added ? (
-        <ins className="codiff-markdown-insertion" key={index}>
+        <ins className="codophon-markdown-insertion" key={index}>
           {part.value}
         </ins>
       ) : part.removed ? (
-        <del className="codiff-markdown-deletion" key={index}>
+        <del className="codophon-markdown-deletion" key={index}>
           {part.value}
         </del>
       ) : (
@@ -123,7 +134,7 @@ function MarkdownSourceChange({ after, before }: { after: string; before: string
     { added: true, removed: false, value: after },
   ];
   return (
-    <details className="codiff-markdown-source-change">
+    <details className="codophon-markdown-source-change">
       <summary>Markdown syntax changed</summary>
       <pre>
         <code>
@@ -159,7 +170,7 @@ export function MarkdownDiffView({
   const groups = useMemo(() => groupMarkdownChanges(changes), [changes]);
   const anchor = (block: MarkdownBlock, side: 'additions' | 'deletions') => (
     <button
-      className="codiff-markdown-source-anchor"
+      className="codophon-markdown-source-anchor"
       onClick={() => onViewSource(block.startLine, side)}
       title={`View ${side === 'deletions' ? 'old' : 'new'} source at line ${block.startLine}`}
       type="button"
@@ -172,7 +183,7 @@ export function MarkdownDiffView({
     const { after, before, kind } = change;
     if (kind === 'unchanged') {
       return (
-        <div className="codiff-markdown-context" key={index}>
+        <div className="codophon-markdown-context" key={index}>
           {renderNode(after!.node)}
         </div>
       );
@@ -190,13 +201,13 @@ export function MarkdownDiffView({
     return (
       <section
         aria-label={kind === 'source' ? 'Markdown syntax changed' : 'Markdown change'}
-        className={`codiff-markdown-change ${kind}`}
+        className={`codophon-markdown-change ${kind}`}
         data-markdown-change=""
         data-new-line={after?.startLine}
         data-old-line={before?.startLine}
         key={index}
       >
-        <div className="codiff-markdown-change-header">
+        <div className="codophon-markdown-change-header">
           <span>
             {kind === 'added'
               ? '+ Added'
@@ -218,23 +229,23 @@ export function MarkdownDiffView({
         ) : (
           <>
             {before ? (
-              <div aria-label="Removed content" className="codiff-markdown-before">
+              <div aria-label="Removed content" className="codophon-markdown-before">
                 {renderNode(before.node)}
               </div>
             ) : null}
             {after ? (
-              <div aria-label="Added content" className="codiff-markdown-after">
+              <div aria-label="Added content" className="codophon-markdown-after">
                 {renderNode(after.node)}
               </div>
             ) : null}
           </>
         )}
         {attributes.map((attribute, attributeIndex) => (
-          <div className="codiff-markdown-attribute-change" key={attributeIndex}>
+          <div className="codophon-markdown-attribute-change" key={attributeIndex}>
             <span>{attribute.label}</span>
             <div>
-              <del className="codiff-markdown-deletion">{attribute.before}</del> →{' '}
-              <ins className="codiff-markdown-insertion">{attribute.value}</ins>
+              <del className="codophon-markdown-deletion">{attribute.before}</del> →{' '}
+              <ins className="codophon-markdown-insertion">{attribute.value}</ins>
             </div>
           </div>
         ))}
@@ -245,13 +256,13 @@ export function MarkdownDiffView({
     );
   };
   return (
-    <div aria-label={`Changes to ${path}`} className="codiff-markdown-diff">
+    <div aria-label={`Changes to ${path}`} className="codophon-markdown-diff">
       {changes.every((change) => change.kind === 'unchanged') ? (
-        <p className="codiff-markdown-context">No content changes.</p>
+        <p className="codophon-markdown-context">No content changes.</p>
       ) : null}
       {groups.map((group, index) =>
         group.collapsed ? (
-          <details className="codiff-markdown-unchanged" key={index}>
+          <details className="codophon-markdown-unchanged" key={index}>
             <summary>
               Show {group.changes.length} unchanged{' '}
               {group.changes.length === 1 ? 'block' : 'blocks'}

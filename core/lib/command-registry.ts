@@ -1,10 +1,10 @@
-import type { CodiffKeymap } from '../config/types.ts';
+import type { CodophonKeymap } from '../config/types.ts';
 
 export type Command = {
   description?: () => string | null;
   execute: () => void;
   id: string;
-  keymapAction?: keyof CodiffKeymap;
+  keymapAction?: keyof CodophonKeymap;
   title: string;
 };
 

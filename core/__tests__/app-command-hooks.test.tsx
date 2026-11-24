@@ -31,7 +31,7 @@ test('the model picker filters names and IDs and applies the exact provider-qual
     );
   }
   const selectAgentModel = vi.fn<(agent: string, model: string) => Promise<void>>();
-  vi.stubGlobal('codiff', {
+  vi.stubGlobal('codophon', {
     getAgentModelCatalog: vi.fn().mockResolvedValue({
       models: [
         { id: 'github-copilot/sonnet', label: 'Claude Sonnet' },
@@ -59,7 +59,7 @@ test('the configured model is visible before discovery and stays visible if refr
     .fn()
     .mockReturnValueOnce(promise)
     .mockRejectedValueOnce(new Error('Catalog unavailable'));
-  vi.stubGlobal('codiff', { getAgentModelCatalog });
+  vi.stubGlobal('codophon', { getAgentModelCatalog });
   const configuredModel = 'github-copilot/custom';
   await using view = await renderReact(
     <AgentSettingsDialog
@@ -93,7 +93,7 @@ test('the prompt editor shows, saves, and resets the walkthrough summary guidanc
     .fn()
     .mockResolvedValueOnce({ walkthroughSummary: replacement })
     .mockResolvedValueOnce({});
-  vi.stubGlobal('codiff', {
+  vi.stubGlobal('codophon', {
     getAgentPrompts: vi
       .fn()
       .mockResolvedValue([
@@ -254,10 +254,25 @@ test('app commands register the complete command set and delegate dynamic action
     }
     return match;
   };
+  const fontCommands = {
+    decreaseCodeFontSize: vi.fn(async () => {}),
+    increaseCodeFontSize: vi.fn(async () => {}),
+    resetCodeFontSize: vi.fn(async () => {}),
+  };
+  vi.stubGlobal('codophon', fontCommands);
+  for (const [id, title, handler] of [
+    ['increase-code-font-size', 'Increase Code Font Size', fontCommands.increaseCodeFontSize],
+    ['decrease-code-font-size', 'Decrease Code Font Size', fontCommands.decreaseCodeFontSize],
+    ['reset-code-font-size', 'Reset Code Font Size', fontCommands.resetCodeFontSize],
+  ] as const) {
+    expect(command(id).title).toBe(title);
+    command(id).execute();
+    expect(handler).toHaveBeenCalledOnce();
+  }
   const editRequests = vi.fn();
-  window.addEventListener('codiff:edit-selected-file', editRequests);
+  window.addEventListener('codophon:edit-selected-file', editRequests);
   command('edit-file').execute();
-  window.removeEventListener('codiff:edit-selected-file', editRequests);
+  window.removeEventListener('codophon:edit-selected-file', editRequests);
   expect(editRequests).toHaveBeenCalledOnce();
   expect(command('edit-file').keymapAction).toBe('editFile');
 

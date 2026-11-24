@@ -1,26 +1,16 @@
 import { mkdir, open, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { readCodexSessionContext } = require('../codex-session-context.cjs') as {
-  readCodexSessionContext: (sessionId?: string) => Promise<{
-    messages?: ReadonlyArray<{ role: 'assistant' | 'user'; text: string }>;
-    risks?: ReadonlyArray<string>;
-    source: { threadId?: string; type: string };
-    version: 1;
-  } | null>;
-};
+import { readCodexSessionContext } from '../codex-session-context.cjs';
 
 const sessionId = '019e5e57-e7d6-7392-9ad1-ad959319d2fb';
 
 test('extracts bounded readable messages from Codex session jsonl', async () => {
-  await using directory = await createTemporaryDirectory('codiff-session-');
+  await using directory = await createTemporaryDirectory('codophon-session-');
   const sessionDirectory = join(directory.path, 'sessions', '2026', '05', '25');
   const sessionPath = join(sessionDirectory, `rollout-${sessionId}.jsonl`);
   await using _environment = createTemporaryEnvironment({ CODEX_HOME: directory.path });
@@ -55,7 +45,7 @@ test('extracts bounded readable messages from Codex session jsonl', async () => 
       }),
       JSON.stringify({
         payload: {
-          content: [{ text: '$codiff', type: 'input_text' }],
+          content: [{ text: '$codophon', type: 'input_text' }],
           role: 'user',
           type: 'message',
         },
@@ -73,7 +63,7 @@ test('extracts bounded readable messages from Codex session jsonl', async () => 
 });
 
 test('finds the active Codex session under CODEX_HOME', async () => {
-  await using directory = await createTemporaryDirectory('codiff-codex-home-');
+  await using directory = await createTemporaryDirectory('codophon-codex-home-');
   await using _environment = createTemporaryEnvironment({ CODEX_HOME: directory.path });
 
   const sessionDirectory = join(directory.path, 'sessions', '2026', '05', '25');
@@ -85,7 +75,7 @@ test('finds the active Codex session under CODEX_HOME', async () => {
       payload: {
         content: [
           {
-            text: 'Keep Codiff in charge of the ephemeral walkthrough.',
+            text: 'Keep Codophon in charge of the ephemeral walkthrough.',
             type: 'input_text',
           },
         ],
@@ -100,7 +90,7 @@ test('finds the active Codex session under CODEX_HOME', async () => {
     messages: [
       {
         role: 'user',
-        text: 'Keep Codiff in charge of the ephemeral walkthrough.',
+        text: 'Keep Codophon in charge of the ephemeral walkthrough.',
       },
     ],
     source: {
@@ -112,7 +102,7 @@ test('finds the active Codex session under CODEX_HOME', async () => {
 });
 
 test('searches newer Codex session directories first', async () => {
-  await using directory = await createTemporaryDirectory('codiff-codex-session-order-');
+  await using directory = await createTemporaryDirectory('codophon-codex-session-order-');
   const olderDirectory = join(directory.path, 'sessions', '2025', '12', '31');
   const newerDirectory = join(directory.path, 'sessions', '2026', '01', '01');
   const olderPath = join(olderDirectory, `rollout-${sessionId}.jsonl`);
@@ -150,7 +140,7 @@ test('searches newer Codex session directories first', async () => {
 });
 
 test('reads recent Codex messages from a large session without loading the whole file', async () => {
-  await using directory = await createTemporaryDirectory('codiff-codex-large-session-');
+  await using directory = await createTemporaryDirectory('codophon-codex-large-session-');
   const sessionDirectory = join(directory.path, 'sessions', '2026', '05', '25');
   const sessionPath = join(sessionDirectory, `rollout-${sessionId}.jsonl`);
   await using _environment = createTemporaryEnvironment({ CODEX_HOME: directory.path });

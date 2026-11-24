@@ -77,7 +77,7 @@ export const hasKeyboardLayout = (): boolean => unshifted !== null;
 export const trackKeyboardLayout = (): void => {
   // The web build and the test environment have no desktop shell at all, so
   // the property is optional here no matter what the global type promises.
-  const shell = (window as unknown as { codiff?: KeyboardLayoutShell }).codiff;
+  const shell = (window as unknown as { codophon?: KeyboardLayoutShell }).codophon;
   if (!shell) {
     return;
   }
@@ -155,7 +155,7 @@ export const resetKeyboardLayout = (): void => {
 //
 // Cyrillic, Greek, Arabic and Hebrew layouts produce no Latin at all, so every
 // letter shortcut would have no key to match and would silently stop working,
-// including the `Alt+z` Codiff ships. Each letter replaces whatever the layout
+// including the `Alt+z` Codophon ships. Each letter replaces whatever the layout
 // put on that key, in both Shift states, so one position still produces one
 // character and two combo spellings can never claim the same key.
 //

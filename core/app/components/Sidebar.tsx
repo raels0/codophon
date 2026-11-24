@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { matchesShortcut } from '../../config/keymap.ts';
-import type { CodiffKeymap } from '../../config/types.ts';
+import type { CodophonKeymap } from '../../config/types.ts';
 import type { PullRequestSource, SidebarMode, WalkthroughError } from '../../lib/app-types.ts';
 import { isNativeInputTarget } from '../../lib/keyboard.ts';
 import { getShortRef, getSourceKey } from '../../lib/source.ts';
@@ -50,7 +50,7 @@ export function Sidebar({
   historyEntries: ReadonlyArray<HistoryEntry>;
   historyHasMore: boolean;
   historyLoading: boolean;
-  keymap: CodiffKeymap;
+  keymap: CodophonKeymap;
   mode: SidebarMode;
   narrativeNavigation: NarrativeNavigation;
   narrativeWalkthrough: NarrativeWalkthrough | null;

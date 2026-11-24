@@ -50,7 +50,7 @@ test('keeps the dialog open and explains when no source is entered', async () =>
   expect(onClose).not.toHaveBeenCalled();
 });
 
-test('uses the shared Codiff buttons for dialog actions', async () => {
+test('uses the shared Codophon buttons for dialog actions', async () => {
   await using view = await renderReact(
     <OpenReviewSourceDialog kind="commit" onClose={() => {}} onOpen={async () => {}} />,
   );
@@ -61,6 +61,6 @@ test('uses the shared Codiff buttons for dialog actions', async () => {
   expect(buttons).toHaveLength(2);
   expect(buttons?.[0]?.textContent).toBe('Cancel');
   expect(buttons?.[1]?.textContent).toBe('Open');
-  expect(buttons?.[0]?.classList.contains('codiff-button')).toBe(true);
-  expect(buttons?.[1]?.classList.contains('codiff-button')).toBe(true);
+  expect(buttons?.[0]?.classList.contains('codophon-button')).toBe(true);
+  expect(buttons?.[1]?.classList.contains('codophon-button')).toBe(true);
 });

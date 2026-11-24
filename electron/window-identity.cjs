@@ -7,7 +7,7 @@ const { parseReviewUrl } = require('./review-source.cjs');
 
 /**
  * @typedef {import('../core/types.ts').ReviewSource} ReviewSource
- * @typedef {import('../core/types.ts').CodiffLaunchOptions} CodiffLaunchOptions
+ * @typedef {import('../core/types.ts').CodophonLaunchOptions} CodophonLaunchOptions
  * @typedef {{key: string; repositoryRoot: string; sourceKey: string}} WindowIdentity
  * @typedef {{number: number; owner: string; repo: string}} ParsedPullRequest
  */
@@ -176,7 +176,7 @@ const getResolvedSourceKey = (source) => {
   return null;
 };
 
-/** @param {string} repositoryPath @param {Partial<CodiffLaunchOptions>} [launchOptions] */
+/** @param {string} repositoryPath @param {Partial<CodophonLaunchOptions>} [launchOptions] */
 const getWindowIdentity = (repositoryPath, launchOptions = {}) => {
   const repositoryRoot = resolveRepositoryRoot(repositoryPath);
   const implicitWalkthroughHead =

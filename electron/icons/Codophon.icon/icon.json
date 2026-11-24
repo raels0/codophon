@@ -9,10 +9,10 @@
           "blend-mode": "normal",
           "fill": "automatic",
           "glass": false,
-          "image-name": "codiff.svg",
-          "name": "codiff",
+          "image-name": "codophon.png",
+          "name": "Codophon",
           "position": {
-            "scale": 1,
+            "scale": 0.8165869218500797,
             "translation-in-points": [0, 0]
           }
         }

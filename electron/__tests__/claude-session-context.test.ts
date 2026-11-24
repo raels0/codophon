@@ -1,26 +1,16 @@
 import { appendFile, mkdir, truncate, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { readClaudeSessionContext } = require('../claude-session-context.cjs') as {
-  readClaudeSessionContext: (sessionId?: string) => Promise<{
-    messages?: ReadonlyArray<{ role: 'assistant' | 'user'; text: string }>;
-    risks?: ReadonlyArray<string>;
-    source: { threadId?: string; type: string };
-    version: 1;
-  } | null>;
-};
+import { readClaudeSessionContext } from '../claude-session-context.cjs';
 
 const sessionId = '019e5e57-e7d6-7392-9ad1-ad959319d2fb';
 
 test('extracts bounded readable messages from Claude Code session jsonl', async () => {
-  await using directory = await createTemporaryDirectory('codiff-claude-session-');
+  await using directory = await createTemporaryDirectory('codophon-claude-session-');
   const sessionDirectory = join(directory.path, 'projects', 'repo');
   const sessionPath = join(sessionDirectory, `${sessionId}.jsonl`);
   await using _environment = createTemporaryEnvironment({ CLAUDE_CONFIG_DIR: directory.path });
@@ -47,7 +37,7 @@ test('extracts bounded readable messages from Claude Code session jsonl', async 
         type: 'assistant',
       }),
       JSON.stringify({
-        message: { content: [{ text: '/codiff', type: 'text' }], role: 'user' },
+        message: { content: [{ text: '/codophon', type: 'text' }], role: 'user' },
         type: 'user',
       }),
     ].join('\n'),
@@ -62,7 +52,7 @@ test('extracts bounded readable messages from Claude Code session jsonl', async 
 });
 
 test('finds the active Claude Code session under CLAUDE_CONFIG_DIR', async () => {
-  await using directory = await createTemporaryDirectory('codiff-claude-home-');
+  await using directory = await createTemporaryDirectory('codophon-claude-home-');
   await using _environment = createTemporaryEnvironment({ CLAUDE_CONFIG_DIR: directory.path });
 
   const projectDirectory = join(directory.path, 'projects', '-home-reviewer-repo');
@@ -73,7 +63,7 @@ test('finds the active Claude Code session under CLAUDE_CONFIG_DIR', async () =>
     `${JSON.stringify({
       cwd: '/home/reviewer/repo',
       message: {
-        content: [{ text: 'Keep Codiff in charge of the ephemeral walkthrough.', type: 'text' }],
+        content: [{ text: 'Keep Codophon in charge of the ephemeral walkthrough.', type: 'text' }],
         role: 'user',
       },
       type: 'user',
@@ -84,7 +74,7 @@ test('finds the active Claude Code session under CLAUDE_CONFIG_DIR', async () =>
     messages: [
       {
         role: 'user',
-        text: 'Keep Codiff in charge of the ephemeral walkthrough.',
+        text: 'Keep Codophon in charge of the ephemeral walkthrough.',
       },
     ],
     source: {
@@ -96,7 +86,7 @@ test('finds the active Claude Code session under CLAUDE_CONFIG_DIR', async () =>
 });
 
 test('reads recent Claude messages from a large session without loading the whole file', async () => {
-  await using directory = await createTemporaryDirectory('codiff-claude-large-session-');
+  await using directory = await createTemporaryDirectory('codophon-claude-large-session-');
   const sessionDirectory = join(directory.path, 'projects', 'repo');
   const sessionPath = join(sessionDirectory, `${sessionId}.jsonl`);
   await using _environment = createTemporaryEnvironment({ CLAUDE_CONFIG_DIR: directory.path });

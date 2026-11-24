@@ -87,7 +87,7 @@ export const preloadCodeViewHighlighter = () =>
 
 export const codeViewUnsafeCSS = `
   :host {
-    border-radius: var(--codiff-diff-radius, 28px);
+    border-radius: var(--codophon-diff-radius, 28px);
     corner-shape: squircle;
     --diffs-font-family: var(--font-diff-mono, var(--font-mono));
     --diffs-header-font-family: var(--font-sans);
@@ -132,7 +132,7 @@ export const codeViewUnsafeCSS = `
     border-radius: 0;
   }
 
-  :host(.codiff-walkthrough-header-item) {
+  :host(.codophon-walkthrough-header-item) {
     background: var(--app-bg);
     border-radius: 0;
     box-shadow: none;
@@ -140,22 +140,22 @@ export const codeViewUnsafeCSS = `
     overflow: visible;
   }
 
-  :host(.codiff-walkthrough-header-item) [data-file],
-  :host(.codiff-walkthrough-header-item) pre,
-  :host(.codiff-walkthrough-header-item) code,
-  :host(.codiff-walkthrough-header-item) [data-code],
-  :host(.codiff-walkthrough-header-item) [data-line-annotation] {
+  :host(.codophon-walkthrough-header-item) [data-file],
+  :host(.codophon-walkthrough-header-item) pre,
+  :host(.codophon-walkthrough-header-item) code,
+  :host(.codophon-walkthrough-header-item) [data-code],
+  :host(.codophon-walkthrough-header-item) [data-line-annotation] {
     background: var(--app-bg);
     border-radius: 0;
     box-shadow: none;
     overflow: visible;
   }
 
-  :host(.codiff-walkthrough-header-item) [data-column-number],
-  :host(.codiff-walkthrough-header-item) [data-line-number],
-  :host(.codiff-walkthrough-header-item) [data-gutter],
-  :host(.codiff-walkthrough-header-item) [data-gutter-buffer],
-  :host(.codiff-walkthrough-header-item) [data-content] > [data-line] {
+  :host(.codophon-walkthrough-header-item) [data-column-number],
+  :host(.codophon-walkthrough-header-item) [data-line-number],
+  :host(.codophon-walkthrough-header-item) [data-gutter],
+  :host(.codophon-walkthrough-header-item) [data-gutter-buffer],
+  :host(.codophon-walkthrough-header-item) [data-content] > [data-line] {
     display: none;
   }
 
@@ -175,47 +175,47 @@ export const codeViewUnsafeCSS = `
     margin-right: 14px;
   }
 
-  :host(.codiff-markdown-preview-item) [data-file] [data-code] {
+  :host(.codophon-markdown-preview-item) [data-file] [data-code] {
     grid-column: 1 / -1;
   }
 
-  :host(.codiff-markdown-preview-item) [data-file] [data-line="1"][data-line-index="0"][data-line-type="context"],
-  :host(.codiff-markdown-preview-item) [data-file] [data-column-number="1"][data-line-index="0"][data-line-type="context"],
-  :host(.codiff-markdown-preview-item) [data-gutter] > [data-gutter-utility-slot] {
+  :host(.codophon-markdown-preview-item) [data-file] [data-line="1"][data-line-index="0"][data-line-type="context"],
+  :host(.codophon-markdown-preview-item) [data-file] [data-column-number="1"][data-line-index="0"][data-line-type="context"],
+  :host(.codophon-markdown-preview-item) [data-gutter] > [data-gutter-utility-slot] {
     display: none;
     pointer-events: none;
   }
 
-  :host(.codiff-image-preview-item) [data-file] {
+  :host(.codophon-image-preview-item) [data-file] {
     --diffs-code-grid: 1fr;
   }
 
-  :host(.codiff-image-preview-item) [data-file] [data-code] {
+  :host(.codophon-image-preview-item) [data-file] [data-code] {
     grid-column: 1 / -1;
     padding-block: 0;
   }
 
-  :host(.codiff-image-preview-item) [data-file] [data-content] {
+  :host(.codophon-image-preview-item) [data-file] [data-content] {
     grid-column: 1;
   }
 
-  :host(.codiff-image-preview-item) [data-file] [data-gutter],
-  :host(.codiff-image-preview-item) [data-file] [data-line="1"][data-line-index="0"][data-line-type="context"] {
+  :host(.codophon-image-preview-item) [data-file] [data-gutter],
+  :host(.codophon-image-preview-item) [data-file] [data-line="1"][data-line-index="0"][data-line-type="context"] {
     display: none;
     pointer-events: none;
   }
 
-  :host(.codiff-loadable-summary-item) [data-file] [data-line],
-  :host(.codiff-loadable-summary-item) [data-file] [data-column-number] {
+  :host(.codophon-loadable-summary-item) [data-file] [data-line],
+  :host(.codophon-loadable-summary-item) [data-file] [data-column-number] {
     cursor: pointer;
   }
 
-  :host(.codiff-loading-summary-item) [data-file] [data-line],
-  :host(.codiff-loading-summary-item) [data-file] [data-column-number] {
+  :host(.codophon-loading-summary-item) [data-file] [data-line],
+  :host(.codophon-loading-summary-item) [data-file] [data-column-number] {
     cursor: progress;
   }
 
-  :host([data-codiff-definition-mode]) [data-codiff-identifier] {
+  :host([data-codophon-definition-mode]) [data-codophon-identifier] {
     cursor: pointer;
     text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
     text-decoration-line: underline;
@@ -224,19 +224,19 @@ export const codeViewUnsafeCSS = `
     text-underline-offset: 3px;
   }
 
-  :host([data-codiff-definition-mode]) [data-codiff-identifier]:hover {
+  :host([data-codophon-definition-mode]) [data-codophon-identifier]:hover {
     text-decoration-color: currentColor;
     text-decoration-style: solid;
   }
 
-  .codiff-search-mark {
+  .codophon-search-mark {
     background: var(--diffs-find-highlight-bg, rgb(255 216 92 / 0.65));
     border-radius: 3px;
     color: inherit;
     padding: 0 1px;
   }
 
-  .codiff-search-mark.active {
+  .codophon-search-mark.active {
     background: var(--diffs-find-active-bg, rgb(255 176 46 / 0.96));
     box-shadow: 0 0 0 1px rgb(255 142 36 / 0.4);
   }

@@ -3,14 +3,14 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
-import type { CodiffLaunchOptions, RepositoryState } from '../../core/types.ts';
+import type { CodophonLaunchOptions, RepositoryState } from '../../core/types.ts';
 
 const require = createRequire(import.meta.url);
 const { createWalkthroughLaunchController } =
   require('../main/walkthrough-launch.cjs') as typeof import('../main/walkthrough-launch.cjs');
 
 const createLaunch = async () => {
-  const directory = await createTemporaryDirectory('codiff-walkthrough-launch-');
+  const directory = await createTemporaryDirectory('codophon-walkthrough-launch-');
   const state: RepositoryState = {
     branch: 'main',
     files: ['a.ts', 'b.ts'].map((path) => ({
@@ -51,7 +51,7 @@ const createLaunch = async () => {
   };
   const walkthroughFile = join(directory.path, 'walkthrough.json');
   const walkthroughResultFile = join(directory.path, 'result.txt');
-  const launchOptions: CodiffLaunchOptions = {
+  const launchOptions: CodophonLaunchOptions = {
     repositoryPathProvided: true,
     walkthrough: true,
     walkthroughFile,
@@ -61,7 +61,7 @@ const createLaunch = async () => {
 
   let hasWindows = false;
   const openWindow = vi.fn(
-    (_path: string, _launchOptions: CodiffLaunchOptions, _state?: Promise<RepositoryState>) => {
+    (_path: string, _launchOptions: CodophonLaunchOptions, _state?: Promise<RepositoryState>) => {
       hasWindows = true;
       return { webContents: { id: 1 } };
     },

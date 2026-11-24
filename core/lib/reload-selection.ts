@@ -1,7 +1,7 @@
 import type { GitFileStatus, RepositoryState, ReviewSource } from '../types.ts';
 import { getSourceKey } from './source.ts';
 
-const reloadSelectionStorageKey = 'codiff.reloadSelection.v3';
+const reloadSelectionStorageKey = 'codophon.reloadSelection.v3';
 
 type ReloadSelectionFile = {
   fingerprint: string;

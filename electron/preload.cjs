@@ -11,18 +11,18 @@ try {
   // The bridge must still load when Chromium storage is unavailable.
 }
 
-const launchOptions = ipcRenderer.invoke('codiff:getLaunchOptions');
-/** @type {Promise<import('../core/config/types.ts').CodiffConfig> | undefined} */
-let initialConfig = ipcRenderer.invoke('codiff:getConfig');
+const launchOptions = ipcRenderer.invoke('codophon:getLaunchOptions');
+/** @type {Promise<import('../core/config/types.ts').CodophonConfig> | undefined} */
+let initialConfig = ipcRenderer.invoke('codophon:getConfig');
 initialConfig.catch(() => {});
 /** @type {Promise<import('../core/types.ts').RepositoryState | undefined> | undefined} */
-let initialRepositoryState = launchOptions.then((options) =>
-  ipcRenderer.invoke('codiff:getRepositoryState'),
+let initialRepositoryState = launchOptions.then(() =>
+  ipcRenderer.invoke('codophon:getRepositoryState'),
 );
 initialRepositoryState.catch(() => {});
 
 const applyPlatformAttribute = () => {
-  document.documentElement?.setAttribute('data-codiff-platform', process.platform);
+  document.documentElement?.setAttribute('data-codophon-platform', process.platform);
 };
 
 if (document.documentElement) {
@@ -31,160 +31,111 @@ if (document.documentElement) {
   window.addEventListener('DOMContentLoaded', applyPlatformAttribute, { once: true });
 }
 
-/** @type {Window['codiff']} */
-const codiff = {
-  askReviewAssistant: (request) => ipcRenderer.invoke('codiff:askReviewAssistant', request),
-  getReviewBriefComments: (source) => ipcRenderer.invoke('codiff:getReviewBriefComments', source),
-  dismissUpdate: () => ipcRenderer.invoke('codiff:dismissUpdate'),
+/**
+ * @template T
+ * @param {string} channel
+ * @param {(payload: T) => void} callback
+ */
+const subscribe = (channel, callback) => {
+  /** @param {Electron.IpcRendererEvent} _event @param {T} payload */
+  const listener = (_event, payload) => callback(payload);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+};
+
+/** @type {Window['codophon']} */
+const codophon = {
+  askReviewAssistant: (request) => ipcRenderer.invoke('codophon:askReviewAssistant', request),
+  getReviewBriefComments: (source) => ipcRenderer.invoke('codophon:getReviewBriefComments', source),
+  dismissUpdate: () => ipcRenderer.invoke('codophon:dismissUpdate'),
   createWalkthroughCommit: (request) =>
-    ipcRenderer.invoke('codiff:createWalkthroughCommit', request),
+    ipcRenderer.invoke('codophon:createWalkthroughCommit', request),
   updateWalkthroughCommitMessage: (request) =>
-    ipcRenderer.invoke('codiff:updateWalkthroughCommitMessage', request),
-  getAgentSkillStatus: () => ipcRenderer.invoke('codiff:getAgentSkillStatus'),
-  getAgentModelCatalog: (refresh) => ipcRenderer.invoke('codiff:getAgentModelCatalog', refresh),
-  getAgentPrompts: () => ipcRenderer.invoke('codiff:getAgentPrompts'),
+    ipcRenderer.invoke('codophon:updateWalkthroughCommitMessage', request),
+  getAgentSkillStatus: () => ipcRenderer.invoke('codophon:getAgentSkillStatus'),
+  getAgentModelCatalog: (refresh) => ipcRenderer.invoke('codophon:getAgentModelCatalog', refresh),
+  getAgentPrompts: () => ipcRenderer.invoke('codophon:getAgentPrompts'),
   getConfig: () => {
     const initial = initialConfig;
     initialConfig = undefined;
-    return initial ?? ipcRenderer.invoke('codiff:getConfig');
+    return initial ?? ipcRenderer.invoke('codophon:getConfig');
   },
-  decreaseCodeFontSize: () => ipcRenderer.invoke('codiff:decreaseCodeFontSize'),
-  getDiffSectionContent: (request) => ipcRenderer.invoke('codiff:getDiffSectionContent', request),
-  getDiffImageContent: (request) => ipcRenderer.invoke('codiff:getDiffImageContent', request),
-  getGitIdentity: () => ipcRenderer.invoke('codiff:getGitIdentity'),
-  getKeyboardLayout: () => ipcRenderer.invoke('codiff:getKeyboardLayout'),
+  decreaseCodeFontSize: () => ipcRenderer.invoke('codophon:decreaseCodeFontSize'),
+  getDiffSectionContent: (request) => ipcRenderer.invoke('codophon:getDiffSectionContent', request),
+  getDiffImageContent: (request) => ipcRenderer.invoke('codophon:getDiffImageContent', request),
+  getGitIdentity: () => ipcRenderer.invoke('codophon:getGitIdentity'),
+  getKeyboardLayout: () => ipcRenderer.invoke('codophon:getKeyboardLayout'),
   getLaunchOptions: () => launchOptions,
-  getMarkdownDocument: (request) => ipcRenderer.invoke('codiff:getMarkdownDocument', request),
-  getRepositoryFile: (path) => ipcRenderer.invoke('codiff:getRepositoryFile', path),
-  getPreferences: () => ipcRenderer.invoke('codiff:getPreferences'),
+  getMarkdownDocument: (request) => ipcRenderer.invoke('codophon:getMarkdownDocument', request),
+  getRepositoryFile: (path) => ipcRenderer.invoke('codophon:getRepositoryFile', path),
   getRepositoryHistory: (limit, source) =>
-    ipcRenderer.invoke('codiff:getRepositoryHistory', limit, source),
+    ipcRenderer.invoke('codophon:getRepositoryHistory', limit, source),
   getRepositoryState: (source) => {
     const initial = source ? undefined : initialRepositoryState;
     initialRepositoryState = undefined;
     return initial
-      ? initial.then((state) => state ?? ipcRenderer.invoke('codiff:getRepositoryState', source))
-      : ipcRenderer.invoke('codiff:getRepositoryState', source);
+      ? initial.then((state) => state ?? ipcRenderer.invoke('codophon:getRepositoryState', source))
+      : ipcRenderer.invoke('codophon:getRepositoryState', source);
   },
-  getTerminalHelperStatus: () => ipcRenderer.invoke('codiff:getTerminalHelperStatus'),
-  getUpdateStatus: () => ipcRenderer.invoke('codiff:getUpdateStatus'),
+  getTerminalHelperStatus: () => ipcRenderer.invoke('codophon:getTerminalHelperStatus'),
+  getUpdateStatus: () => ipcRenderer.invoke('codophon:getUpdateStatus'),
   getNarrativeWalkthrough: (source, options) =>
-    ipcRenderer.invoke('codiff:getNarrativeWalkthrough', source, options),
-  installAgentSkill: () => ipcRenderer.invoke('codiff:installAgentSkill'),
-  installTerminalHelper: () => ipcRenderer.invoke('codiff:installTerminalHelper'),
-  increaseCodeFontSize: () => ipcRenderer.invoke('codiff:increaseCodeFontSize'),
-  isWindowFullScreen: () => ipcRenderer.invoke('codiff:isWindowFullScreen'),
-  markWindowReady: () => ipcRenderer.send('codiff:windowReady'),
-  onConfigChanged: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {import('../core/config/types.ts').CodiffConfig} nextConfig */
-    const listener = (_event, nextConfig) => callback(nextConfig);
-    ipcRenderer.on('codiff:configChanged', listener);
-    return () => ipcRenderer.removeListener('codiff:configChanged', listener);
-  },
-  onOpenAgentSettings: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {import('../core/config/types.ts').AgentSettingsSection} section */
-    const listener = (_event, section) => callback(section);
-    ipcRenderer.on('codiff:openAgentSettings', listener);
-    return () => ipcRenderer.removeListener('codiff:openAgentSettings', listener);
-  },
-  onCopyPendingCommentsRequest: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {number} requestId */
-    const listener = (_event, requestId) => {
+    ipcRenderer.invoke('codophon:getNarrativeWalkthrough', source, options),
+  installAgentSkill: () => ipcRenderer.invoke('codophon:installAgentSkill'),
+  installTerminalHelper: () => ipcRenderer.invoke('codophon:installTerminalHelper'),
+  increaseCodeFontSize: () => ipcRenderer.invoke('codophon:increaseCodeFontSize'),
+  isWindowFullScreen: () => ipcRenderer.invoke('codophon:isWindowFullScreen'),
+  markWindowReady: () => ipcRenderer.send('codophon:windowReady'),
+  onConfigChanged: (callback) => subscribe('codophon:configChanged', callback),
+  onOpenAgentSettings: (callback) => subscribe('codophon:openAgentSettings', callback),
+  onCopyPendingCommentsRequest: (callback) =>
+    subscribe('codophon:copyPendingCommentsRequest', (requestId) => {
       Promise.resolve(callback()).then(
         (markdown) => {
           ipcRenderer.send(
-            'codiff:copyPendingCommentsResult',
+            'codophon:copyPendingCommentsResult',
             requestId,
             typeof markdown === 'string' ? markdown : '',
           );
         },
         () => {
-          ipcRenderer.send('codiff:copyPendingCommentsResult', requestId, '');
+          ipcRenderer.send('codophon:copyPendingCommentsResult', requestId, '');
         },
       );
-    };
-    ipcRenderer.on('codiff:copyPendingCommentsRequest', listener);
-    return () => ipcRenderer.removeListener('codiff:copyPendingCommentsRequest', listener);
-  },
-  onFindInDiffs: (callback) => {
-    const listener = () => callback();
-    ipcRenderer.on('codiff:findInDiffs', listener);
-    return () => ipcRenderer.removeListener('codiff:findInDiffs', listener);
-  },
-  onKeyboardLayoutChanged: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {import('../core/config/keyboard-layout.ts').NativeKeyboardLayout} layout */
-    const listener = (_event, layout) => callback(layout);
-    ipcRenderer.on('codiff:keyboardLayoutChanged', listener);
-    return () => ipcRenderer.removeListener('codiff:keyboardLayoutChanged', listener);
-  },
-  onOpenReviewSource: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {import('../core/types.ts').OpenReviewSourceKind} kind */
-    const listener = (_event, kind) => callback(kind);
-    ipcRenderer.on('codiff:openReviewSource', listener);
-    return () => ipcRenderer.removeListener('codiff:openReviewSource', listener);
-  },
-  onMarkdownDocumentChanged: (callback) => {
-    const listener = (_event, change) => callback(change);
-    ipcRenderer.on('codiff:markdownDocumentChanged', listener);
-    return () => ipcRenderer.removeListener('codiff:markdownDocumentChanged', listener);
-  },
-  onWalkthroughCommitOutput: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {string} chunk */
-    const listener = (_event, chunk) => callback(String(chunk));
-    ipcRenderer.on('codiff:walkthroughCommitOutput', listener);
-    return () => ipcRenderer.removeListener('codiff:walkthroughCommitOutput', listener);
-  },
-  onWindowFullScreenChanged: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {boolean} isFullScreen */
-    const listener = (_event, isFullScreen) => callback(Boolean(isFullScreen));
-    ipcRenderer.on('codiff:windowFullScreenChanged', listener);
-    return () => ipcRenderer.removeListener('codiff:windowFullScreenChanged', listener);
-  },
-  onRepositoryChanged: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {{root: string}} change */
-    const listener = (_event, change) => callback(change);
-    ipcRenderer.on('codiff:repositoryChanged', listener);
-    return () => ipcRenderer.removeListener('codiff:repositoryChanged', listener);
-  },
-  onWalkthroughProgress: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {import('../core/types.ts').WalkthroughProgressEvent} progress */
-    const listener = (_event, progress) => callback(progress);
-    ipcRenderer.on('codiff:walkthroughProgress', listener);
-    return () => ipcRenderer.removeListener('codiff:walkthroughProgress', listener);
-  },
-  onRefreshRequest: (callback) => {
-    const listener = () => callback();
-    ipcRenderer.on('codiff:refreshRequest', listener);
-    return () => ipcRenderer.removeListener('codiff:refreshRequest', listener);
-  },
-  onUpdateStatusChanged: (callback) => {
-    /** @param {Electron.IpcRendererEvent} _event @param {import('../core/types.ts').CodiffUpdateStatus} status */
-    const listener = (_event, status) => callback(status);
-    ipcRenderer.on('codiff:updateStatusChanged', listener);
-    return () => ipcRenderer.removeListener('codiff:updateStatusChanged', listener);
-  },
-  findDefinitions: (request) => ipcRenderer.invoke('codiff:findDefinitions', request),
-  openConfigFile: () => ipcRenderer.invoke('codiff:openConfigFile'),
-  selectAgentModel: (agent, model) => ipcRenderer.invoke('codiff:selectAgentModel', agent, model),
-  setAgentPrompt: (id, text) => ipcRenderer.invoke('codiff:setAgentPrompt', id, text),
-  openReleasePage: () => ipcRenderer.invoke('codiff:openReleasePage'),
-  openFile: (path, lineNumber) => ipcRenderer.invoke('codiff:openFile', path, lineNumber),
-  openRepositoryFolder: () => ipcRenderer.invoke('codiff:openRepositoryFolder'),
-  resolvePullRequestUrl: (value) => ipcRenderer.invoke('codiff:resolvePullRequestUrl', value),
-  setDiffStyle: (value) => ipcRenderer.invoke('codiff:setDiffStyle', value),
-  setReviewTheme: (value) => ipcRenderer.invoke('codiff:setReviewTheme', value),
-  setShowOutdated: (value) => ipcRenderer.invoke('codiff:setShowOutdated', value),
-  setWordWrap: (value) => ipcRenderer.invoke('codiff:setWordWrap', value),
-  resetCodeFontSize: () => ipcRenderer.invoke('codiff:resetCodeFontSize'),
-  saveMarkdownDocument: (request) => ipcRenderer.invoke('codiff:saveMarkdownDocument', request),
-  saveRepositoryFile: (request) => ipcRenderer.invoke('codiff:saveRepositoryFile', request),
-  showInFolder: (path) => ipcRenderer.invoke('codiff:showInFolder', path),
+    }),
+  onFindInDiffs: (callback) => subscribe('codophon:findInDiffs', () => callback()),
+  onKeyboardLayoutChanged: (callback) => subscribe('codophon:keyboardLayoutChanged', callback),
+  onOpenReviewSource: (callback) => subscribe('codophon:openReviewSource', callback),
+  onMarkdownDocumentChanged: (callback) => subscribe('codophon:markdownDocumentChanged', callback),
+  onWalkthroughCommitOutput: (callback) =>
+    subscribe('codophon:walkthroughCommitOutput', (chunk) => callback(String(chunk))),
+  onWindowFullScreenChanged: (callback) =>
+    subscribe('codophon:windowFullScreenChanged', (value) => callback(Boolean(value))),
+  onRepositoryChanged: (callback) => subscribe('codophon:repositoryChanged', callback),
+  onWalkthroughProgress: (callback) => subscribe('codophon:walkthroughProgress', callback),
+  onRefreshRequest: (callback) => subscribe('codophon:refreshRequest', () => callback()),
+  onUpdateStatusChanged: (callback) => subscribe('codophon:updateStatusChanged', callback),
+  findDefinitions: (request) => ipcRenderer.invoke('codophon:findDefinitions', request),
+  openConfigFile: () => ipcRenderer.invoke('codophon:openConfigFile'),
+  selectAgentModel: (agent, model) => ipcRenderer.invoke('codophon:selectAgentModel', agent, model),
+  setAgentPrompt: (id, text) => ipcRenderer.invoke('codophon:setAgentPrompt', id, text),
+  openReleasePage: () => ipcRenderer.invoke('codophon:openReleasePage'),
+  openFile: (path, lineNumber) => ipcRenderer.invoke('codophon:openFile', path, lineNumber),
+  openRepositoryFolder: () => ipcRenderer.invoke('codophon:openRepositoryFolder'),
+  resolvePullRequestUrl: (value) => ipcRenderer.invoke('codophon:resolvePullRequestUrl', value),
+  setDiffStyle: (value) => ipcRenderer.invoke('codophon:setDiffStyle', value),
+  setReviewTheme: (value) => ipcRenderer.invoke('codophon:setReviewTheme', value),
+  setShowOutdated: (value) => ipcRenderer.invoke('codophon:setShowOutdated', value),
+  setWordWrap: (value) => ipcRenderer.invoke('codophon:setWordWrap', value),
+  resetCodeFontSize: () => ipcRenderer.invoke('codophon:resetCodeFontSize'),
+  saveMarkdownDocument: (request) => ipcRenderer.invoke('codophon:saveMarkdownDocument', request),
+  saveRepositoryFile: (request) => ipcRenderer.invoke('codophon:saveRepositoryFile', request),
   submitPullRequestComment: (request) =>
-    ipcRenderer.invoke('codiff:submitPullRequestComment', request),
+    ipcRenderer.invoke('codophon:submitPullRequestComment', request),
   submitPullRequestReview: (request) =>
-    ipcRenderer.invoke('codiff:submitPullRequestReview', request),
+    ipcRenderer.invoke('codophon:submitPullRequestReview', request),
   setPullRequestFileViewed: (request) =>
-    ipcRenderer.invoke('codiff:setPullRequestFileViewed', request),
+    ipcRenderer.invoke('codophon:setPullRequestFileViewed', request),
 };
 
-contextBridge.exposeInMainWorld('codiff', codiff);
+contextBridge.exposeInMainWorld('codophon', codophon);

@@ -28,7 +28,7 @@ import {
 import { flushSync } from 'react-dom';
 import { defaultKeymap } from '../../config/defaults.ts';
 import { matchesShortcut } from '../../config/keymap.ts';
-import type { CodiffKeymap } from '../../config/types.ts';
+import type { CodophonKeymap } from '../../config/types.ts';
 import type { CodeViewItemMetadata, ReviewAnnotationMetadata } from '../../lib/app-types.ts';
 import { DEFAULT_PADDING, workerHighlighterOptions } from '../../lib/code-view-options.ts';
 import { loadSectionContents } from '../../lib/diff.ts';
@@ -124,7 +124,7 @@ export function useCodeEditing({
 }: {
   codeViewRef: RefObject<CodeViewHandle<ReviewAnnotationMetadata, undefined> | null>;
   items: ReadonlyArray<CodeViewItem<ReviewAnnotationMetadata>>;
-  keymap?: CodiffKeymap;
+  keymap?: CodophonKeymap;
   onLoadSectionContents?: (file: ChangedFile, section: DiffSection) => Promise<FileDiffLoadedFiles>;
   onRefresh?: (file: ChangedFile, section: DiffSection) => Promise<boolean>;
   selectedItemId?: string;
@@ -263,7 +263,7 @@ export function useCodeEditing({
         const [, loaded, document] = await Promise.all([
           prepareEditor(item.fileDiff),
           loadEditContents(item, metadata),
-          window.codiff.getRepositoryFile(metadata.file.path),
+          window.codophon.getRepositoryFile(metadata.file.path),
         ]);
         if (!loaded.newFile || loaded.newFile.contents !== document.content) {
           throw new Error('The file changed on disk. Refresh the diff before editing.');

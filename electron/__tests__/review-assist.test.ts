@@ -303,7 +303,7 @@ test.each([
 });
 
 test('uses pinned commits and the actual Git file list without reading a dirty, unrelated checkout', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'codiff-review-assist-'));
+  const root = mkdtempSync(join(tmpdir(), 'codophon-review-assist-'));
   repositories.push(root);
   const git = (...args: string[]) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();

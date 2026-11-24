@@ -11,17 +11,16 @@ export type FakeCommandProcess = {
   process: ChildProcess;
   stderr: (value: string) => void;
   stdin: PassThrough;
-  stdout: (value: string) => void;
+  stdout: (value: string | Buffer) => void;
 };
 
 export const createCommandTransport = (onSpawn: (commandProcess: FakeCommandProcess) => void) => {
   const calls: Array<FakeCommandProcess> = [];
   const spawn = (command: string, args: ReadonlyArray<string> = [], options: SpawnOptions = {}) => {
-    const process = new EventEmitter() as ChildProcess;
     const stdin = new PassThrough();
     const stdout = new PassThrough();
     const stderr = new PassThrough();
-    Object.assign(process, {
+    const process = Object.assign(new EventEmitter() as ChildProcess, {
       killed: false,
       kill: () => {
         process.killed = true;
@@ -51,7 +50,7 @@ export const createCommandTransport = (onSpawn: (commandProcess: FakeCommandProc
     calls,
     transport: {
       command: 'provider-test-command',
-      spawn: spawn as typeof import('node:child_process').spawn,
+      spawn: spawn as unknown as typeof import('node:child_process').spawn,
     },
   };
 };

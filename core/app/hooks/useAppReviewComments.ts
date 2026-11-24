@@ -80,7 +80,7 @@ export function useAppReviewComments({
       operation();
     } catch (error) {
       setAskCacheError(
-        `Codiff couldn't access the local Ask cache. This session may not be recoverable: ${error instanceof Error ? error.message : String(error)}`,
+        `Codophon couldn't access the local Ask cache. This session may not be recoverable: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }, []);
@@ -361,7 +361,7 @@ export function useAppReviewComments({
         recordReviewBriefQuestion(currentState.source, comment, question);
       }
       updateCodexReply(comment.id, comment.filePath, pendingReply);
-      void window.codiff
+      void window.codophon
         .askReviewAssistant(request)
         .then((result) => {
           finishReply(
@@ -419,7 +419,7 @@ export function useAppReviewComments({
       updateAskPublication(currentState, comment.id, 'posting');
       updateRemoteSubmit(comment.id, { status: 'submitting' });
       updateActiveReviewCommentDraft(null);
-      void window.codiff
+      void window.codophon
         .submitPullRequestComment({
           comment: toPullRequestReviewComment(comment),
           source: currentState.source,
@@ -511,7 +511,7 @@ export function useAppReviewComments({
         updateRemoteSubmit(id, { status: 'submitting' });
       }
       setPullRequestReviewSubmitting(event);
-      return window.codiff
+      return window.codophon
         .submitPullRequestReview({
           ...(body ? { body } : {}),
           comments: pendingComments.map((comment) => toPullRequestReviewComment(comment)),

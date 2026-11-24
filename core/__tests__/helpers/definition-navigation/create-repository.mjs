@@ -15,9 +15,9 @@ export const createDefinitionNavigationRepository = (repositoryPath) => {
   git(['add', '.']);
   git([
     '-c',
-    'user.name=Codiff Example',
+    'user.name=Codophon Example',
     '-c',
-    'user.email=codiff-example@localhost',
+    'user.email=codophon-example@localhost',
     '-c',
     'commit.gpgSign=false',
     'commit',

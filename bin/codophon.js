@@ -16,16 +16,16 @@ import { waitForWalkthroughResult } from './walkthrough-result.js';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 
-// The renderer is the built dist/ by default. When Codiff's own Vite dev server
+// The renderer is the built dist/ by default. When Codophon's own Vite dev server
 // is running, use it instead so source edits hot-reload without a rebuild. The
-// server is VERIFIED to identify as Codiff before it's trusted — 5173 is a
+// server is VERIFIED to identify as Codophon before it's trusted — 5173 is a
 // common dev port, so "something is listening" is never enough on its own.
-const DEV_SERVER_URL = process.env.CODIFF_DEV_SERVER_URL || 'http://127.0.0.1:5173';
+const DEV_SERVER_URL = process.env.CODOPHON_DEV_SERVER_URL || 'http://127.0.0.1:5173';
 
-const looksLikeCodiff = (body) =>
-  body.includes('<title>Codiff</title>') && body.includes('/core/index.tsx');
+const looksLikeCodophon = (body) =>
+  body.includes('<title>Codophon</title>') && body.includes('/core/index.tsx');
 
-/** Resolve to the dev-server URL when it is up and serving Codiff, else `null`. */
+/** Resolve to the dev-server URL when it is up and serving Codophon, else `null`. */
 const detectDevServer = (url) =>
   new Promise((resolveProbe) => {
     let settled = false;
@@ -58,8 +58,8 @@ const detectDevServer = (url) =>
           response.destroy();
         }
       });
-      response.on('end', () => finish(looksLikeCodiff(body)));
-      response.on('close', () => finish(looksLikeCodiff(body)));
+      response.on('end', () => finish(looksLikeCodophon(body)));
+      response.on('close', () => finish(looksLikeCodophon(body)));
     });
     request.setTimeout(800, () => {
       request.destroy();
@@ -101,18 +101,18 @@ const launchApp = async (launchArgument) => {
   // Windows and Linux packages put the executable two levels above resources/app.
   const isPackaged = basename(root) === 'app' && basename(dirname(root)) === 'resources';
   const packagedExecutable = isPackaged
-    ? ['codiff.exe', 'codiff'].map((name) => resolve(root, '../..', name)).find(existsSync)
+    ? ['codophon.exe', 'codophon'].map((name) => resolve(root, '../..', name)).find(existsSync)
     : null;
   if (packagedExecutable) {
     return spawnDetached(packagedExecutable, [launchArgument]);
   }
 
-  // Prefer an explicit ELECTRON_RENDERER_URL; otherwise auto-use Codiff's dev
-  // server when it is actually running and identifies as Codiff.
+  // Prefer an explicit ELECTRON_RENDERER_URL; otherwise auto-use Codophon's dev
+  // server when it is actually running and identifies as Codophon.
   env.ELECTRON_RENDERER_URL =
     process.env.ELECTRON_RENDERER_URL || (await detectDevServer(DEV_SERVER_URL)) || '';
   if (!env.ELECTRON_RENDERER_URL && !existsSync(resolve(root, 'dist/index.html'))) {
-    console.error('Codiff has not been built yet. Run `pnpm build` first, or start `pnpm dev`.');
+    console.error('Codophon has not been built yet. Run `pnpm build` first, or start `pnpm dev`.');
     process.exit(1);
   }
   const { default: electron } = await import('electron');
@@ -128,7 +128,7 @@ const run = async () => {
   }
 
   if (parsedArguments.version) {
-    process.stdout.write(`codiff v${packageJson.version}\n`);
+    process.stdout.write(`codophon v${packageJson.version}\n`);
     return;
   }
 
@@ -136,14 +136,14 @@ const run = async () => {
     const shell = parsedArguments.completionShell;
     if (!shell) {
       process.stderr.write(
-        `codiff: --completions requires a shell: ${completionShells.join(', ')}.\n`,
+        `codophon: --completions requires a shell: ${completionShells.join(', ')}.\n`,
       );
       process.exitCode = 1;
       return;
     }
     if (!completionShells.includes(shell)) {
       process.stderr.write(
-        `codiff: unsupported shell for --completions: ${shell}. Supported shells: ${completionShells.join(', ')}.\n`,
+        `codophon: unsupported shell for --completions: ${shell}. Supported shells: ${completionShells.join(', ')}.\n`,
       );
       process.exitCode = 1;
       return;
@@ -194,7 +194,7 @@ const run = async () => {
   // The app launches detached, so wait for it to report whether it applied the
   // walkthrough file; otherwise a file it rejects would still exit 0 here.
   const walkthroughResultDirectory = walkthroughFilePath
-    ? mkdtempSync(join(tmpdir(), 'codiff-walkthrough-result-'))
+    ? mkdtempSync(join(tmpdir(), 'codophon-walkthrough-result-'))
     : null;
   const launchArgument = encodeLaunchRequest({
     agentBackend,
@@ -232,7 +232,7 @@ const run = async () => {
       }
     } catch (error) {
       process.stderr.write(
-        `${error instanceof Error ? error.message : 'Codiff could not load the walkthrough.'}\n`,
+        `${error instanceof Error ? error.message : 'Codophon could not load the walkthrough.'}\n`,
       );
       process.exitCode = 1;
     } finally {

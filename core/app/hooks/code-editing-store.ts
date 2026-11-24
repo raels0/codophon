@@ -61,7 +61,7 @@ const createFileEditingStore = (onChange: () => void) => {
     setSession({ ...current, saveError: undefined, saving: true });
     pendingWrite = Promise.resolve()
       .then(() =>
-        window.codiff.saveRepositoryFile({
+        window.codophon.saveRepositoryFile({
           ...current.document,
           baseVersion: current.document.version,
           content,

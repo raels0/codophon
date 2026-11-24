@@ -24,8 +24,8 @@ const isInstalled = (command: string) => {
 // the space a ref cannot contain.
 const HOSTILE_REF = '$(touch${IFS}pwned)';
 
-const runCodiff = (args: ReadonlyArray<string>) =>
-  execFileAsync(process.execPath, [resolve('bin/codiff.js'), ...args], { encoding: 'utf8' });
+const runCodophon = (args: ReadonlyArray<string>) =>
+  execFileAsync(process.execPath, [resolve('bin/codophon.js'), ...args], { encoding: 'utf8' });
 
 test('supports bash, fish and zsh', () => {
   expect(completionShells).toEqual(['bash', 'fish', 'zsh']);
@@ -54,53 +54,53 @@ test('refuses to generate a script for an unsupported shell', () => {
 });
 
 test('prints the completion script for a supported shell', async () => {
-  const { stderr, stdout } = await runCodiff(['--completions', 'fish']);
+  const { stderr, stdout } = await runCodophon(['--completions', 'fish']);
 
   expect(stderr).toBe('');
   expect(stdout).toBe(generateCompletionScript('fish'));
 });
 
 test('fails with a usable message for an unsupported shell', async () => {
-  const error = await runCodiff(['--completions', 'nushell']).catch((error) => error);
+  const error = await runCodophon(['--completions', 'nushell']).catch((error) => error);
 
   expect(error.code).toBe(1);
   expect(error.stderr).toBe(
-    'codiff: unsupported shell for --completions: nushell. Supported shells: bash, fish, zsh.\n',
+    'codophon: unsupported shell for --completions: nushell. Supported shells: bash, fish, zsh.\n',
   );
   expect(error.stdout).toBe('');
 });
 
 test('fails when --completions is passed without a shell', async () => {
-  const error = await runCodiff(['--completions']).catch((error) => error);
+  const error = await runCodophon(['--completions']).catch((error) => error);
 
   expect(error.code).toBe(1);
-  expect(error.stderr).toBe('codiff: --completions requires a shell: bash, fish, zsh.\n');
+  expect(error.stderr).toBe('codophon: --completions requires a shell: bash, fish, zsh.\n');
   expect(error.stdout).toBe('');
 });
 
 test('lists --completions in the help output', async () => {
-  const { stdout } = await runCodiff(['--help']);
+  const { stdout } = await runCodophon(['--help']);
 
   expect(stdout).toContain('--completions <bash|fish|zsh>');
 });
 
-// `codiff-app` is the helper the packaged app installs on the PATH, so it has to
+// `codophon-app` is the helper the packaged app installs on the PATH, so it has to
 // serve completions too instead of opening a window.
-test('codiff-app prints the completion script for a supported shell', async () => {
+test('codophon-app prints the completion script for a supported shell', async () => {
   const { stderr, stdout } = await execFileAsync(
-    resolve('bin/codiff-app'),
+    resolve('bin/codophon-app'),
     ['--completions', 'zsh'],
-    { encoding: 'utf8', env: { ...process.env, CODIFF_NODE_COMMAND: process.execPath } },
+    { encoding: 'utf8', env: { ...process.env, CODOPHON_NODE_COMMAND: process.execPath } },
   );
 
   expect(stderr).toBe('');
   expect(stdout).toBe(generateCompletionScript('zsh'));
 });
 
-test('codiff-app lists --completions in the help output', async () => {
-  const { stdout } = await execFileAsync(resolve('bin/codiff-app'), ['--help'], {
+test('codophon-app lists --completions in the help output', async () => {
+  const { stdout } = await execFileAsync(resolve('bin/codophon-app'), ['--help'], {
     encoding: 'utf8',
-    env: { ...process.env, CODIFF_NODE_COMMAND: process.execPath },
+    env: { ...process.env, CODOPHON_NODE_COMMAND: process.execPath },
   });
 
   expect(stdout).toContain('--completions <bash|fish|zsh>');
@@ -123,8 +123,8 @@ test.for(completionShells)('completes every documented flag in %s', (shell) => {
 test('completes refs for flags documented as taking a ref', () => {
   const script = generateCompletionScript('fish');
 
-  expect(script).toContain("-l branch -x -a '(__codiff_refs)'");
-  expect(script).toContain("-l commit -x -a '(__codiff_refs)'");
+  expect(script).toContain("-l branch -x -a '(__codophon_refs)'");
+  expect(script).toContain("-l commit -x -a '(__codophon_refs)'");
 });
 
 test('completes paths for flags documented as taking a file', () => {
@@ -169,29 +169,29 @@ test.for(completionShells.filter((shell) => shell !== 'bash'))(
 // `$(...)` and backticks), so a hostile repository must not be able to run code
 // when a user completes in it.
 test('does not run ref names while completing them in bash', async () => {
-  const { candidates, executed } = await completeWithBash(['codiff', '']);
+  const { candidates, executed } = await completeWithBash(['codophon', '']);
 
   expect(executed).toBe(false);
   expect(candidates).toContain(quoteForBash(HOSTILE_REF));
 });
 
 test('does not run ref names while completing --branch in bash', async () => {
-  const { candidates, executed } = await completeWithBash(['codiff', '--branch', '']);
+  const { candidates, executed } = await completeWithBash(['codophon', '--branch', '']);
 
   expect(executed).toBe(false);
   expect(candidates).toContain(quoteForBash(HOSTILE_REF));
 });
 
 test('completes refs for the first argument in bash', async () => {
-  const { candidates } = await completeWithBash(['codiff', '']);
+  const { candidates } = await completeWithBash(['codophon', '']);
 
   expect(candidates).toContain('main');
 });
 
-// `codiff [<ref>] [path]` only takes a path after the ref, so refs must stop
+// `codophon [<ref>] [path]` only takes a path after the ref, so refs must stop
 // being offered there and the shell's own path completion takes over.
 test('leaves the argument after a ref to path completion in bash', async () => {
-  const { candidates } = await completeWithBash(['codiff', 'main', '']);
+  const { candidates } = await completeWithBash(['codophon', 'main', '']);
 
   expect(candidates).toEqual([]);
 });
@@ -203,13 +203,13 @@ test.for([
   ['--commit', 'HEAD'],
   ['--plan', 'plan.md'],
 ])('leaves the argument after %s to path completion in bash', async ([flag, value]) => {
-  const { candidates } = await completeWithBash(['codiff', flag, value, 'ma']);
+  const { candidates } = await completeWithBash(['codophon', flag, value, 'ma']);
 
   expect(candidates).toEqual([]);
 });
 
 test('leaves the argument after an equals-form source flag to path completion in bash', async () => {
-  const { candidates } = await completeWithBash(['codiff', '--branch', '=', 'main', 'ma']);
+  const { candidates } = await completeWithBash(['codophon', '--branch', '=', 'main', 'ma']);
 
   expect(candidates).toEqual([]);
 });
@@ -217,13 +217,13 @@ test('leaves the argument after an equals-form source flag to path completion in
 // Bash splits `--agent=codex` on the `=` in COMP_WORDBREAKS, so the flag is two
 // words back.
 test('completes flag values written with an equals sign in bash', async () => {
-  const { candidates } = await completeWithBash(['codiff', '--agent', '=', 'cod']);
+  const { candidates } = await completeWithBash(['codophon', '--agent', '=', 'cod']);
 
   expect(candidates).toEqual(['codex']);
 });
 
 test('matches refs against a prefix the shell has already escaped in bash', async () => {
-  const { candidates } = await completeWithBash(['codiff', String.raw`\$`]);
+  const { candidates } = await completeWithBash(['codophon', String.raw`\$`]);
 
   expect(candidates).toContain(quoteForBash(HOSTILE_REF));
 });
@@ -238,31 +238,31 @@ test('generates a syntactically valid bash script', () => {
   ).not.toThrow();
 });
 
-// `codiff pr 75 <path>` puts the path in third position, so every argument past
+// `codophon pr 75 <path>` puts the path in third position, so every argument past
 // the first has to complete paths rather than only the second.
 test('completes a path for every argument after the ref in zsh', () => {
   const script = generateCompletionScript('zsh');
 
-  expect(script).toContain("'1:ref or path:__codiff_target'");
+  expect(script).toContain("'1:ref or path:__codophon_target'");
   expect(script).toContain("'*:path:_files'");
 });
 
 test.skipIf(!isInstalled('zsh'))('generates a syntactically valid zsh script', async () => {
-  await using directory = await createTemporaryDirectory('codiff-completions-');
-  const scriptPath = join(directory.path, '_codiff');
+  await using directory = await createTemporaryDirectory('codophon-completions-');
+  const scriptPath = join(directory.path, '_codophon');
   await writeFile(scriptPath, generateCompletionScript('zsh'));
 
   await expect(execFileAsync('zsh', ['-n', scriptPath])).resolves.toBeTruthy();
 });
 
 test.skipIf(!isInstalled('fish'))('completes flag values in fish', async () => {
-  const { candidates } = await completeWithFish('codiff --agent ');
+  const { candidates } = await completeWithFish('codophon --agent ');
 
   expect(candidates).toEqual(['claude', 'codex', 'opencode']);
 });
 
 test.skipIf(!isInstalled('fish'))('completes refs without running them in fish', async () => {
-  const { candidates, executed } = await completeWithFish('codiff ');
+  const { candidates, executed } = await completeWithFish('codophon ');
 
   expect(executed).toBe(false);
   expect(candidates).toContain(HOSTILE_REF);
@@ -272,7 +272,7 @@ test.skipIf(!isInstalled('fish'))('completes refs without running them in fish',
 test.skipIf(!isInstalled('fish'))(
   'stops offering refs once the source is a flag in fish',
   async () => {
-    const { candidates } = await completeWithFish('codiff --branch main ');
+    const { candidates } = await completeWithFish('codophon --branch main ');
 
     expect(candidates).not.toContain('main');
   },
@@ -299,7 +299,7 @@ const completeWithBash = (words: ReadonlyArray<string>) =>
       'source "$1"',
       `COMP_WORDS=(${words.map((word) => `'${word}'`).join(' ')})`,
       `COMP_CWORD=${words.length - 1}`,
-      '_codiff',
+      '_codophon',
       `printf '%s\\n' "\${COMPREPLY[@]}"`,
     ].join('\n');
     const { stdout } = await execFileAsync(
@@ -334,7 +334,7 @@ async function withCompletionRepository(
   shell: string,
   complete: (repository: string, scriptPath: string) => Promise<ReadonlyArray<string>>,
 ) {
-  await using directory = await createTemporaryDirectory('codiff-completions-');
+  await using directory = await createTemporaryDirectory('codophon-completions-');
   const repository = directory.path;
   const git = (args: ReadonlyArray<string>) =>
     execFileAsync('git', ['-C', repository, ...args], {

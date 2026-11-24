@@ -36,11 +36,11 @@ test('review file trees share selection, activation, decorations, and row stylin
   const secondRow = shadowRoot?.querySelector<HTMLElement>(`[data-item-path="${secondFile.path}"]`);
   expect(firstRow?.hasAttribute('data-item-selected')).toBe(true);
   expect(firstRow?.querySelector("[data-item-section='decoration']")?.textContent).not.toBe('');
-  expect(shadowRoot?.querySelector('style[data-codiff-viewed-rows]')?.textContent).toContain(
+  expect(shadowRoot?.querySelector('style[data-codophon-viewed-rows]')?.textContent).toContain(
     `[data-item-path="${firstFile.path}"]`,
   );
   expect(
-    shadowRoot?.querySelector('style[data-codiff-reload-delta-git-status]')?.textContent,
+    shadowRoot?.querySelector('style[data-codophon-reload-delta-git-status]')?.textContent,
   ).toContain(`[data-item-path="${secondFile.path}"][data-item-git-status]`);
   await act(async () => secondRow?.click());
   expect(onActivatePath).toHaveBeenCalledWith(secondFile.path);

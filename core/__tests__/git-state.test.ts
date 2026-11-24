@@ -191,10 +191,10 @@ const withFakeGitHub = async (
   mode: 'diagnosis-fails' | 'no-pending-review' | 'pending-review' | 'success',
   callback: (repo: string, readCalls: () => ReadonlyArray<ReadonlyArray<string>>) => Promise<void>,
 ) => {
-  await using repoDirectory = await createTemporaryDirectory('codiff-git-state-');
+  await using repoDirectory = await createTemporaryDirectory('codophon-git-state-');
   const repo = await realpath(repoDirectory.path);
   await git(repo, ['init']);
-  await using fakeBinDirectory = await createTemporaryDirectory('codiff-github-');
+  await using fakeBinDirectory = await createTemporaryDirectory('codophon-github-');
   const fakeGh = join(fakeBinDirectory.path, 'gh');
   const callsPath = join(fakeBinDirectory.path, 'calls.jsonl');
 
@@ -208,10 +208,10 @@ let input = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
 process.stdin.on('end', () => {
-  appendFileSync(process.env.CODIFF_GITHUB_TEST_CALLS, JSON.stringify({ args, input }) + '\\n');
+  appendFileSync(process.env.CODOPHON_GITHUB_TEST_CALLS, JSON.stringify({ args, input }) + '\\n');
   const endpoint = args.find((argument) => argument.startsWith('repos/')) || '';
   if (endpoint.endsWith('/comments')) {
-    if (process.env.CODIFF_GITHUB_TEST_MODE === 'success') {
+    if (process.env.CODOPHON_GITHUB_TEST_MODE === 'success') {
       process.stdout.write(JSON.stringify({
         body: 'Keep this comment.',
         created_at: '2026-07-10T12:00:00Z',
@@ -229,13 +229,13 @@ process.stdin.on('end', () => {
     return;
   }
   if (endpoint.includes('/reviews?')) {
-    if (process.env.CODIFF_GITHUB_TEST_MODE === 'diagnosis-fails') {
+    if (process.env.CODOPHON_GITHUB_TEST_MODE === 'diagnosis-fails') {
       process.stderr.write('gh: review lookup failed\\n');
       process.exitCode = 1;
       return;
     }
     process.stdout.write(
-      process.env.CODIFF_GITHUB_TEST_MODE === 'pending-review'
+      process.env.CODOPHON_GITHUB_TEST_MODE === 'pending-review'
         ? '[[{"id": 7, "state": "PENDING"}]]'
         : '[[]]',
     );
@@ -247,8 +247,8 @@ process.stdin.on('end', () => {
   );
   await chmod(fakeGh, 0o755);
   await using _environment = createTemporaryEnvironment({
-    CODIFF_GITHUB_TEST_CALLS: callsPath,
-    CODIFF_GITHUB_TEST_MODE: mode,
+    CODOPHON_GITHUB_TEST_CALLS: callsPath,
+    CODOPHON_GITHUB_TEST_MODE: mode,
     PATH: `${fakeBinDirectory.path}:${process.env.PATH ?? ''}`,
   });
 
@@ -277,7 +277,7 @@ const pullRequestCommentRequest = {
 
 const withRepo = async (run: (repo: string) => Promise<void>) => {
   await withGitTestEnvironment(async () => {
-    await using directory = await createTemporaryDirectory('codiff-git-state-');
+    await using directory = await createTemporaryDirectory('codophon-git-state-');
     const repo = await realpath(directory.path);
     await git(repo, ['init']);
     await run(repo);
@@ -362,7 +362,7 @@ test('historical generated attributes fall back to a temporary index without --s
       '.gitattributes',
       '*.api.ts -linguist-generated\npnpm-lock.yaml linguist-generated\n',
     );
-    await using wrapperDirectory = await createTemporaryDirectory('codiff-old-git-');
+    await using wrapperDirectory = await createTemporaryDirectory('codophon-old-git-');
     const wrapperPath = join(wrapperDirectory.path, 'git');
     await writeFile(
       wrapperPath,
@@ -373,7 +373,7 @@ for argument in "$@"; do
     exit 129
   fi
 done
-PATH="$CODIFF_TEST_ORIGINAL_PATH"
+PATH="$CODOPHON_TEST_ORIGINAL_PATH"
 export PATH
 exec git "$@"
 `,
@@ -381,7 +381,7 @@ exec git "$@"
     await chmod(wrapperPath, 0o755);
 
     await using _environment = createTemporaryEnvironment({
-      CODIFF_TEST_ORIGINAL_PATH: process.env.PATH ?? '',
+      CODOPHON_TEST_ORIGINAL_PATH: process.env.PATH ?? '',
       PATH: `${wrapperDirectory.path}:${process.env.PATH ?? ''}`,
     });
     const generatedStates = await readGeneratedAttributeStates(
@@ -522,37 +522,37 @@ test('readWorkingTreeState omits unmerged diagnostics when our conflict version 
 });
 
 test('parseGitHubPullRequestUrl reads canonical pull request URLs', () => {
-  expect(parseGitHubPullRequestUrl('https://github.com/nkzw-tech/codiff/pull/3')).toEqual({
+  expect(parseGitHubPullRequestUrl('https://github.com/raels0/codophon/pull/3')).toEqual({
     number: 3,
-    owner: 'nkzw-tech',
-    repo: 'codiff',
-    url: 'https://github.com/nkzw-tech/codiff/pull/3',
+    owner: 'raels0',
+    repo: 'codophon',
+    url: 'https://github.com/raels0/codophon/pull/3',
   });
 });
 
 test('parseGitHubPullRequestUrl canonicalizes URLs copied from a review tab', () => {
   for (const value of [
-    'https://github.com/nkzw-tech/codiff/pull/3/changes#r4821',
-    'https://github.com/nkzw-tech/codiff/pull/3/files',
-    'https://github.com/nkzw-tech/codiff/pull/3/commits/0f1e2d3c',
-    'https://www.github.com/nkzw-tech/codiff/pull/3?diff=split',
-    'github.com/nkzw-tech/codiff/pull/3',
+    'https://github.com/raels0/codophon/pull/3/changes#r4821',
+    'https://github.com/raels0/codophon/pull/3/files',
+    'https://github.com/raels0/codophon/pull/3/commits/0f1e2d3c',
+    'https://www.github.com/raels0/codophon/pull/3?diff=split',
+    'github.com/raels0/codophon/pull/3',
   ]) {
     expect(parseGitHubPullRequestUrl(value)).toEqual({
       number: 3,
-      owner: 'nkzw-tech',
-      repo: 'codiff',
-      url: 'https://github.com/nkzw-tech/codiff/pull/3',
+      owner: 'raels0',
+      repo: 'codophon',
+      url: 'https://github.com/raels0/codophon/pull/3',
     });
   }
 });
 
 test('parseGitHubPullRequestUrl rejects values that are not GitHub pull requests', () => {
   expect(() => parseGitHubPullRequestUrl('not a url')).toThrow(
-    'Codiff expected a GitHub pull request URL.',
+    'Codophon expected a GitHub pull request URL.',
   );
-  expect(() => parseGitHubPullRequestUrl('https://github.com/nkzw-tech/codiff')).toThrow(
-    'Codiff expected a GitHub pull request URL.',
+  expect(() => parseGitHubPullRequestUrl('https://github.com/raels0/codophon')).toThrow(
+    'Codophon expected a GitHub pull request URL.',
   );
 });
 
@@ -574,14 +574,14 @@ test('validateRepositoryPath rejects traversal segments', () => {
   }
 });
 
-test('createPullRequestHistoryFetchRefspecs fetches PR and base refs into Codiff refs', () => {
+test('createPullRequestHistoryFetchRefspecs fetches PR and base refs into Codophon refs', () => {
   expect(
     createPullRequestHistoryFetchRefspecs(
       {
         number: 25,
-        owner: 'nkzw-tech',
-        repo: 'codiff',
-        url: 'https://github.com/nkzw-tech/codiff/pull/25',
+        owner: 'raels0',
+        repo: 'codophon',
+        url: 'https://github.com/raels0/codophon/pull/25',
       },
       {
         base: {
@@ -591,16 +591,16 @@ test('createPullRequestHistoryFetchRefspecs fetches PR and base refs into Codiff
       },
     ),
   ).toEqual([
-    '+refs/pull/25/head:refs/codiff/pull-requests/25/head',
-    '+refs/heads/main:refs/codiff/pull-requests/25/base',
+    '+refs/pull/25/head:refs/codophon/pull-requests/25/head',
+    '+refs/heads/main:refs/codophon/pull-requests/25/base',
   ]);
 });
 
 const pullRequestFixture = {
   number: 7,
-  owner: 'nkzw-tech',
-  repo: 'codiff',
-  url: 'https://github.com/nkzw-tech/codiff/pull/7',
+  owner: 'raels0',
+  repo: 'codophon',
+  url: 'https://github.com/raels0/codophon/pull/7',
 };
 
 test('createPullRequestSource normalizes non-empty GitHub PR descriptions', () => {
@@ -743,21 +743,21 @@ test('resolvePullRequestContentRefs resolves the diff against the merge base', a
     await writeRepoFile(repo, 'file.txt', 'head change\n');
     await commitAll(repo, 'head');
     const headSha = (await git(repo, ['rev-parse', 'HEAD'])).trim();
-    await git(repo, ['update-ref', 'refs/codiff/pull-requests/7/head', headSha]);
+    await git(repo, ['update-ref', 'refs/codophon/pull-requests/7/head', headSha]);
 
     // The base branch advances past the merge base after the PR was opened.
     await git(repo, ['checkout', '-q', mergeBase]);
     await writeRepoFile(repo, 'file.txt', 'base advanced\n');
     await commitAll(repo, 'base advanced');
     const baseTip = (await git(repo, ['rev-parse', 'HEAD'])).trim();
-    await git(repo, ['update-ref', 'refs/codiff/pull-requests/7/base', baseTip]);
+    await git(repo, ['update-ref', 'refs/codophon/pull-requests/7/base', baseTip]);
 
     const refs = await resolvePullRequestContentRefs(repo, pullRequestFixture, {
       base: { ref: 'main' },
       head: { sha: headSha },
     });
 
-    expect(refs).toEqual({ base: mergeBase, head: 'refs/codiff/pull-requests/7/head' });
+    expect(refs).toEqual({ base: mergeBase, head: 'refs/codophon/pull-requests/7/head' });
     // The base tip is intentionally not used; only the PR's own changes show.
     expect(refs?.base).not.toBe(baseTip);
   });
@@ -772,12 +772,12 @@ test('resolvePullRequestContentRefs refetches when the fetched base no longer ma
     await writeRepoFile(repo, 'file.txt', 'head change\n');
     await commitAll(repo, 'head');
     const headSha = (await git(repo, ['rev-parse', 'HEAD'])).trim();
-    await git(repo, ['update-ref', 'refs/codiff/pull-requests/7/head', headSha]);
+    await git(repo, ['update-ref', 'refs/codophon/pull-requests/7/head', headSha]);
     await git(repo, ['checkout', '-q', mergeBase]);
     await writeRepoFile(repo, 'file.txt', 'base advanced\n');
     await commitAll(repo, 'base advanced');
     const baseTip = (await git(repo, ['rev-parse', 'HEAD'])).trim();
-    await git(repo, ['update-ref', 'refs/codiff/pull-requests/7/base', baseTip]);
+    await git(repo, ['update-ref', 'refs/codophon/pull-requests/7/base', baseTip]);
 
     // GitHub reports a base sha that no longer matches the fetched base ref (the
     // base branch moved or the pull request was retargeted). Resolution must
@@ -847,7 +847,7 @@ test('normalizeGitHubReviewComment preserves multi-line ranges', () => {
     normalizeGitHubReviewComment({
       body: 'Check these together.',
       created_at: '2026-05-19T00:00:00Z',
-      html_url: 'https://github.com/nkzw-tech/codiff/pull/1#discussion_r1',
+      html_url: 'https://github.com/raels0/codophon/pull/1#discussion_r1',
       id: 1,
       line: 8,
       path: 'src/file.ts',
@@ -872,7 +872,7 @@ test('normalizeGitHubReviewComment flags comments anchored to outdated lines', (
     normalizeGitHubReviewComment({
       body: 'This moved.',
       created_at: '2026-05-19T00:00:00Z',
-      html_url: 'https://github.com/nkzw-tech/codiff/pull/1#discussion_r7',
+      html_url: 'https://github.com/raels0/codophon/pull/1#discussion_r7',
       id: 7,
       line: null,
       original_line: 12,
@@ -893,7 +893,7 @@ test('normalizeGitHubReviewComment leaves current comments unflagged', () => {
   const comment = normalizeGitHubReviewComment({
     body: 'Still current.',
     created_at: '2026-05-19T00:00:00Z',
-    html_url: 'https://github.com/nkzw-tech/codiff/pull/1#discussion_r8',
+    html_url: 'https://github.com/raels0/codophon/pull/1#discussion_r8',
     id: 8,
     line: 20,
     path: 'src/file.ts',
@@ -1157,7 +1157,7 @@ test('readWorkingTreeState ignores files saved only in the stash', async () => {
     await commitAll(repo, 'initial commit');
     await writeRepoFile(repo, 'tracked.txt', 'stashed tracked\n');
     await writeRepoFile(repo, 'new.txt', 'stashed untracked\n');
-    await git(repo, ['stash', 'push', '--include-untracked', '-m', 'codiff test stash']);
+    await git(repo, ['stash', 'push', '--include-untracked', '-m', 'codophon test stash']);
     await writeRepoFile(repo, 'other.txt', 'visible local change\n');
 
     const state = await readWorkingTreeState(repo);
@@ -1966,7 +1966,7 @@ test('readRepositoryState defers medium committed files and loads them on demand
 });
 
 test('readRepositoryState rejects non-repository launch paths', async () => {
-  await using directory = await createTemporaryDirectory('codiff-not-a-repo-');
+  await using directory = await createTemporaryDirectory('codophon-not-a-repo-');
   await expect(readRepositoryState(directory.path)).rejects.toThrow(/not a git repository/i);
 });
 

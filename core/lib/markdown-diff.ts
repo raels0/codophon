@@ -57,7 +57,7 @@ export const parseMarkdownBlocks = (contents: string): Array<MarkdownBlock> => {
       },
     ],
     position: node.position,
-    properties: { className: ['codiff-markdown-literal'] },
+    properties: { className: ['codophon-markdown-literal'] },
     tagName: parent?.type === 'root' ? 'pre' : 'code',
     type: 'element',
   });

@@ -4,7 +4,7 @@ const { spawn } = require('node:child_process');
 
 // Marks where login shell startup noise (version manager banners, greetings)
 // ends and the `env -0` dump begins.
-const ENVIRONMENT_MARKER = '__CODIFF_LOGIN_SHELL_ENVIRONMENT__';
+const ENVIRONMENT_MARKER = '__CODOPHON_LOGIN_SHELL_ENVIRONMENT__';
 const ENVIRONMENT_COMMAND = `printf '${ENVIRONMENT_MARKER}'; /usr/bin/env -0`;
 const RESOLUTION_TIMEOUT = 10_000;
 const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;

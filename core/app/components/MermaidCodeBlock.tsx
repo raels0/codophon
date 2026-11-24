@@ -74,7 +74,7 @@ function ControlButton({
   return (
     <button
       aria-label={label}
-      className={`codiff-mermaid-control${className ? ` ${className}` : ''}`}
+      className={`codophon-mermaid-control${className ? ` ${className}` : ''}`}
       onClick={onClick}
       title={label}
       type="button"
@@ -94,7 +94,7 @@ function MermaidActions({
   showSource: boolean;
 }) {
   return (
-    <div aria-label="Diagram actions" className="codiff-mermaid-actions" role="group">
+    <div aria-label="Diagram actions" className="codophon-mermaid-actions" role="group">
       <ControlButton label={showSource ? 'Show diagram' : 'Show source'} onClick={onToggleSource}>
         {showSource ? (
           <FlowArrow aria-hidden size={16} weight="bold" />
@@ -102,7 +102,7 @@ function MermaidActions({
           <Code aria-hidden size={16} weight="bold" />
         )}
       </ControlButton>
-      <CopyCodeButton className="codiff-mermaid-control" code={code} />
+      <CopyCodeButton className="codophon-mermaid-control" code={code} />
     </div>
   );
 }
@@ -161,9 +161,9 @@ function MermaidViewer({
   };
 
   return (
-    <div className="codiff-mermaid-viewer">
+    <div className="codophon-mermaid-viewer">
       <div
-        className={`codiff-mermaid-viewport${dragging ? ' dragging' : ''}`}
+        className={`codophon-mermaid-viewport${dragging ? ' dragging' : ''}`}
         onDoubleClick={reset}
         onPointerCancel={endDrag}
         onPointerDown={(event) => {
@@ -188,7 +188,7 @@ function MermaidViewer({
       >
         <img
           alt="Mermaid diagram"
-          className="codiff-mermaid-diagram"
+          className="codophon-mermaid-diagram"
           decoding="async"
           draggable={false}
           height={diagram.height}
@@ -199,7 +199,7 @@ function MermaidViewer({
         />
       </div>
       {actions}
-      <div aria-label="Zoom and pan" className="codiff-mermaid-pan-zoom" role="group">
+      <div aria-label="Zoom and pan" className="codophon-mermaid-pan-zoom" role="group">
         <ControlButton className="zoom-in" label="Zoom in" onClick={() => zoom(zoomStep)}>
           <MagnifyingGlassPlus aria-hidden size={16} weight="bold" />
         </ControlButton>
@@ -270,9 +270,9 @@ export function MermaidDiagramBlock({
   );
 
   return (
-    <div className="codiff-mermaid-block" ref={ref}>
+    <div className="codophon-mermaid-block" ref={ref}>
       {theme == null ? null : diagram && showSource ? (
-        <div className="codiff-mermaid-source">
+        <div className="codophon-mermaid-source">
           {source}
           {actions}
         </div>
@@ -282,7 +282,7 @@ export function MermaidDiagramBlock({
         <>
           {source}
           {diagram === null ? (
-            <div className="codiff-mermaid-error">Unable to render Mermaid diagram</div>
+            <div className="codophon-mermaid-error">Unable to render Mermaid diagram</div>
           ) : null}
         </>
       )}

@@ -141,8 +141,6 @@ jobs:
           - arch: arm64
             runner: windows-11-arm
     timeout-minutes: 60
-    env:
-      CODIFF_SKIP_SQUIRREL: '1'
 
     steps:
       - uses: actions/checkout@v4
@@ -190,9 +188,9 @@ jobs:
         run: |
           $env:ELECTRON_RUN_AS_NODE = '1'
           $process = Start-Process -Wait -PassThru -NoNewWindow `
-            -FilePath ".\out\Codiff-win32-${{ matrix.arch }}\codiff.exe" `
+            -FilePath ".\out\Codophon-win32-${{ matrix.arch }}\codophon.exe" `
             -ArgumentList '.\.github\scripts\verify-windows-package.cjs', `
-              ".\out\Codiff-win32-${{ matrix.arch }}", '${{ matrix.arch }}'
+              ".\out\Codophon-win32-${{ matrix.arch }}", '${{ matrix.arch }}'
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
 
       - name: Attach Windows App to Release

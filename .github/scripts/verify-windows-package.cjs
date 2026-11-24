@@ -24,7 +24,7 @@ assert.ok(
 );
 
 const pty = appRequire('node-pty');
-const marker = 'codiff-native-package-ok';
+const marker = 'codophon-native-package-ok';
 const terminal = pty.spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', `echo ${marker}`], {
   cols: 80,
   cwd: packagePath,

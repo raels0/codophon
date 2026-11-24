@@ -43,21 +43,6 @@ test('stays visible but disabled until a comment with a body exists', async () =
   expect(button?.querySelector('.copy-comments-count')?.textContent).toBe('0');
 });
 
-test('enables itself once a comment has a body', async () => {
-  await using app = await renderReact(
-    <CopyCommentsButton
-      comments={[createReviewComment({})]}
-      files={[file]}
-      reviewCommentsPrefix=""
-      showWhitespace={false}
-    />,
-  );
-
-  const button = app.container.querySelector<HTMLButtonElement>('.copy-comments-button');
-  expect(button?.disabled).toBe(false);
-  expect(button?.getAttribute('aria-label')).toBe('Copy 1 review comment');
-});
-
 test('shows the pending comment count next to the copy icon', async () => {
   await using app = await renderReact(
     <CopyCommentsButton

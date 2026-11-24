@@ -39,7 +39,7 @@ const v4WalkthroughFor = (path: string, extra: Record<string, unknown> = {}) => 
 });
 
 test('reports changes committed after the walkthrough was authored', async () => {
-  await using directory = await createTemporaryDirectory('codiff-diagnosis-');
+  await using directory = await createTemporaryDirectory('codophon-diagnosis-');
   await git(directory.path, ['init']);
   await writeFile(join(directory.path, 'feature.ts'), 'export const value = 1;\n');
   await git(directory.path, ['add', 'feature.ts']);
@@ -57,7 +57,7 @@ test('reports changes committed after the walkthrough was authored', async () =>
 });
 
 test('reports v4 hunk-id changes committed after the walkthrough was authored', async () => {
-  await using directory = await createTemporaryDirectory('codiff-diagnosis-');
+  await using directory = await createTemporaryDirectory('codophon-diagnosis-');
   await git(directory.path, ['init']);
   await writeFile(join(directory.path, 'feature.ts'), 'export const value = 1;\n');
   await git(directory.path, ['add', 'feature.ts']);
@@ -74,7 +74,7 @@ test('reports v4 hunk-id changes committed after the walkthrough was authored', 
 });
 
 test('treats a commit that predates authoring as reverted, not committed', async () => {
-  await using directory = await createTemporaryDirectory('codiff-diagnosis-');
+  await using directory = await createTemporaryDirectory('codophon-diagnosis-');
   await git(directory.path, ['init']);
   await writeFile(join(directory.path, 'feature.ts'), 'export const value = 1;\n');
   await git(directory.path, ['add', 'feature.ts']);
@@ -92,7 +92,7 @@ test('treats a commit that predates authoring as reverted, not committed', async
 });
 
 test('reports never-committed paths as reverted or discarded', async () => {
-  await using directory = await createTemporaryDirectory('codiff-diagnosis-');
+  await using directory = await createTemporaryDirectory('codophon-diagnosis-');
   await git(directory.path, ['init']);
   await git(directory.path, ['commit', '--allow-empty', '-m', 'initial']);
 
@@ -106,7 +106,7 @@ test('reports never-committed paths as reverted or discarded', async () => {
 });
 
 test('defers to the caller when the diff still has files', async () => {
-  await using directory = await createTemporaryDirectory('codiff-diagnosis-');
+  await using directory = await createTemporaryDirectory('codophon-diagnosis-');
   await git(directory.path, ['init']);
   expect(
     await diagnoseWalkthroughMismatch({

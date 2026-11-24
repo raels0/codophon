@@ -18,11 +18,11 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import type { CodiffMarkdownDocument } from '../../types.ts';
+import type { CodophonMarkdownDocument } from '../../types.ts';
 
-const persistenceAdapter: MarkdownPersistenceAdapter<CodiffMarkdownDocument> = {
+const persistenceAdapter: MarkdownPersistenceAdapter<CodophonMarkdownDocument> = {
   save: ({ content, document }) =>
-    window.codiff.saveMarkdownDocument({
+    window.codophon.saveMarkdownDocument({
       baseVersion: document.version,
       content,
       kind: document.kind,
@@ -61,11 +61,11 @@ export const MarkdownDocumentEditor = forwardRef<
     annotations?: ReadonlyArray<MarkdownAnnotation>;
     autoFocus?: boolean;
     className?: string;
-    document: CodiffMarkdownDocument;
+    document: CodophonMarkdownDocument;
     onAnnotationAnchorChange?: (id: string, anchor: MarkdownAnnotationAnchor | null) => void;
     onAnnotationLayoutChange?: (layouts: ReadonlyArray<MarkdownAnnotationLayout>) => void;
     onCommentTargetChange?: (target: MarkdownCommentTarget | null) => void;
-    onDocumentChange?: (document: CodiffMarkdownDocument) => void;
+    onDocumentChange?: (document: CodophonMarkdownDocument) => void;
     onHeightChange?: (height: number) => void;
     readOnly?: boolean;
   }
@@ -87,7 +87,7 @@ export const MarkdownDocumentEditor = forwardRef<
 ) {
   const [document, setDocument] = useState(initialDocument);
   const [unsupportedMarkdown, setUnsupportedMarkdown] = useState(false);
-  const editorRef = useRef<PersistentMarkdownEditorHandle<CodiffMarkdownDocument>>(null);
+  const editorRef = useRef<PersistentMarkdownEditorHandle<CodophonMarkdownDocument>>(null);
 
   useImperativeHandle(
     forwardedRef,
@@ -103,7 +103,7 @@ export const MarkdownDocumentEditor = forwardRef<
 
   useEffect(
     () =>
-      window.codiff.onMarkdownDocumentChanged((change) => {
+      window.codophon.onMarkdownDocumentChanged((change) => {
         if (change.id !== document.id || change.deleted) {
           return;
         }
@@ -125,12 +125,12 @@ export const MarkdownDocumentEditor = forwardRef<
 
   if (unsupportedMarkdown) {
     return (
-      <div className={`${className ? `${className} ` : ''}codiff-markdown-editor-unsupported`}>
-        <div className="codiff-markdown-editor-message error" role="alert">
+      <div className={`${className ? `${className} ` : ''}codophon-markdown-editor-unsupported`}>
+        <div className="codophon-markdown-editor-message error" role="alert">
           This file contains Markdown syntax the inline editor cannot safely preserve. Open the file
           in your editor or view it as a diff.
         </div>
-        <pre className="codiff-markdown-editor-source">{document.content}</pre>
+        <pre className="codophon-markdown-editor-source">{document.content}</pre>
       </div>
     );
   }
@@ -177,14 +177,14 @@ export const RepositoryMarkdownEditor = forwardRef<
   }
 >(function RepositoryMarkdownEditor({ onHeightChange, path }, forwardedRef) {
   const [loadState, setLoadState] = useState<{
-    document?: CodiffMarkdownDocument;
+    document?: CodophonMarkdownDocument;
     error?: string;
     path: string;
   } | null>(null);
 
   useEffect(() => {
     let canceled = false;
-    void window.codiff
+    void window.codophon
       .getMarkdownDocument({ kind: 'repository', path })
       .then((nextDocument) => {
         if (!canceled) {
@@ -207,7 +207,7 @@ export const RepositoryMarkdownEditor = forwardRef<
   const currentLoadState = loadState?.path === path ? loadState : null;
   if (currentLoadState?.error) {
     return (
-      <div className="codiff-markdown-editor-message error" role="alert">
+      <div className="codophon-markdown-editor-message error" role="alert">
         {currentLoadState.error}
       </div>
     );
@@ -215,13 +215,13 @@ export const RepositoryMarkdownEditor = forwardRef<
 
   return currentLoadState?.document ? (
     <MarkdownDocumentEditor
-      className="codiff-markdown-document-editor"
+      className="codophon-markdown-document-editor"
       document={currentLoadState.document}
       key={currentLoadState.document.id}
       onHeightChange={onHeightChange}
       ref={forwardedRef}
     />
   ) : (
-    <div className="codiff-markdown-editor-message">Loading…</div>
+    <div className="codophon-markdown-editor-message">Loading…</div>
   );
 });

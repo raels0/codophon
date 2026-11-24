@@ -86,7 +86,7 @@ export function useAppWalkthrough({
 
   useEffect(
     () =>
-      window.codiff.onWalkthroughProgress((progress) => {
+      window.codophon.onWalkthroughProgress((progress) => {
         setWalkthroughProgress((current) =>
           current.phase === progress.phase
             ? current
@@ -111,7 +111,7 @@ export function useAppWalkthrough({
 
   const commitWalkthrough = useCallback(
     (request: WalkthroughCommitRequest) =>
-      window.codiff.createWalkthroughCommit({
+      window.codophon.createWalkthroughCommit({
         ...request,
         source: stateRef.current?.source ?? request.source,
       }),
@@ -119,13 +119,13 @@ export function useAppWalkthrough({
   );
 
   const subscribeToCommitOutput = useCallback(
-    (callback: (chunk: string) => void) => window.codiff.onWalkthroughCommitOutput(callback),
+    (callback: (chunk: string) => void) => window.codophon.onWalkthroughCommitOutput(callback),
     [],
   );
 
   const updateWalkthroughCommitMessage = useCallback(
     (request: WalkthroughCommitMessageRequest) =>
-      window.codiff.updateWalkthroughCommitMessage({
+      window.codophon.updateWalkthroughCommitMessage({
         ...request,
         source: stateRef.current?.source ?? request.source,
       }),
@@ -144,7 +144,7 @@ export function useAppWalkthrough({
         getSourceKey(stateRef.current?.source ?? source) === sourceKey;
       startWalkthroughLoading();
       setWalkthroughError(null);
-      window.codiff
+      window.codophon
         .getNarrativeWalkthrough(source, options)
         .then((result) => {
           if (!isCurrentState()) {

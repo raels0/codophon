@@ -61,7 +61,7 @@ const configureAlias = async (repo: string, aliasPrefix: string, remoteDirectory
 };
 
 test('matches GitHub organization SSH certificate remotes without probing them', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'codiff-pull-request-remote-'));
+  const directory = await mkdtemp(join(tmpdir(), 'codophon-pull-request-remote-'));
   const repo = join(directory, 'repo');
 
   try {
@@ -82,7 +82,7 @@ test('matches GitHub organization SSH certificate remotes without probing them',
 });
 
 test('reads the configured GitHub URL before insteadOf rewrites hide its host', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'codiff-pull-request-remote-'));
+  const directory = await mkdtemp(join(tmpdir(), 'codophon-pull-request-remote-'));
   const repo = join(directory, 'repo');
 
   try {
@@ -99,7 +99,7 @@ test('reads the configured GitHub URL before insteadOf rewrites hide its host', 
 });
 
 test('uses Git to verify a pull request through an opaque remote alias', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'codiff-pull-request-remote-'));
+  const directory = await mkdtemp(join(tmpdir(), 'codophon-pull-request-remote-'));
   const source = join(directory, 'source');
   const repo = join(directory, 'repo');
   const remotes = join(directory, 'remotes');
@@ -122,7 +122,7 @@ test('uses Git to verify a pull request through an opaque remote alias', async (
 });
 
 test('skips a mismatching origin alias and selects the remote with the exact PR head', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'codiff-pull-request-remote-'));
+  const directory = await mkdtemp(join(tmpdir(), 'codophon-pull-request-remote-'));
   const source = join(directory, 'source');
   const repo = join(directory, 'repo');
   const originRemotes = join(directory, 'origin-remotes');
@@ -152,7 +152,7 @@ test('skips a mismatching origin alias and selects the remote with the exact PR 
 });
 
 test('rejects opaque remotes that do not match both the repository path and PR head', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'codiff-pull-request-remote-'));
+  const directory = await mkdtemp(join(tmpdir(), 'codophon-pull-request-remote-'));
   const source = join(directory, 'source');
   const repo = join(directory, 'repo');
   const wrongHeadRemotes = join(directory, 'wrong-head-remotes');

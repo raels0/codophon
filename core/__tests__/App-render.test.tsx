@@ -6,10 +6,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CodeView } from '@pierre/diffs';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, expect, test, vi } from 'vite-plus/test';
 import App from '../App.tsx';
-import { createDefaultConfig, defaultSettings } from '../config/defaults.ts';
+import { createDefaultConfig } from '../config/defaults.ts';
 import type { ReviewComment } from '../lib/app-types.ts';
 import { getAskConversationKey, updateAskThread } from '../lib/ask-cache.ts';
 import {
@@ -115,7 +114,7 @@ const createCommitMetadataFixture = (body: string): CommitMetadata => ({
   ],
 });
 
-const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['codiff'] => ({
+const createCodophonMock = (overrides: Partial<Window['codophon']> = {}): Window['codophon'] => ({
   askReviewAssistant: vi.fn(async () => ({
     reason: 'Unavailable in tests.',
     status: 'unavailable' as const,
@@ -135,7 +134,7 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
   })),
   getAgentSkillStatus: vi.fn(async () => ({
     installed: true,
-    path: '/Users/reviewer/.codex/skills/codiff',
+    path: '/Users/reviewer/.codex/skills/codophon',
   })),
   getConfig: vi.fn(async () => createDefaultConfig()),
   getDiffImageContent: vi.fn(async () => ({
@@ -165,29 +164,6 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
     reason: 'Unavailable in tests.',
     status: 'unavailable' as const,
   })),
-  getPreferences: vi.fn(async () => ({
-    agentBackend: 'codex' as const,
-    claudeModel: defaultSettings.claudeModel,
-    codeFontFamily: defaultSettings.codeFontFamily,
-    codeFontSize: defaultSettings.codeFontSize,
-    copyCommentsOnClose: true,
-    diffStyle: 'split' as const,
-    editorCommand: '',
-    expandUnchanged: false,
-    lastRepositoryPath: '/repo',
-    openAIModel: defaultSettings.openAIModel,
-    openAIReasoningEffort: defaultSettings.openAIReasoningEffort,
-    opencodeModel: defaultSettings.opencodeModel,
-    renderMarkdownAs: defaultSettings.renderMarkdownAs,
-    reviewCommentsPrefix: defaultSettings.reviewCommentsPrefix,
-    reviewTheme: defaultSettings.reviewTheme,
-    showOutdated: false,
-    showWhitespace: false,
-    sidebarPosition: defaultSettings.sidebarPosition,
-    theme: 'system' as const,
-    walkthroughPrompt: defaultSettings.walkthroughPrompt,
-    wordWrap: false,
-  })),
   getRepositoryFile: vi.fn(async (path) => ({
     content: 'new\n',
     path,
@@ -201,9 +177,9 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
   getRepositoryState: vi.fn(async () => repositoryState),
   getReviewBriefComments: vi.fn(async () => []),
   getTerminalHelperStatus: vi.fn(async () => ({
-    command: 'codiff',
+    command: 'codophon',
     installed: true,
-    path: '/usr/local/bin/codiff',
+    path: '/usr/local/bin/codophon',
   })),
   getUpdateStatus: vi.fn(async () => ({
     currentVersion: '1.9.2',
@@ -211,12 +187,12 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
   increaseCodeFontSize: vi.fn(async () => {}),
   installAgentSkill: vi.fn(async () => ({
     installed: true,
-    path: '/Users/reviewer/.codex/skills/codiff',
+    path: '/Users/reviewer/.codex/skills/codophon',
   })),
   installTerminalHelper: vi.fn(async () => ({
-    command: 'codiff',
+    command: 'codophon',
     installed: true,
-    path: '/usr/local/bin/codiff',
+    path: '/usr/local/bin/codophon',
   })),
   isWindowFullScreen: vi.fn(async () => false),
   markWindowReady: vi.fn(),
@@ -257,7 +233,6 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
   setReviewTheme: vi.fn(async () => {}),
   setShowOutdated: vi.fn(async () => {}),
   setWordWrap: vi.fn(async () => {}),
-  showInFolder: vi.fn(async () => {}),
   submitPullRequestComment: vi.fn(async () => {
     throw new Error('Unexpected pull request comment submit.');
   }),
@@ -329,7 +304,7 @@ const dispatchModifiedKey = (key: string, shiftKey = false) => {
 const renderAppForOpenFileShortcut = async (file: ChangedFile) => {
   const openFile = vi.fn(async () => {});
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => ({
       ...repositoryState,
       files: [file],
@@ -337,35 +312,23 @@ const renderAppForOpenFileShortcut = async (file: ChangedFile) => {
     openFile,
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(<App />);
-  });
+  const view = await renderReact(<App />);
+  const { container } = view;
 
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
-    expect(container.querySelector('.codiff-file-header')).not.toBeNull();
+    expect(container.querySelector('.codophon-file-header')).not.toBeNull();
   });
 
-  return {
-    container,
-    openFile,
-    async [Symbol.asyncDispose]() {
-      await act(async () => root.unmount());
-      container.remove();
-    },
-  };
+  return { ...view, openFile };
 };
 
 test('displays a diff while setup status and history are still pending', async () => {
   const getAgentSkillStatus = vi.fn(() => new Promise<never>(() => {}));
   const getRepositoryHistory = vi.fn(
-    () => new Promise<Awaited<ReturnType<Window['codiff']['getRepositoryHistory']>>>(() => {}),
+    () => new Promise<Awaited<ReturnType<Window['codophon']['getRepositoryHistory']>>>(() => {}),
   );
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getAgentSkillStatus,
     getRepositoryHistory,
     getRepositoryState: vi.fn(async () => ({
@@ -376,35 +339,35 @@ test('displays a diff while setup status and history are still pending', async (
   });
   await using view = await renderReact(<App />);
   await waitFor(() => {
-    expect(view.container.querySelector('.codiff-file-header')).not.toBeNull();
+    expect(view.container.querySelector('.codophon-file-header')).not.toBeNull();
     expect(view.container.querySelector('.loading')).toBeNull();
   });
   await waitFor(() => {
     expect(getRepositoryHistory).toHaveBeenCalledOnce();
   });
   await waitFor(() => expect(getAgentSkillStatus).toHaveBeenCalledOnce());
-  await waitFor(() => expect(window.codiff.markWindowReady).toHaveBeenCalledOnce());
+  await waitFor(() => expect(window.codophon.markWindowReady).toHaveBeenCalledOnce());
 });
 
 test('the first review layout uses the loaded preferences', async () => {
   const config = Promise.withResolvers<ReturnType<typeof createDefaultConfig>>();
   const nextConfig = createDefaultConfig();
   nextConfig.settings.sidebarPosition = 'right';
-  window.codiff = createCodiffMock({ getConfig: vi.fn(() => config.promise) });
+  window.codophon = createCodophonMock({ getConfig: vi.fn(() => config.promise) });
   await using view = await renderReact(<App />);
   expect(view.container.querySelector('.app-shell')).toBeNull();
-  expect(window.codiff.markWindowReady).not.toHaveBeenCalled();
+  expect(window.codophon.markWindowReady).not.toHaveBeenCalled();
   await act(async () => config.resolve(nextConfig));
   await waitFor(() => {
     expect(view.container.querySelector('.app-shell')?.getAttribute('data-sidebar-position')).toBe(
       'right',
     );
-    expect(window.codiff.markWindowReady).toHaveBeenCalledOnce();
+    expect(window.codophon.markWindowReady).toHaveBeenCalledOnce();
   });
 });
 
 test('unavailable preferences still reveal the review with defaults', async () => {
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getConfig: vi.fn(async () => {
       throw new Error('Unavailable');
     }),
@@ -412,7 +375,7 @@ test('unavailable preferences still reveal the review with defaults', async () =
   await using view = await renderReact(<App />);
   await waitFor(() => {
     expect(view.container.querySelector('.app-shell')).not.toBeNull();
-    expect(window.codiff.markWindowReady).toHaveBeenCalledOnce();
+    expect(window.codophon.markWindowReady).toHaveBeenCalledOnce();
   });
 });
 
@@ -420,7 +383,7 @@ test('a failed background history request does not hide the diff', async () => {
   const getRepositoryHistory = vi.fn(async () => {
     throw new Error('History is unavailable');
   });
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryHistory,
     getRepositoryState: vi.fn(async () => ({
       ...repositoryState,
@@ -429,12 +392,12 @@ test('a failed background history request does not hide the diff', async () => {
   });
   await using view = await renderReact(<App />);
   await waitFor(() => expect(getRepositoryHistory).toHaveBeenCalledOnce());
-  expect(view.container.querySelector('.codiff-file-header')).not.toBeNull();
+  expect(view.container.querySelector('.codophon-file-header')).not.toBeNull();
   expect(view.container.textContent).not.toContain('History is unavailable');
 });
 
 test('displays the repository while its initial walkthrough is being generated', async () => {
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: true,
@@ -457,17 +420,11 @@ test('code font preferences update root CSS variables', async () => {
   const nextConfig = createDefaultConfig();
   nextConfig.settings.codeFontFamily = 'JetBrains Mono';
   nextConfig.settings.codeFontSize = 14;
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getConfig: vi.fn(async () => nextConfig),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(<App />);
-  });
+  await using _view = await renderReact(<App />);
 
   await waitFor(() => {
     expect(document.documentElement.style.getPropertyValue('--font-diff-mono')).toBe(
@@ -476,15 +433,12 @@ test('code font preferences update root CSS variables', async () => {
     expect(document.documentElement.style.getPropertyValue('--font-diff-size')).toBe('14px');
     expect(document.documentElement.style.getPropertyValue('--font-diff-line-height')).toBe('22px');
   });
-
-  await act(async () => root.unmount());
-  container.remove();
 });
 
 test('desktop app places the sidebar on the configured side', async () => {
   const nextConfig = createDefaultConfig();
   nextConfig.settings.sidebarPosition = 'right';
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getConfig: vi.fn(async () => nextConfig),
   });
 
@@ -499,29 +453,20 @@ test('desktop app places the sidebar on the configured side', async () => {
 
 test('empty code font family removes the root CSS variable', async () => {
   document.documentElement.style.setProperty('--font-diff-mono', 'stale');
-  window.codiff = createCodiffMock();
+  window.codophon = createCodophonMock();
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(<App />);
-  });
+  await using _view = await renderReact(<App />);
 
   await waitFor(() => {
     expect(document.documentElement.style.getPropertyValue('--font-diff-mono')).toBe('');
     expect(document.documentElement.style.getPropertyValue('--font-diff-size')).toBe('13px');
     expect(document.documentElement.style.getPropertyValue('--font-diff-line-height')).toBe('20px');
   });
-
-  await act(async () => root.unmount());
-  container.remove();
 });
 
 test('stale persisted collapsed sidebar state does not hide the sidebar on launch', async () => {
-  window.localStorage.setItem('codiff:sidebar-collapsed', 'true');
-  window.codiff = createCodiffMock();
+  window.localStorage.setItem('codophon:sidebar-collapsed', 'true');
+  window.codophon = createCodophonMock();
 
   await using app = await renderReact(<App />);
 
@@ -547,7 +492,7 @@ test('stale persisted collapsed sidebar state does not hide the sidebar on launc
 });
 
 test('keeps source-loading errors in the open-source dialog', async () => {
-  const openReviewSourceListeners: Array<Parameters<Window['codiff']['onOpenReviewSource']>[0]> =
+  const openReviewSourceListeners: Array<Parameters<Window['codophon']['onOpenReviewSource']>[0]> =
     [];
   const getRepositoryState = vi.fn(async (source?: ReviewSource) => {
     if (source?.type === 'branch-working-tree') {
@@ -555,7 +500,7 @@ test('keeps source-loading errors in the open-source dialog', async () => {
     }
     return repositoryState;
   });
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState,
     onOpenReviewSource: vi.fn((callback) => {
       openReviewSourceListeners.push(callback);
@@ -589,7 +534,7 @@ test('keeps source-loading errors in the open-source dialog', async () => {
 });
 
 test('top bar source menu opens the review source dialog', async () => {
-  window.codiff = createCodiffMock();
+  window.codophon = createCodophonMock();
 
   await using app = await renderReact(<App />);
   await waitFor(() => expect(app.container.querySelector('.app-shell')).not.toBeNull());
@@ -621,7 +566,7 @@ test('top bar source menu opens the review source dialog', async () => {
 
 test('repository label is plain text and clicking it does nothing', async () => {
   const openRepositoryFolder = vi.fn(async () => {});
-  window.codiff = createCodiffMock({ openRepositoryFolder });
+  window.codophon = createCodophonMock({ openRepositoryFolder });
 
   await using app = await renderReact(<App />);
   await waitFor(() => expect(app.container.querySelector('.app-shell')).not.toBeNull());
@@ -644,7 +589,7 @@ test('repository label is plain text and clicking it does nothing', async () => 
 });
 
 test('the branch name renders in the top bar context', async () => {
-  window.codiff = createCodiffMock();
+  window.codophon = createCodophonMock();
 
   await using app = await renderReact(<App />);
   await waitFor(() => expect(app.container.querySelector('.app-shell')).not.toBeNull());
@@ -656,15 +601,10 @@ test('the branch name renders in the top bar context', async () => {
 });
 
 test('empty repository state fills the review pane for centered layout', async () => {
-  window.codiff = createCodiffMock();
+  window.codophon = createCodophonMock();
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(<App />);
-  });
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   await waitFor(() => {
     const emptyState = container.querySelector<HTMLElement>('.review > .empty-state');
@@ -675,9 +615,6 @@ test('empty repository state fills the review pane for centered layout', async (
   expect(emptyStateRule).toContain('flex: 1;');
   expect(emptyStateRule).toContain('min-width: 0;');
   expect(emptyStateRule).toContain('width: 100%;');
-
-  await act(async () => root.unmount());
-  container.remove();
 });
 
 test('showWhitespace config changes reload the current repository state', async () => {
@@ -693,10 +630,10 @@ test('showWhitespace config changes reload the current repository state', async 
     files: [createChangedFile('src/reloaded.ts')],
   };
   const getRepositoryState = vi
-    .fn<Window['codiff']['getRepositoryState']>()
+    .fn<Window['codophon']['getRepositoryState']>()
     .mockResolvedValueOnce(initialState)
     .mockResolvedValueOnce(reloadedState);
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState,
     onConfigChanged: vi.fn((callback) => {
       configListener = callback;
@@ -704,13 +641,8 @@ test('showWhitespace config changes reload the current repository state', async 
     }),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(<App />);
-  });
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   await waitFor(() => {
     expect(container.textContent).toContain('src/initial.ts');
@@ -725,26 +657,18 @@ test('showWhitespace config changes reload the current repository state', async 
     expect(container.textContent).toContain('src/reloaded.ts');
   });
   expect(getRepositoryState).toHaveBeenLastCalledWith({ type: 'working-tree' });
-
-  await act(async () => root.unmount());
-  container.remove();
 });
 
 test('sidebar commit button toggles back to tree when commit view is open', async () => {
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => ({
       ...repositoryState,
       files: [createChangedFile('src/change.ts')],
     })),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(<App />);
-  });
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   await waitFor(() => {
     expect(container.querySelector('.sidebar-commit-button')?.textContent).toBe('Commit');
@@ -767,9 +691,6 @@ test('sidebar commit button toggles back to tree when commit view is open', asyn
     expect(container.querySelector('.wt-commit')).toBeNull();
     expect(container.querySelector('.sidebar-commit-button')?.textContent).toBe('Commit');
   });
-
-  await act(async () => root.unmount());
-  container.remove();
 });
 
 test('history summarizes the selected commit independently of file and history filters', async () => {
@@ -781,7 +702,7 @@ test('history summarizes the selected commit independently of file and history f
     createChangedFile('tests/app.ts'),
     createChangedFile('README.md'),
   ];
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryHistory: vi.fn(async () => ({
       entries: [
         {
@@ -864,31 +785,17 @@ test('repository reload restores the selected file when it still exists', async 
   writeReloadSelection(nextState, secondFile.path);
   const openFile = vi.fn(async () => {});
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => nextState),
     openFile,
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-      window.sessionStorage.clear();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
-    expect(container.querySelector('.codiff-file-header')).not.toBeNull();
+    expect(container.querySelector('.codophon-file-header')).not.toBeNull();
   });
   await act(async () => {
     dispatchModifiedKey('O', true);
@@ -913,30 +820,17 @@ test('repository reload restores the selected file from the previous source', as
   writeReloadSelection(nextState, secondFile.path);
   const openFile = vi.fn(async () => {});
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState,
     openFile,
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
-    expect(container.querySelector('.codiff-file-header')).not.toBeNull();
+    expect(container.querySelector('.codophon-file-header')).not.toBeNull();
   });
   await act(async () => {
     dispatchModifiedKey('O', true);
@@ -964,26 +858,13 @@ test('repository reload preserves a branch diff source even without a selected f
 
   writeReloadSelection(nextState, null);
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState,
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
   });
@@ -1011,7 +892,7 @@ test('branch history keeps branch diff available after selecting uncommitted cha
     requestedSource?.type === 'working-tree' ? workingTreeState : branchState,
   );
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryHistory: vi.fn(async () => ({
       entries: [
         {
@@ -1027,27 +908,14 @@ test('branch history keeps branch diff available after selecting uncommitted cha
     getRepositoryState,
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   const findButton = (label: string) =>
     Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes(label),
     );
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
     expect(findButton('Committed only vs main')).toBeTruthy();
@@ -1096,32 +964,19 @@ test('repository reload restores branch diff scope after selecting uncommitted c
 
   writeReloadSelection(workingTreeState, null, branchSource);
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryHistory,
     getRepositoryState,
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   const findButton = (label: string) =>
     Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes(label),
     );
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
     expect(findButton('Committed only vs main')).toBeTruthy();
@@ -1149,7 +1004,7 @@ test('repository reload does not let stale selection override launch source', as
 
   writeReloadSelection(staleState, null);
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source: launchSource,
@@ -1158,22 +1013,9 @@ test('repository reload does not let stale selection override launch source', as
     getRepositoryState,
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
   });
@@ -1202,30 +1044,17 @@ test('repository reload colors only git status glyphs for files changed after re
 
   writeReloadSelection(previousState, changedFileBeforeReload.path);
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => nextState),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     const shadowRoot = container.querySelector('file-tree-container')?.shadowRoot;
     const styleText =
-      shadowRoot?.querySelector('style[data-codiff-reload-delta-git-status]')?.textContent ?? '';
+      shadowRoot?.querySelector('style[data-codophon-reload-delta-git-status]')?.textContent ?? '';
     expect(styleText).toContain('[data-item-path="src/changed.ts"][data-item-git-status]');
     expect(styleText).not.toContain('[data-item-path="src/unchanged.ts"][data-item-git-status]');
     expect(styleText).toContain("> [data-item-section='git']");
@@ -1270,7 +1099,7 @@ test('walkthrough file reload keeps uncovered files in support', async () => {
 
   writeReloadSelection(previousState, changedFileBeforeReload.path);
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: false,
@@ -1283,22 +1112,9 @@ test('walkthrough file reload keeps uncovered files in support', async () => {
     getRepositoryState: vi.fn(async () => nextState),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.wt-stop-block')).not.toBeNull();
   });
@@ -1339,7 +1155,7 @@ test('reload forces a new generated walkthrough when local files changed', async
   }));
 
   writeReloadSelection(previousState, previousFile.path);
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: true,
@@ -1371,36 +1187,23 @@ test('tree sidebar subtly mutes files currently marked viewed', async () => {
   } satisfies RepositoryState;
 
   window.localStorage.setItem(
-    'codiff:viewed:/repo',
+    'codophon:viewed:/repo',
     JSON.stringify({
       [staleViewedFile.path]: 'stale-previous',
       [viewedFile.path]: viewedFile.fingerprint,
     }),
   );
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => nextState),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     const shadowRoot = container.querySelector('file-tree-container')?.shadowRoot;
     const styleText =
-      shadowRoot?.querySelector('style[data-codiff-viewed-rows]')?.textContent ?? '';
+      shadowRoot?.querySelector('style[data-codophon-viewed-rows]')?.textContent ?? '';
     expect(styleText).toContain('[data-item-path="src/viewed.ts"]');
     expect(styleText).not.toContain('[data-item-path="src/stale.ts"]');
     expect(styleText).not.toContain('color-mix(in srgb, var(--viewed)');
@@ -1417,12 +1220,12 @@ test('GitHub Viewed state loads, saves checkbox changes, and reconciles on refre
   const source = {
     provider: 'github',
     type: 'pull-request',
-    url: 'https://github.com/nkzw-tech/codiff/pull/12',
+    url: 'https://github.com/raels0/codophon/pull/12',
   } as const;
   let viewedFiles = { [file.path]: file.fingerprint } as Record<string, string>;
   let refresh: (() => void) | undefined;
   const setPullRequestFileViewed = vi.fn(async () => {});
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => ({
       ...repositoryState,
       files: [file],
@@ -1436,7 +1239,7 @@ test('GitHub Viewed state loads, saves checkbox changes, and reconciles on refre
     setPullRequestFileViewed,
   });
   await using app = await renderReact(<App />);
-  const checkbox = () => app.container.querySelector<HTMLButtonElement>('.codiff-viewed-button');
+  const checkbox = () => app.container.querySelector<HTMLButtonElement>('.codophon-viewed-button');
   await waitFor(() => expect(checkbox()?.getAttribute('aria-pressed')).toBe('true'));
   expect(setPullRequestFileViewed).not.toHaveBeenCalled();
   await act(async () => checkbox()?.click());
@@ -1456,7 +1259,7 @@ test('GitHub Viewed state loads, saves checkbox changes, and reconciles on refre
   viewedFiles = {};
   await act(async () => refresh?.());
   await waitFor(() => expect(checkbox()?.getAttribute('aria-pressed')).toBe('false'));
-  expect(app.container.querySelector('.codiff-file-header.viewed')).toBeNull();
+  expect(app.container.querySelector('.codophon-file-header.viewed')).toBeNull();
   expect(setPullRequestFileViewed).toHaveBeenCalledTimes(2);
 });
 
@@ -1469,26 +1272,13 @@ test('before unload saves the current source and selected file for any reload tr
     source,
   } satisfies RepositoryState;
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => nextState),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
   });
@@ -1498,17 +1288,9 @@ test('before unload saves the current source and selected file for any reload tr
   expect(getReloadSelectionPath(selection, nextState)).toBe(changedFile.path);
 });
 
-test.each([
-  { key: 'P', shift: true },
-  { key: 'k', shift: false },
-])('Mod+$key (shift=$shift) opens the command palette', async ({ key, shift }) => {
-  const changedFile = createChangedFile('src/app.ts');
-  await using app = await renderAppForOpenFileShortcut(changedFile);
-
-  await act(async () => {
-    dispatchModifiedKey(key, shift);
-  });
-
+test('Mod+Shift+P opens the command palette', async () => {
+  await using app = await renderAppForOpenFileShortcut(createChangedFile('src/app.ts'));
+  await act(async () => dispatchModifiedKey('P', true));
   expect(app.container.querySelector('.command-bar-input')).not.toBeNull();
   expect(app.openFile).not.toHaveBeenCalled();
 });
@@ -1516,6 +1298,7 @@ test.each([
 test('Keyboard Shortcuts in the command palette opens a persistent dialog', async () => {
   await using app = await renderAppForOpenFileShortcut(createChangedFile('src/app.ts'));
   await act(async () => dispatchModifiedKey('k', false));
+  expect(app.openFile).not.toHaveBeenCalled();
 
   const command = [...app.container.querySelectorAll<HTMLButtonElement>('.command-bar-item')].find(
     (button) => button.textContent?.startsWith('Keyboard Shortcuts'),
@@ -1560,7 +1343,7 @@ test('Copy Re-review Brief previews posted PR comments before copying Markdown',
       }
     },
   };
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => ({ ...repositoryState, source })),
     getReviewBriefComments,
   });
@@ -1610,7 +1393,7 @@ test('Ask History shows saved replies that no longer appear in the diff', async 
     lineNumber: 12,
     sectionId: 'old-section',
   }));
-  window.codiff = createCodiffMock({ getRepositoryState: vi.fn(async () => state) });
+  window.codophon = createCodophonMock({ getRepositoryState: vi.fn(async () => state) });
   await using view = await renderReact(<App />);
   await waitFor(() => expect(view.container.querySelector('.review-top-bar')).not.toBeNull());
   expect(view.container.textContent).not.toContain('The default runner.');
@@ -1659,7 +1442,7 @@ test('clicking an Ask notification reveals a filtered, collapsed file and jumps 
   }));
   const pending = Promise.withResolvers<ReviewAssistantResult>();
   const askReviewAssistant = vi.fn(() => pending.promise);
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     askReviewAssistant,
     getRepositoryState: vi.fn(async () => state),
   });
@@ -1719,30 +1502,6 @@ test('clicking an Ask notification reveals a filtered, collapsed file and jumps 
 });
 
 test.each([
-  { method: 'increaseCodeFontSize', title: 'Increase Code Font Size' },
-  { method: 'decreaseCodeFontSize', title: 'Decrease Code Font Size' },
-  { method: 'resetCodeFontSize', title: 'Reset Code Font Size' },
-] as const)('Commands button exposes and runs $title', async ({ method, title }) => {
-  const changedFile = createChangedFile('src/app.ts');
-  await using app = await renderAppForOpenFileShortcut(changedFile);
-  const openPalette = app.container.querySelector<HTMLButtonElement>(
-    '[aria-label="Open command palette"]',
-  )!;
-  await act(async () => openPalette.click());
-  const search = app.container.querySelector<HTMLInputElement>('[aria-label="Search commands"]')!;
-  expect(document.activeElement).toBe(search);
-  await act(async () => setInputValue(search, title));
-  const commands = app.container.querySelectorAll<HTMLButtonElement>('.command-bar-item');
-  expect(commands).toHaveLength(1);
-  expect(commands[0]!.textContent).toContain(title);
-  await act(async () =>
-    search.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })),
-  );
-  expect(window.codiff[method]).toHaveBeenCalledOnce();
-  expect(app.container.querySelector('[aria-label="Command palette"]')).toBeNull();
-});
-
-test.each([
   { reviewTheme: 'neutral', title: 'Review Theme: Neutral Review' },
   { reviewTheme: 'blue-amber', title: 'Review Theme: Blue/Amber' },
 ] as const)(
@@ -1751,7 +1510,7 @@ test.each([
     let configChanged: ((config: ReturnType<typeof createDefaultConfig>) => void) | undefined;
     const config = createDefaultConfig();
     config.settings.theme = 'dark';
-    window.codiff = createCodiffMock({
+    window.codophon = createCodophonMock({
       getConfig: vi.fn(async () => config),
       onConfigChanged: vi.fn((callback) => {
         configChanged = callback;
@@ -1763,7 +1522,7 @@ test.each([
     });
     await using view = await renderReact(<App />);
     await waitFor(() => expect(view.container.querySelector('.loading')).toBeNull());
-    const reads = vi.mocked(window.codiff.getRepositoryState).mock.calls.length;
+    const reads = vi.mocked(window.codophon.getRepositoryState).mock.calls.length;
     await act(async () =>
       view.container
         .querySelector<HTMLButtonElement>('[aria-label="Open command palette"]')!
@@ -1772,20 +1531,24 @@ test.each([
     const search = view.container.querySelector<HTMLInputElement>(
       '[aria-label="Search commands"]',
     )!;
-    await act(async () => setInputValue(search, title));
+    expect(document.activeElement).toBe(search);
+    await setInputValue(search, title);
+    const matches = view.container.querySelectorAll('.command-bar-item');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.textContent).toContain(title);
     await act(async () =>
       search.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' })),
     );
-    expect(window.codiff.setReviewTheme).toHaveBeenCalledWith(reviewTheme);
+    expect(window.codophon.setReviewTheme).toHaveBeenCalledWith(reviewTheme);
     expect(document.documentElement.getAttribute('data-review-theme')).toBe(reviewTheme);
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(view.container.querySelector('[aria-label="Command palette"]')).toBeNull();
-    expect(window.codiff.getRepositoryState).toHaveBeenCalledTimes(reads);
+    expect(window.codophon.getRepositoryState).toHaveBeenCalledTimes(reads);
   },
 );
 
 test('a failed review theme save keeps the review visible and reports the error', async () => {
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     setReviewTheme: vi.fn(async () => {
       throw new Error('Config is read-only');
     }),
@@ -1838,7 +1601,7 @@ test('commit messages use the shared source description presentation', async () 
   const commitMetadata = createCommitMetadataFixture('## Details\n\nDetailed **commit** body.');
   const historyAvatarUrl = 'https://avatars.githubusercontent.com/u/1?v=4';
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryHistory: vi.fn(async () => ({
       entries: [
         {
@@ -1860,32 +1623,19 @@ test('commit messages use the shared source description presentation', async () 
     })),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
-    expect(container.querySelector('.codiff-source-description-header')).not.toBeNull();
+    expect(container.querySelector('.codophon-source-description-header')).not.toBeNull();
   });
   await waitFor(() => {
     expect(container.querySelector('.source-description-markdown')?.textContent).toContain(
       'Detailed commit body.',
     );
   });
-  const header = container.querySelector<HTMLElement>('.codiff-source-description-header');
+  const header = container.querySelector<HTMLElement>('.codophon-source-description-header');
   expect(header?.querySelector('.source-description-title')?.textContent).toBe(
     commitMetadata.subject,
   );
@@ -1896,7 +1646,7 @@ test('commit messages use the shared source description presentation', async () 
     container.querySelector<HTMLImageElement>('.source-description-comment > .avatar.medium')?.src,
   ).toBe(historyAvatarUrl);
   expect(container.querySelector('[aria-label="Preview commit message"]')).not.toBeNull();
-  expect(container.querySelector('.codiff-commit-details-header')).toBeNull();
+  expect(container.querySelector('.codophon-commit-details-header')).toBeNull();
   expect(container.querySelector('.commit-details-panel')).toBeNull();
   expect(container.textContent).not.toContain('Verified signature');
   expect(container.textContent).not.toContain('Co-authored-by');
@@ -1909,7 +1659,7 @@ test('bodyless commits still render the author and profile image', async () => {
     type: 'commit',
   } satisfies ReviewSource;
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => ({
       ...repositoryState,
       commitMetadata,
@@ -1935,7 +1685,7 @@ test('bodyless commits still render the author and profile image', async () => {
   expect(app.container.querySelector('.source-description-markdown')).toBeNull();
   expect(
     app.container
-      .querySelector('.codiff-source-description-header')
+      .querySelector('.codophon-source-description-header')
       ?.querySelector('.source-description-title')?.textContent,
   ).toBe(commitMetadata.subject);
 });
@@ -1958,7 +1708,7 @@ test('pull request descriptions render as provider-aware Markdown source context
         number: 12,
         provider: 'github',
         type: 'pull-request',
-        url: 'https://github.com/nkzw-tech/codiff/pull/12',
+        url: 'https://github.com/raels0/codophon/pull/12',
       },
     },
     {
@@ -1973,7 +1723,7 @@ test('pull request descriptions render as provider-aware Markdown source context
   ];
 
   for (const { label, source } of cases) {
-    window.codiff = createCodiffMock({
+    window.codophon = createCodophonMock({
       getRepositoryState: vi.fn(async () => ({
         ...repositoryState,
         files: [changedFile],
@@ -1983,13 +1733,13 @@ test('pull request descriptions render as provider-aware Markdown source context
     await using app = await renderReact(<App />);
 
     await waitFor(() => {
-      expect(app.container.querySelector('.codiff-source-description-header')).not.toBeNull();
+      expect(app.container.querySelector('.codophon-source-description-header')).not.toBeNull();
     });
-    const header = app.container.querySelector<HTMLElement>('.codiff-source-description-header');
+    const header = app.container.querySelector<HTMLElement>('.codophon-source-description-header');
     const body = app.container.querySelector<HTMLElement>('.source-description-markdown');
     expect(body?.textContent).toContain('Intent');
     expect(body?.textContent).toContain('Ship review context.');
-    expect(header?.querySelector('.codiff-file-path')?.textContent).toBe(label);
+    expect(header?.querySelector('.codophon-file-path')?.textContent).toBe(label);
     expect(header?.querySelector('.source-description-title')).toBeNull();
     if (source.author) {
       expect(header?.querySelector('.source-description-author')).toBeNull();
@@ -1999,7 +1749,7 @@ test('pull request descriptions render as provider-aware Markdown source context
     } else {
       expect(header?.querySelector('.source-description-author')).toBeNull();
     }
-    const toggle = header?.querySelector<HTMLButtonElement>('button.codiff-header-toggle');
+    const toggle = header?.querySelector<HTMLButtonElement>('button.codophon-header-toggle');
     expect(toggle).not.toBeNull();
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     expect(toggle?.type).toBe('button');
@@ -2012,10 +1762,10 @@ test('pull request description collapse button toggles the markdown body', async
     number: 12,
     provider: 'github',
     type: 'pull-request',
-    url: 'https://github.com/nkzw-tech/codiff/pull/12',
+    url: 'https://github.com/raels0/codophon/pull/12',
   } satisfies ReviewSource;
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => ({
       ...repositoryState,
       files: [createChangedFile('src/app.ts')],
@@ -2034,7 +1784,7 @@ test('pull request description collapse button toggles the markdown body', async
   expect(sourceLink?.href).toBe(source.url);
   expect(sourceLink?.textContent).toBe('PR #12');
   expect(sourceLink?.querySelector('svg')).not.toBeNull();
-  let toggle = app.container.querySelector<HTMLButtonElement>('button.codiff-header-toggle');
+  let toggle = app.container.querySelector<HTMLButtonElement>('button.codophon-header-toggle');
   expect(toggle?.getAttribute('aria-expanded')).toBe('true');
   expect(app.container.querySelector('.source-description-markdown')?.textContent).toContain(
     'Ship review context.',
@@ -2043,7 +1793,7 @@ test('pull request description collapse button toggles the markdown body', async
     toggle?.click();
   });
   await waitFor(() => {
-    toggle = app.container.querySelector<HTMLButtonElement>('button.codiff-header-toggle');
+    toggle = app.container.querySelector<HTMLButtonElement>('button.codophon-header-toggle');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(app.container.querySelector('.source-description-markdown')).toBeNull();
   });
@@ -2053,7 +1803,7 @@ test('pull request description collapse button toggles the markdown body', async
   await waitFor(() => {
     expect(
       app.container
-        .querySelector<HTMLButtonElement>('button.codiff-header-toggle')
+        .querySelector<HTMLButtonElement>('button.codophon-header-toggle')
         ?.getAttribute('aria-expanded'),
     ).toBe('true');
     expect(app.container.querySelector('.source-description-markdown')?.textContent).toContain(
@@ -2063,7 +1813,7 @@ test('pull request description collapse button toggles the markdown body', async
 });
 
 test('missing pull request descriptions do not render placeholder source context', async () => {
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState: vi.fn(async () => ({
       ...repositoryState,
       files: [createChangedFile('src/app.ts')],
@@ -2072,7 +1822,7 @@ test('missing pull request descriptions do not render placeholder source context
         number: 12,
         provider: 'github',
         type: 'pull-request',
-        url: 'https://github.com/nkzw-tech/codiff/pull/12',
+        url: 'https://github.com/raels0/codophon/pull/12',
       } satisfies ReviewSource,
     })),
   });
@@ -2080,9 +1830,9 @@ test('missing pull request descriptions do not render placeholder source context
   await using app = await renderReact(<App />);
 
   await waitFor(() => {
-    expect(app.container.querySelector('.codiff-file-header')).not.toBeNull();
+    expect(app.container.querySelector('.codophon-file-header')).not.toBeNull();
   });
-  expect(app.container.querySelector('.codiff-source-description-header')).toBeNull();
+  expect(app.container.querySelector('.codophon-source-description-header')).toBeNull();
   expect(app.container.textContent).not.toContain('PR description');
 });
 
@@ -2094,12 +1844,12 @@ test('title-only pull request source context renders as a collapsed static heade
       provider: 'github',
       title: 'Title without a body',
       type: 'pull-request',
-      url: 'https://github.com/nkzw-tech/codiff/pull/12',
+      url: 'https://github.com/raels0/codophon/pull/12',
     },
   ];
 
   for (const source of cases) {
-    window.codiff = createCodiffMock({
+    window.codophon = createCodophonMock({
       getRepositoryState: vi.fn(async () => ({
         ...repositoryState,
         files: [createChangedFile('src/app.ts')],
@@ -2109,14 +1859,14 @@ test('title-only pull request source context renders as a collapsed static heade
     await using app = await renderReact(<App />);
 
     await waitFor(() => {
-      expect(app.container.querySelector('.codiff-source-description-header')).not.toBeNull();
+      expect(app.container.querySelector('.codophon-source-description-header')).not.toBeNull();
     });
-    const header = app.container.querySelector<HTMLElement>('.codiff-source-description-header');
+    const header = app.container.querySelector<HTMLElement>('.codophon-source-description-header');
     expect(header?.classList.contains('collapsed')).toBe(true);
     expect(header?.querySelector('.source-description-title')?.textContent).toBe(source.title);
-    expect(header?.querySelector('.codiff-header-toggle-static')).not.toBeNull();
-    expect(header?.querySelector('button.codiff-header-toggle')).toBeNull();
-    expect(header?.querySelector('.codiff-chevron-box')).toBeNull();
+    expect(header?.querySelector('.codophon-header-toggle-static')).not.toBeNull();
+    expect(header?.querySelector('button.codophon-header-toggle')).toBeNull();
+    expect(header?.querySelector('.codophon-chevron-box')).toBeNull();
     expect(app.container.querySelector('.source-description-markdown')).toBeNull();
   }
 });
@@ -2129,7 +1879,7 @@ test('walkthroughs keep PR descriptions but render generated references as text'
     provider: 'github',
     title: 'Keep context visible in walkthrough',
     type: 'pull-request',
-    url: 'https://github.com/nkzw-tech/codiff/pull/12',
+    url: 'https://github.com/raels0/codophon/pull/12',
   } satisfies ReviewSource;
   const narrativeWalkthrough = {
     agent: 'codex',
@@ -2178,7 +1928,7 @@ test('walkthroughs keep PR descriptions but render generated references as text'
     version: 4,
   } satisfies NarrativeWalkthrough;
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source,
@@ -2202,7 +1952,7 @@ test('walkthroughs keep PR descriptions but render generated references as text'
     expect(app.container.querySelector('.wt-stop-block')).not.toBeNull();
     expect(app.container.textContent).toContain('Keep the PR context visible.');
   });
-  expect(app.container.querySelectorAll('.codiff-source-description-header')).toHaveLength(1);
+  expect(app.container.querySelectorAll('.codophon-source-description-header')).toHaveLength(1);
   expect(app.container.querySelectorAll('.source-description-markdown')).toHaveLength(1);
   expect(app.container.textContent).toContain('Keep context visible in walkthrough');
   const focus = app.container.querySelector('.wt-focus p');
@@ -2303,7 +2053,7 @@ test('narrative walkthrough stops do not repeat commit details', async () => {
     version: 4,
   } satisfies NarrativeWalkthrough;
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source,
@@ -2322,27 +2072,14 @@ test('narrative walkthrough stops do not repeat commit details', async () => {
     })),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
     expect(container.querySelector('.wt-stop-block')).not.toBeNull();
   });
-  expect(container.querySelector('.codiff-source-description-header')).toBeNull();
+  expect(container.querySelector('.codophon-source-description-header')).toBeNull();
   expect(container.querySelector('.source-description-markdown')).toBeNull();
   expect(container.querySelector('.wt-stage-title')?.textContent).toContain('Implementation path');
 });
@@ -2399,7 +2136,7 @@ test('a walkthrough file loads even without the walkthrough launch flag', async 
     status: 'ready' as const,
     walkthrough: narrativeWalkthrough,
   }));
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source,
@@ -2414,22 +2151,9 @@ test('a walkthrough file loads even without the walkthrough launch flag', async 
     })),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.wt-stop-block')).not.toBeNull();
   });
@@ -2439,7 +2163,7 @@ test('a walkthrough file loads even without the walkthrough launch flag', async 
 
 test('a walkthrough file that no longer anchors surfaces a dismissible banner', async () => {
   const source = { ref: 'abc1234', type: 'commit' } satisfies ReviewSource;
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source,
@@ -2457,22 +2181,9 @@ test('a walkthrough file that no longer anchors surfaces a dismissible banner', 
     })),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.walkthrough-outdated-banner.visible')).not.toBeNull();
   });
@@ -2483,50 +2194,6 @@ test('a walkthrough file that no longer anchors surfaces a dismissible banner', 
     banner?.querySelector<HTMLButtonElement>('.repository-change-dismiss')?.click();
   });
   expect(container.querySelector('.walkthrough-outdated-banner.visible')).toBeNull();
-});
-
-test('repository changes show the update banner without refreshing the working tree', async () => {
-  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
-  const getRepositoryState = vi.fn(async () => repositoryState);
-
-  window.codiff = createCodiffMock({
-    getRepositoryState,
-    onRepositoryChanged: vi.fn((callback) => {
-      onRepositoryChanged = callback;
-      return () => {
-        onRepositoryChanged = null;
-      };
-    }),
-  });
-
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
-
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
-  await waitFor(() => {
-    expect(container.querySelector('.loading')).toBeNull();
-    expect(onRepositoryChanged).not.toBeNull();
-  });
-  expect(container.querySelector('.repository-change-banner.visible')).toBeNull();
-  expect(getRepositoryState).toHaveBeenCalledTimes(1);
-  await act(async () => {
-    onRepositoryChanged?.({ root: '/repo' });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-  expect(container.querySelector('.repository-change-banner.visible')).not.toBeNull();
-  expect(getRepositoryState).toHaveBeenCalledTimes(1);
 });
 
 test('Done accepts the edited diff without fetching the full working-tree section again', async () => {
@@ -2556,7 +2223,7 @@ test('Done accepts the edited diff without fetching the full working-tree sectio
   const refreshedSection = { ...file.sections[0]!, loadState: 'ready' as const };
   const pending = Promise.withResolvers<RepositoryState>();
   let savedContent = '';
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getDiffSectionContent: vi.fn(async () => ({
       ...originalSection,
       newFile: { contents: savedContent, name: file.path },
@@ -2597,8 +2264,8 @@ test('Done accepts the edited diff without fetching the full working-tree sectio
       .querySelector<HTMLButtonElement>(`[aria-label="Done editing ${file.path}"]`)!
       .click();
   });
-  await waitFor(() => expect(window.codiff.getRepositoryState).toHaveBeenCalledTimes(2));
-  expect(window.codiff.getDiffSectionContent).not.toHaveBeenCalled();
+  await waitFor(() => expect(window.codophon.getRepositoryState).toHaveBeenCalledTimes(2));
+  expect(window.codophon.getDiffSectionContent).not.toHaveBeenCalled();
   expect(savedContent).toContain('updated ');
   await waitFor(() =>
     expect(app.container.querySelector(`[aria-label="Edit ${file.path}"]`)).not.toBeNull(),
@@ -2612,109 +2279,44 @@ test('Done accepts the edited diff without fetching the full working-tree sectio
   );
 });
 
-test('clicking the change banner refreshes the repository in place', async () => {
-  const initialFile = {
-    fingerprint: 'src/app.ts:1',
-    path: 'src/app.ts',
-    sections: [
-      {
-        binary: false,
-        id: 'src/app.ts:unstaged',
-        kind: 'unstaged',
-        patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n',
-      },
-    ],
-    status: 'modified',
-  } satisfies ChangedFile;
-  const addedFile = {
-    fingerprint: 'src/added.ts:1',
-    path: 'src/added.ts',
-    sections: [
-      {
-        binary: false,
-        id: 'src/added.ts:unstaged',
-        kind: 'unstaged',
-        patch: 'diff --git a/src/added.ts b/src/added.ts\n@@ -0,0 +1 @@\n+created\n',
-      },
-    ],
-    status: 'added',
-  } satisfies ChangedFile;
-
-  let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
-  let stateRequests = 0;
-  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
-    stateRequests += 1;
-    return stateRequests === 1
-      ? { ...repositoryState, files: [initialFile] }
-      : {
-          ...repositoryState,
-          files: [
-            addedFile,
-            {
-              ...initialFile,
-              fingerprint: 'src/app.ts:2',
-              sections: [
-                {
-                  binary: false,
-                  id: 'src/app.ts:unstaged',
-                  kind: 'unstaged',
-                  patch: 'diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+newer\n',
-                },
-              ],
-            },
-          ],
-        };
+test('a local change waits for refresh, then adds and replaces files in place', async () => {
+  const initial = createChangedFile('src/app.ts');
+  const updated = createChangedFile(initial.path, {
+    fingerprint: 'src/app.ts:2',
+    patch: initial.sections[0].patch.replace('+new', '+newer'),
   });
-
-  window.codiff = createCodiffMock({
+  const added = createChangedFile('src/added.ts', { status: 'added' });
+  const getRepositoryState = vi
+    .fn<Window['codophon']['getRepositoryState']>()
+    .mockResolvedValueOnce({ ...repositoryState, files: [initial] })
+    .mockResolvedValue({ ...repositoryState, files: [added, updated] });
+  let notify: ((change: { root: string }) => void) | undefined;
+  window.codophon = createCodophonMock({
     getRepositoryState,
-    onRepositoryChanged: vi.fn((callback) => {
-      onRepositoryChanged = callback;
-      return () => {
-        onRepositoryChanged = null;
-      };
-    }),
-  });
-
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
-
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
+    onRepositoryChanged: (callback) => {
+      notify = callback;
+      return () => {};
     },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
   });
-  await waitFor(() => {
-    expect(container.querySelector('.loading')).toBeNull();
-    expect(onRepositoryChanged).not.toBeNull();
-  });
-  expect(container.textContent).not.toContain('added.ts');
-  await act(async () => {
-    onRepositoryChanged?.({ root: '/repo' });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-  const refreshButton = container.querySelector<HTMLButtonElement>('.repository-change-reload');
-  expect(refreshButton).not.toBeNull();
-  await act(async () => {
-    refreshButton?.click();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-  // New file appears without a window reload, and the banner clears.
+
+  await using app = await renderReact(<App />);
+  const paths = () =>
+    Array.from(
+      app.container.querySelectorAll('.codophon-file-header .codophon-file-path'),
+      (element) => element.textContent?.trim(),
+    );
+  const banner = () => app.container.querySelector('.repository-change-banner.visible');
+  await waitFor(() => expect(paths()).toEqual([initial.path]));
+  expect(banner()).toBeNull();
+  await act(async () => notify!({ root: '/repo' }));
+  expect(banner()).not.toBeNull();
+  expect(getRepositoryState).toHaveBeenCalledTimes(1);
+  await act(async () =>
+    banner()!.querySelector<HTMLButtonElement>('.repository-change-reload')!.click(),
+  );
+  await waitFor(() => expect(paths().sort()).toEqual([added.path, updated.path]));
   expect(getRepositoryState).toHaveBeenCalledTimes(2);
-  expect(container.textContent).toContain('added.ts');
-  expect(container.querySelector('.repository-change-banner.visible')).toBeNull();
-  // The changed file must not appear twice (old + new version).
-  const appOccurrences = container.textContent?.split('app.ts').length ?? 1;
-  expect(appOccurrences - 1).toBeLessThanOrEqual(2);
-  expect(container.textContent).not.toContain('-old\n+new\n');
+  expect(banner()).toBeNull();
 });
 
 test('PR refresh fetches the latest snapshot before history and preserves review UI state', async () => {
@@ -2738,15 +2340,15 @@ test('PR refresh fetches the latest snapshot before history and preserves review
   } satisfies RepositoryState;
   const pending = Promise.withResolvers<RepositoryState>();
   const getRepositoryState = vi
-    .fn<Window['codiff']['getRepositoryState']>()
+    .fn<Window['codophon']['getRepositoryState']>()
     .mockResolvedValueOnce(initialState)
     .mockImplementation(() => pending.promise);
-  const getRepositoryHistory = vi.fn<Window['codiff']['getRepositoryHistory']>(async () => ({
+  const getRepositoryHistory = vi.fn<Window['codophon']['getRepositoryHistory']>(async () => ({
     entries: [],
     root: '/repo',
   }));
   let refresh: (() => void) | undefined;
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryHistory,
     getRepositoryState,
     onRefreshRequest: (callback) => {
@@ -2803,13 +2405,13 @@ test.each(['state', 'history'] as const)(
       source: { ...source, headSha: 'new-head' },
     } satisfies RepositoryState;
     const getRepositoryState = vi
-      .fn<Window['codiff']['getRepositoryState']>()
+      .fn<Window['codophon']['getRepositoryState']>()
       .mockResolvedValue(initialState);
-    const getRepositoryHistory = vi.fn<Window['codiff']['getRepositoryHistory']>(async () => ({
+    const getRepositoryHistory = vi.fn<Window['codophon']['getRepositoryHistory']>(async () => ({
       entries: [],
       root: '/repo',
     }));
-    window.codiff = createCodiffMock({ getRepositoryHistory, getRepositoryState });
+    window.codophon = createCodophonMock({ getRepositoryHistory, getRepositoryState });
     await using app = await renderReact(<App />);
     const button = () =>
       app.container.querySelector<HTMLButtonElement>('[aria-label="Refresh pull request"]');
@@ -2863,7 +2465,7 @@ test('refreshing all changes re-resolves the branch snapshot', async () => {
   } satisfies RepositoryState;
   let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
   let branchWorkingTreeRequests = 0;
-  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(
+  const getRepositoryState = vi.fn<Window['codophon']['getRepositoryState']>(
     async (requestedSource) => {
       if (requestedSource?.type === 'branch-diff') {
         return {
@@ -2880,7 +2482,7 @@ test('refreshing all changes re-resolves the branch snapshot', async () => {
     root: '/repo',
   }));
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source: { ref: 'main', type: 'branch-working-tree' as const },
@@ -2896,26 +2498,13 @@ test('refreshing all changes re-resolves the branch snapshot', async () => {
     }),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
   const findButton = (label: string) =>
     Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes(label),
     );
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
     expect(onRepositoryChanged).not.toBeNull();
@@ -2966,13 +2555,13 @@ test('refreshing changed viewed files expands them in place', async () => {
     patch: 'diff --git a/src/viewed.ts b/src/viewed.ts\n@@ -1 +1 @@\n-old\n+newer\n',
   });
   window.localStorage.setItem(
-    'codiff:viewed:/repo',
+    'codophon:viewed:/repo',
     JSON.stringify({ [initialFile.path]: initialFile.fingerprint }),
   );
 
   let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
   let stateRequests = 0;
-  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
+  const getRepositoryState = vi.fn<Window['codophon']['getRepositoryState']>(async () => {
     stateRequests += 1;
     return {
       ...repositoryState,
@@ -2980,7 +2569,7 @@ test('refreshing changed viewed files expands them in place', async () => {
     };
   });
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryState,
     onRepositoryChanged: vi.fn((callback) => {
       onRepositoryChanged = callback;
@@ -2990,24 +2579,11 @@ test('refreshing changed viewed files expands them in place', async () => {
     }),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
-    const header = container.querySelector('.codiff-file-header');
+    const header = container.querySelector('.codophon-file-header');
     expect(header).not.toBeNull();
     expect(header?.classList.contains('collapsed')).toBe(true);
   });
@@ -3022,10 +2598,10 @@ test('refreshing changed viewed files expands them in place', async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   await waitFor(() => {
-    const header = container.querySelector('.codiff-file-header');
+    const header = container.querySelector('.codophon-file-header');
     expect(header).not.toBeNull();
     expect(header?.classList.contains('collapsed')).toBe(false);
-    expect(header?.querySelector('.codiff-viewed-button')?.getAttribute('aria-pressed')).toBe(
+    expect(header?.querySelector('.codophon-viewed-button')?.getAttribute('aria-pressed')).toBe(
       'false',
     );
   });
@@ -3064,7 +2640,7 @@ test('refreshing changed files automatically regenerates the walkthrough', async
 
   let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
   let stateRequests = 0;
-  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
+  const getRepositoryState = vi.fn<Window['codophon']['getRepositoryState']>(async () => {
     stateRequests += 1;
     return {
       ...repositoryState,
@@ -3090,7 +2666,7 @@ test('refreshing changed files automatically regenerates the walkthrough', async
     };
   });
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: true,
@@ -3105,22 +2681,9 @@ test('refreshing changed files automatically regenerates the walkthrough', async
     }),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.wt-stop-block')).not.toBeNull();
     expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
@@ -3200,7 +2763,7 @@ test('drops automatic walkthrough regeneration when the same source refreshes ag
 
   let onRepositoryChanged: ((change: { root: string }) => void) | null = null;
   let stateRequests = 0;
-  const getRepositoryState = vi.fn<Window['codiff']['getRepositoryState']>(async () => {
+  const getRepositoryState = vi.fn<Window['codophon']['getRepositoryState']>(async () => {
     stateRequests += 1;
     return {
       ...repositoryState,
@@ -3236,7 +2799,7 @@ test('drops automatic walkthrough regeneration when the same source refreshes ag
     });
   });
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: true,
@@ -3251,9 +2814,8 @@ test('drops automatic walkthrough regeneration when the same source refreshes ag
     }),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   const refresh = async () => {
     await act(async () => {
@@ -3266,18 +2828,6 @@ test('drops automatic walkthrough regeneration when the same source refreshes ag
     });
   };
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(getNarrativeWalkthrough).toHaveBeenCalledTimes(1);
   });
@@ -3348,7 +2898,7 @@ test('committing and then editing again clears and regenerates the walkthrough',
     });
   });
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: true,
@@ -3369,22 +2919,9 @@ test('committing and then editing again clears and regenerates the walkthrough',
     }),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.wt-stop-block')).not.toBeNull();
   });
@@ -3450,7 +2987,7 @@ test('walkthrough launch errors stay on the walkthrough tab without automatic re
     status: 'unavailable' as const,
   }));
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: true,
@@ -3462,27 +2999,14 @@ test('walkthrough launch errors stay on the walkthrough tab without automatic re
     })),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   const getTab = (label: string) =>
     Array.from(container.querySelectorAll('button[role="tab"]')).find((button) =>
       button.textContent?.includes(label),
     ) as HTMLButtonElement | undefined;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.textContent).toContain('Walkthrough unavailable');
   });
@@ -3527,7 +3051,7 @@ test('walkthrough progress events replace the loading line without exposing agen
       }),
   );
 
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       walkthrough: true,
@@ -3545,22 +3069,9 @@ test('walkthrough progress events replace the loading line without exposing agen
     }),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.textContent).toContain('Generating walkthrough…');
   });
@@ -3584,7 +3095,7 @@ test('walkthrough progress events replace the loading line without exposing agen
 });
 
 test('history filter matches commits by author name', async () => {
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getRepositoryHistory: vi.fn(async () => ({
       entries: [
         {
@@ -3606,9 +3117,8 @@ test('history filter matches commits by author name', async () => {
     })),
   });
 
-  const container = document.createElement('div');
-  document.body.append(container);
-  let root: Root | null = null;
+  await using view = await renderReact(<App />);
+  const { container } = view;
 
   const findButton = (label: string) =>
     Array.from(container.querySelectorAll('button')).find((button) =>
@@ -3619,18 +3129,6 @@ test('history filter matches commits by author name', async () => {
       (element) => element.textContent,
     );
 
-  await using _resource = {
-    async [Symbol.asyncDispose]() {
-      if (root) {
-        await act(async () => root?.unmount());
-      }
-      container.remove();
-    },
-  };
-  await act(async () => {
-    root = createRoot(container);
-    root.render(<App />);
-  });
   await waitFor(() => {
     expect(container.querySelector('.loading')).toBeNull();
   });
@@ -3705,7 +3203,7 @@ test('the design overview explains the implementation and links to its diff even
       },
     ],
   };
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source,
@@ -3765,7 +3263,7 @@ test('commit viewed progress synchronizes tree, walkthrough, and uncovered suppo
     ...createNarrativeWalkthroughFixture([{ added: 1, path: file.path, status: file.status }]),
     source,
   };
-  window.codiff = createCodiffMock({
+  window.codophon = createCodophonMock({
     getLaunchOptions: vi.fn(async () => ({
       repositoryPathProvided: true,
       source,
@@ -3776,7 +3274,7 @@ test('commit viewed progress synchronizes tree, walkthrough, and uncovered suppo
   });
   await using app = await renderReact(<App />);
   const buttons = () => [
-    ...app.container.querySelectorAll<HTMLButtonElement>('.codiff-viewed-button'),
+    ...app.container.querySelectorAll<HTMLButtonElement>('.codophon-viewed-button'),
   ];
   const collapsedCount = () => app.container.querySelectorAll('[aria-label="Expand file"]').length;
   const switchMode = async (label: string) => {
@@ -3802,7 +3300,7 @@ test('commit viewed progress synchronizes tree, walkthrough, and uncovered suppo
   expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
   expect(collapsedCount()).toBe(1);
   const tree = app.container.querySelector('file-tree-container')?.shadowRoot;
-  expect(tree?.querySelector('style[data-codiff-viewed-rows]')?.textContent).toContain(
+  expect(tree?.querySelector('style[data-codophon-viewed-rows]')?.textContent).toContain(
     'src/app.ts',
   );
   await act(async () => buttons()[0].click());
@@ -3819,7 +3317,7 @@ test('commit viewed progress synchronizes tree, walkthrough, and uncovered suppo
   await waitFor(() => expect(buttons()).toHaveLength(2));
   expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual(['true', 'true']);
   expect(collapsedCount()).toBe(2);
-  expect(window.localStorage.getItem('codiff:viewed:/repo')).toBeNull();
+  expect(window.localStorage.getItem('codophon:viewed:/repo')).toBeNull();
   await app.rerender(<App key="new-session" />);
   await waitFor(() => {
     expect(buttons()).toHaveLength(2);

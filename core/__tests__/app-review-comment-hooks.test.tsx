@@ -15,7 +15,7 @@ import { renderReact, waitFor } from './helpers/react.tsx';
 
 type AppReviewComments = ReturnType<typeof useAppReviewComments>;
 
-const originalCodiff = window.codiff;
+const originalCodophon = window.codophon;
 const workingTreeState = {
   branch: 'main',
   files: [],
@@ -28,11 +28,11 @@ const pullRequestState = {
   ...workingTreeState,
   source: {
     number: 42,
-    owner: 'nkzw-tech',
+    owner: 'raels0',
     provider: 'github',
-    repo: 'codiff',
+    repo: 'codophon',
     type: 'pull-request',
-    url: 'https://github.com/nkzw-tech/codiff/pull/42',
+    url: 'https://github.com/raels0/codophon/pull/42',
   },
 } satisfies RepositoryState;
 const comment: ReviewComment = {
@@ -105,7 +105,7 @@ const renderAppReviewComments = async (state: RepositoryState) => {
 afterEach(() => {
   vi.useRealTimers();
   localStorage.clear();
-  window.codiff = originalCodiff;
+  window.codophon = originalCodophon;
 });
 
 const savedReview = {
@@ -119,7 +119,7 @@ test('reopening a PR restores Ask replies and an unsent draft, and continues the
     reply: 'The service gate is off.',
     status: 'ready' as const,
   }));
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   const draft = 'Does the default service still run?';
   {
     await using view = await renderAppReviewComments(savedReview);
@@ -147,7 +147,7 @@ test('reopening a PR restores Ask replies and an unsent draft, and continues the
 
 test('an interrupted Ask is retryable after reopen and is never sent automatically', async () => {
   const askReviewAssistant = vi.fn(() => new Promise<ReviewAssistantResult>(() => {}));
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   {
     await using view = await renderAppReviewComments(savedReview);
     await act(async () => view.getState().loadReviewComments(savedReview, [comment]));
@@ -171,7 +171,10 @@ test('an interrupted post is not restored as a pending comment and its Ask reply
     status: 'ready' as const,
   }));
   const submitPullRequestComment = vi.fn(() => new Promise(() => {}));
-  window.codiff = { askReviewAssistant, submitPullRequestComment } as unknown as Window['codiff'];
+  window.codophon = {
+    askReviewAssistant,
+    submitPullRequestComment,
+  } as unknown as Window['codophon'];
   {
     await using view = await renderAppReviewComments(savedReview);
     await act(async () => view.getState().loadReviewComments(savedReview, [comment]));
@@ -194,7 +197,7 @@ test('changing PR commits keeps the old conversation off the diff; switching PRs
     reply: 'Prior snapshot answer.',
     status: 'ready' as const,
   }));
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(savedReview);
   await act(async () => view.getState().loadReviewComments(savedReview, [comment]));
   await act(async () => view.getState().askCodex(comment.id));
@@ -209,7 +212,7 @@ test('changing PR commits keeps the old conversation off the diff; switching PRs
 
   const another = {
     ...changed,
-    source: { ...changed.source, number: 43, url: 'https://github.com/nkzw-tech/codiff/pull/43' },
+    source: { ...changed.source, number: 43, url: 'https://github.com/raels0/codophon/pull/43' },
   };
   await view.rerenderState(another);
   await act(async () => view.getState().loadReviewComments(another));
@@ -229,7 +232,10 @@ test('the re-review brief keeps submitted Ask questions after posting and isolat
     author: { login: 'reviewer' },
     id: 'posted-comment',
   }));
-  window.codiff = { askReviewAssistant, submitPullRequestComment } as unknown as Window['codiff'];
+  window.codophon = {
+    askReviewAssistant,
+    submitPullRequestComment,
+  } as unknown as Window['codophon'];
   const state = {
     ...pullRequestState,
     source: { ...pullRequestState.source, headSha: 'earlier-head' },
@@ -280,7 +286,7 @@ test('app review comments request and store assistant replies', async () => {
     reply: 'Use the shared parser.',
     status: 'ready' as const,
   }));
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(workingTreeState);
   const { getState, onCommentFileChange } = view;
 
@@ -318,7 +324,7 @@ test('follow-up requests retain the conversation without changing the original n
     reply: `Answer to: ${request.comment.body}`,
     status: 'ready' as const,
   }));
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(pullRequestState);
   const other = { ...comment, body: 'Another thread', id: 'comment-2' };
   await act(async () => view.getState().setReviewComments([comment, other]));
@@ -357,7 +363,7 @@ test('parallel Ask threads notify in completion order and each notice expires in
   const askReviewAssistant = vi.fn((request: ReviewAssistantRequest) =>
     request.comment.body === comment.body ? first.promise : second.promise,
   );
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(pullRequestState);
   const { getState } = view;
   const notices = () =>
@@ -399,7 +405,7 @@ test('parallel Ask threads notify in completion order and each notice expires in
 test('a focused Ask notice stays available and can open the original anchor', async () => {
   vi.useFakeTimers();
   const askReviewAssistant = vi.fn(async () => ({ reply: 'Use the helper.', status: 'ready' }));
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(pullRequestState);
   await act(async () => view.getState().setReviewComments([comment]));
   await act(async () => view.getState().askCodex(comment.id));
@@ -427,7 +433,7 @@ test('failed follow-ups retain earlier answers and the question, and retry adds 
     .mockResolvedValueOnce({ reply: 'First answer', status: 'ready' })
     .mockImplementationOnce(() => pending.promise)
     .mockResolvedValueOnce({ reply: 'Second answer', status: 'ready' });
-  window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+  window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(pullRequestState);
   await act(async () => view.getState().setReviewComments([comment]));
   await act(async () => view.getState().askCodex(comment.id));
@@ -464,7 +470,7 @@ test.each(['commits', 'question'])(
       reply: 'An answer',
       status: 'ready' as const,
     }));
-    window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+    window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
     await using view = await renderAppReviewComments(pullRequestState);
     await act(async () => view.getState().setReviewComments([comment]));
     await act(async () => view.getState().askCodex(comment.id));
@@ -494,7 +500,7 @@ test.each(['commits', 'question', 'draft', 'review', 'hydration'])(
   async (change) => {
     const pending = Promise.withResolvers<ReviewAssistantResult>();
     const askReviewAssistant = vi.fn(() => pending.promise);
-    window.codiff = { askReviewAssistant } as unknown as Window['codiff'];
+    window.codophon = { askReviewAssistant } as unknown as Window['codophon'];
     const initial: RepositoryState = {
       ...pullRequestState,
       source: { ...pullRequestState.source, baseSha: 'before', headSha: 'after' },
@@ -535,7 +541,7 @@ test.each(['commits', 'question', 'draft', 'review', 'hydration'])(
           ...initial.source,
           ...(change === 'commits' ? { headSha: 'new-after' } : {}),
           ...(change === 'review'
-            ? { number: 43, url: 'https://github.com/nkzw-tech/codiff/pull/43' }
+            ? { number: 43, url: 'https://github.com/raels0/codophon/pull/43' }
             : {}),
         },
       });
@@ -566,9 +572,9 @@ test('app review comments submit a draft and replace it with the remote comment'
     lineNumber: comment.lineNumber,
     side: comment.side,
     submittedAt: '2026-07-15T00:00:00.000Z',
-    url: 'https://github.com/nkzw-tech/codiff/pull/42#discussion_r1',
+    url: 'https://github.com/raels0/codophon/pull/42#discussion_r1',
   }));
-  window.codiff = { submitPullRequestComment } as unknown as Window['codiff'];
+  window.codophon = { submitPullRequestComment } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(pullRequestState);
   const { getState, onCommentFileChange } = view;
 
@@ -602,7 +608,7 @@ test('app review comments submit a draft and replace it with the remote comment'
         sectionId: comment.sectionId,
         side: comment.side,
         submittedAt: '2026-07-15T00:00:00.000Z',
-        url: 'https://github.com/nkzw-tech/codiff/pull/42#discussion_r1',
+        url: 'https://github.com/raels0/codophon/pull/42#discussion_r1',
       },
     ]);
   });
@@ -611,7 +617,7 @@ test('app review comments submit a draft and replace it with the remote comment'
 
 test('app review comments submit and clear pending review drafts', async () => {
   const submitPullRequestReview = vi.fn(async () => {});
-  window.codiff = { submitPullRequestReview } as unknown as Window['codiff'];
+  window.codophon = { submitPullRequestReview } as unknown as Window['codophon'];
   await using view = await renderAppReviewComments(pullRequestState);
   const { getState } = view;
 

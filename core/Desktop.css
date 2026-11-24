@@ -108,9 +108,9 @@
   color: var(--text);
 }
 
-/* The pill is a regular .codiff-button; these rules only give it the accent
+/* The pill is a regular .codophon-button; these rules only give it the accent
    fill, so the chained selectors must outrank the shared button defaults. */
-.update-pill.codiff-button {
+.update-pill.codophon-button {
   animation: update-pill-in 360ms cubic-bezier(0.2, 0.82, 0.22, 1) both;
   background: var(--update-accent);
   border-color: color-mix(in srgb, var(--update-accent) 60%, var(--text) 14%);
@@ -118,26 +118,26 @@
   max-width: 100%;
 }
 
-.update-pill.codiff-button:hover:not(:disabled) {
+.update-pill.codophon-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--update-accent) 90%, #000000);
 }
 
-.update-pill.codiff-button:disabled {
+.update-pill.codophon-button:disabled {
   cursor: default;
 }
 
-.update-pill.codiff-button.available {
+.update-pill.codophon-button.available {
   animation:
     update-pill-in 360ms cubic-bezier(0.2, 0.82, 0.22, 1) both,
     update-pill-glow 2.6s ease-in-out 460ms 3;
 }
 
-.update-pill.codiff-button.error {
+.update-pill.codophon-button.error {
   background: color-mix(in srgb, var(--danger) 82%, var(--text) 6%);
   border-color: color-mix(in srgb, var(--danger) 60%, var(--text) 14%);
 }
 
-.update-pill.codiff-button.error:hover:not(:disabled) {
+.update-pill.codophon-button.error:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 78%, #000000);
 }
 
