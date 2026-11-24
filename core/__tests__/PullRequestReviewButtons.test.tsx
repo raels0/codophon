@@ -63,9 +63,11 @@ test('GitHub comment reviews require inline comments or a review body', async ()
   expect(submitComments?.disabled).toBe(true);
   expect(addReviewComment?.disabled).toBe(false);
   await act(async () => addReviewComment?.click());
-  const textarea = view.container.querySelector<HTMLTextAreaElement>(
-    'textarea[aria-label="Add review comment"]',
-  );
+  // The comment editor loads lazily, so wait for it to replace its placeholder.
+  const findTextarea = () =>
+    view.container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Add review comment"]');
+  await waitFor(() => expect(findTextarea()).not.toBeNull());
+  const textarea = findTextarea();
   expect(textarea?.placeholder).toBe('Add a review comment…');
   await setInputValue(textarea!, 'Neutral review feedback.');
   const submitBody = view.container.querySelector<HTMLButtonElement>(
@@ -114,9 +116,11 @@ test('GitHub comment reviews preserve the review body after submission fails', a
   await act(async () =>
     view.container.querySelector<HTMLButtonElement>('[aria-label="Add review comment"]')?.click(),
   );
-  const textarea = view.container.querySelector<HTMLTextAreaElement>(
-    'textarea[aria-label="Add review comment"]',
-  );
+  // The comment editor loads lazily, so wait for it to replace its placeholder.
+  const findTextarea = () =>
+    view.container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Add review comment"]');
+  await waitFor(() => expect(findTextarea()).not.toBeNull());
+  const textarea = findTextarea();
   await setInputValue(textarea!, 'Keep this draft.');
   await act(async () =>
     view.container
