@@ -31,7 +31,7 @@ const {
   isGeneratedWalkthroughFile,
   isSyntheticWalkthroughHunk,
   sumHunkLineCounts,
-} = require('../core/lib/narrative-walkthrough-diff.cjs');
+} = require('../core/lib/narrative-walkthrough-diff.js');
 
 /**
  * @typedef {import('../core/types.ts').ChangedFile} ChangedFile

@@ -4,7 +4,7 @@ const { mkdtemp, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { gitBufferWithInput } = require('./git-state/common.cjs');
-const { isGeneratedWalkthroughPath } = require('../core/lib/narrative-walkthrough-diff.cjs');
+const { isGeneratedWalkthroughPath } = require('../core/lib/narrative-walkthrough-diff.js');
 
 const GENERATED_ATTRIBUTES = ['linguist-generated', 'gitlab-generated'];
 

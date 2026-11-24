@@ -14,7 +14,7 @@ const macIconAssetName = 'Icon';
 const macAssetCatalogPath = existsSync(join(__dirname, 'electron/icons/Assets.car'))
   ? './electron/icons/Assets.car'
   : undefined;
-const walkthroughDiffRuntimePath = 'core/lib/narrative-walkthrough-diff.cjs';
+const walkthroughDiffRuntimePath = 'core/lib/narrative-walkthrough-diff.js';
 const osxNotarize =
   process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID
     ? {

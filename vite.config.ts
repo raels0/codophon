@@ -38,14 +38,6 @@ export default defineConfig({
       'vite.config.ts.timestamp-*',
     ],
     options: { typeAware: true, typeCheck: true },
-    overrides: [
-      {
-        env: {
-          node: true,
-        },
-        files: ['core/lib/narrative-walkthrough-diff.cjs'],
-      },
-    ],
   },
   optimizeDeps: {
     // ghostty-web inlines its WASM binary as a huge base64 data URL, which
