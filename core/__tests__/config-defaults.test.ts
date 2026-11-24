@@ -176,6 +176,9 @@ test('old configurations retain automatic reasoning and custom values survive sa
     reloaded = next;
   });
   try {
+    // macOS FSEvents subscribes asynchronously and has no ready signal, so a write made the
+    // instant the watcher starts can be missed. Real config edits never race startup like this.
+    await new Promise((resolveWait) => setTimeout(resolveWait, 150));
     writeConfig({ ...config, settings: { ...config.settings, openAIReasoningEffort: 'ultra' } });
     expect(readConfig().settings).toMatchObject({
       openAIModel: 'gpt-6.1-sol',
