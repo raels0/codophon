@@ -97,7 +97,6 @@ const usageExamples = [
     description: 'Review the open pull request for a branch.',
   },
   { command: 'codiff ado 75', description: 'Review Azure DevOps pull request #75.' },
-  { command: 'codiff update', description: 'Update Codiff to the latest release.' },
   { command: 'codiff --plan plan.md', description: 'Edit a plan and wait for handoff.' },
   { command: 'codiff -w', description: 'Walk through local changes, or HEAD when clean.' },
   { command: 'codiff -w a1b2c3d', description: 'Generate a narrative walkthrough for a commit.' },

@@ -2,12 +2,11 @@
 
 require('./main/stdio.cjs');
 
-const { existsSync, readFileSync, writeFileSync } = require('node:fs');
-const { basename, dirname, join, relative, resolve } = require('node:path');
+const { existsSync, readFileSync } = require('node:fs');
+const { dirname, join, relative, resolve } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const {
   app,
-  autoUpdater,
   BrowserWindow,
   clipboard,
   dialog,
@@ -17,7 +16,6 @@ const {
   screen,
   shell,
 } = require('electron');
-const squirrelStartup = require('electron-squirrel-startup');
 const {
   listRepositoryHistory,
   readDiffImageContent,
@@ -67,8 +65,7 @@ const {
   writeConfig,
 } = require('./config.cjs');
 const { readReviewAssistantReply } = require('./review-assist.cjs');
-const { releasePageUrl } = require('./update-check.cjs');
-const { createUpdater, resolveUpdateStrategy } = require('./updater.cjs');
+const { createReleaseCheck } = require('./release-check.cjs');
 const { parseReviewUrl, resolveReviewUrl } = require('./review-source.cjs');
 const {
   getRepositoryWindowTitle,
@@ -80,13 +77,14 @@ const {
   getWindowIdentityForRepositoryState,
 } = require('./window-identity.cjs');
 const { createPendingCommentsClipboardController } = require('./pending-comments.cjs');
-const {
-  getCommandLineLaunchOptions,
-  getCommandLineRepositoryPath,
-  getInitialRepositoryPath,
-  getLaunchOptions,
-  getLaunchPath,
-} = require('./main/command-line.cjs');
+const { getInitialRepositoryPath, readLaunch } = require('./main/launch-request.cjs');
+
+// What this process was started to open. Later launches arrive through `second-instance`.
+/** @type {ReturnType<typeof readLaunch> | undefined} */
+let initialLaunch;
+const getInitialLaunch = () => (initialLaunch ??= readLaunch(process.argv));
+const getLaunchPath = () => getInitialLaunch().repositoryPath;
+const getLaunchOptions = () => getInitialLaunch().launchOptions;
 const { createSkillInstaller } = require('./main/agent-skill.cjs');
 const { createEditorOpener } = require('./main/editor.cjs');
 const { createDefinitionSearchCoordinator } = require('./definition-search.cjs');
@@ -1175,11 +1173,11 @@ const walkthroughLaunchController = createWalkthroughLaunchController({
   readRepositoryState: readInitialRepositoryStateWithConfig,
 });
 
-const INITIAL_UPDATE_CHECK_DELAY_MS = 10 * 1000;
-const UPDATE_CHECK_TIMER_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const INITIAL_RELEASE_CHECK_DELAY_MS = 10 * 1000;
+const RELEASE_CHECK_TIMER_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
-/** @type {ReturnType<typeof createUpdater> | null} */
-let updater = null;
+/** @type {ReturnType<typeof createReleaseCheck> | null} */
+let releaseCheck = null;
 
 /** @param {import('../core/types.ts').CodiffUpdateStatus} status */
 const sendUpdateStatusChanged = (status) => {
@@ -1190,91 +1188,35 @@ const sendUpdateStatusChanged = (status) => {
   }
 };
 
-const hasSquirrelUpdateExe = () =>
-  process.platform === 'win32' && existsSync(join(dirname(process.execPath), '..', 'Update.exe'));
-
-const detectLinuxPackageFlavor = () =>
-  existsSync('/etc/debian_version')
-    ? /** @type {const} */ ('deb')
-    : existsSync('/etc/redhat-release')
-      ? /** @type {const} */ ('rpm')
-      : null;
-
-const initUpdater = () => {
-  updater = createUpdater({
-    arch: process.arch,
-    autoUpdater,
-    currentVersion: app.getVersion(),
-    downloadDirectory: app.getPath('downloads'),
-    isPackaged: app.isPackaged,
-    linuxFlavor: process.platform === 'linux' ? detectLinuxPackageFlavor() : null,
-    onStatusChange: sendUpdateStatusChanged,
-    openExternal: (url) => shell.openExternal(url),
-    openPath: (path) => shell.openPath(path),
-    platform: process.platform,
-    strategy: resolveUpdateStrategy({
-      hasSquirrelUpdateExe: hasSquirrelUpdateExe(),
-      platform: process.platform,
-    }),
-    updatesEnabled: config.settings.checkForUpdates,
-  });
-};
-
-const runScheduledUpdateCheck = () => {
-  if (updater && config.settings.checkForUpdates) {
-    void updater.checkForUpdates().catch(() => {});
-  }
-};
-
 const checkForUpdatesFromMenu = async () => {
-  if (!updater) {
-    return;
-  }
-
-  try {
-    const status = await updater.checkForUpdates({ force: true });
-    if (status.phase === 'idle') {
-      void dialog.showMessageBox({
-        message: `Codiff ${app.getVersion()} is up to date.`,
-        type: 'info',
-      });
-    }
-  } catch (error) {
+  const status = await releaseCheck?.check({ force: true });
+  if (status && !status.availableVersion) {
     void dialog.showMessageBox({
-      message: `Checking for updates failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      type: 'error',
+      message: `Codiff ${app.getVersion()} is the latest release.`,
+      type: 'info',
     });
   }
 };
 
-const lock =
-  !squirrelStartup &&
-  app.requestSingleInstanceLock({
-    launchOptions: getLaunchOptions(),
-    repositoryPath: getLaunchPath(),
-  });
+const lock = app.requestSingleInstanceLock({
+  launchOptions: getLaunchOptions(),
+  repositoryPath: getLaunchPath(),
+});
 
-if (squirrelStartup || !lock) {
+if (!lock) {
   app.quit();
 } else {
   app.setName('Codiff');
 
   app.on('second-instance', (event, commandLine, workingDirectory, additionalData) => {
     const data = /** @type {SingleInstanceAdditionalData} */ (additionalData || {});
-    const launchOptions =
-      data.launchOptions || getCommandLineLaunchOptions(commandLine, workingDirectory);
-    const launchPath = resolve(
-      data.repositoryPath || getCommandLineRepositoryPath(commandLine) || workingDirectory,
-    );
+    const launch = readLaunch(commandLine, workingDirectory);
+    const launchOptions = data.launchOptions || launch.launchOptions;
+    const launchPath = data.repositoryPath || launch.repositoryPath;
     void walkthroughLaunchController.open(
       getInitialRepositoryPath(launchPath, launchOptions, config.settings.lastRepositoryPath),
       launchOptions,
     );
-    if (launchOptions.applyUpdate) {
-      void updater?.applyLatest().catch(() => {});
-    }
   });
 
   app.on('ready', () => {
@@ -1302,18 +1244,21 @@ if (squirrelStartup || !lock) {
       }
     });
 
-    initUpdater();
-    setTimeout(runScheduledUpdateCheck, INITIAL_UPDATE_CHECK_DELAY_MS);
-    setInterval(runScheduledUpdateCheck, UPDATE_CHECK_TIMER_INTERVAL_MS);
+    releaseCheck = createReleaseCheck({
+      currentVersion: app.getVersion(),
+      enabled: config.settings.checkForUpdates && app.isPackaged,
+      onChange: sendUpdateStatusChanged,
+      stateDirectory: app.getPath('userData'),
+    });
+    const runReleaseCheck = () => void releaseCheck?.check();
+    setTimeout(runReleaseCheck, INITIAL_RELEASE_CHECK_DELAY_MS).unref();
+    setInterval(runReleaseCheck, RELEASE_CHECK_TIMER_INTERVAL_MS).unref();
 
     const launchOptions = getLaunchOptions();
     void walkthroughLaunchController.open(
       getInitialRepositoryPath(getLaunchPath(), launchOptions, config.settings.lastRepositoryPath),
       launchOptions,
     );
-    if (launchOptions.applyUpdate) {
-      void updater?.applyLatest().catch(() => {});
-    }
 
     // Model discovery starts a login shell and an agent process. Keep it out
     // of the initial review's CPU and disk work.
@@ -1335,7 +1280,7 @@ if (squirrelStartup || !lock) {
           opencodeModel: normalizeOpenCodeModel(nextConfig.settings.opencodeModel),
         },
       };
-      updater?.setUpdatesEnabled(config.settings.checkForUpdates);
+      releaseCheck?.setEnabled(config.settings.checkForUpdates && app.isPackaged);
       refreshInstalledAgentFiles();
       nativeTheme.themeSource = config.settings.theme;
       sendConfigChanged();
@@ -1390,23 +1335,20 @@ if (squirrelStartup || !lock) {
   });
 }
 
-ipcMain.handle('codiff:getUpdateStatus', () =>
-  updater ? updater.getStatus() : { currentVersion: app.getVersion(), phase: 'idle' },
+ipcMain.handle(
+  'codiff:getUpdateStatus',
+  () => releaseCheck?.getStatus() ?? { currentVersion: app.getVersion() },
 );
 
-ipcMain.handle('codiff:applyUpdate', () =>
-  updater ? updater.applyUpdate() : { currentVersion: app.getVersion(), phase: 'idle' },
-);
-
-ipcMain.handle('codiff:dismissUpdate', () =>
-  updater ? updater.dismissUpdate() : { currentVersion: app.getVersion(), phase: 'idle' },
+ipcMain.handle(
+  'codiff:dismissUpdate',
+  () => releaseCheck?.dismiss() ?? { currentVersion: app.getVersion() },
 );
 
 ipcMain.handle('codiff:openReleasePage', () => {
-  const version = updater?.getStatus().version;
-  return shell.openExternal(
-    version ? releasePageUrl(version) : 'https://github.com/nkzw-tech/codiff/releases',
-  );
+  if (releaseCheck) {
+    return shell.openExternal(releaseCheck.releaseUrl());
+  }
 });
 
 ipcMain.handle('codiff:getRepositoryState', async (event, source) => {

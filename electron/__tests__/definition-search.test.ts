@@ -3,9 +3,9 @@ import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
 import { PassThrough } from 'node:stream';
 import { expect, test, vi } from 'vite-plus/test';
+import { createDefinitionNavigationRepository } from '../../core/__tests__/helpers/definition-navigation/create-repository.mjs';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
 import type { DefinitionSearchRequest, DefinitionSearchResult } from '../../core/types.ts';
-import { createDefinitionNavigationRepository } from '../../examples/definition-navigation/create-repository.mjs';
 
 const require = createRequire(import.meta.url);
 const {

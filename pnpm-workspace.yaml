@@ -3,7 +3,6 @@ allowBuilds:
   '@nkzw/mdx-editor': true
   '@swc/core': true
   electron: true
-  electron-winstaller: true
   esbuild: true
   native-keymap: true
   node-pty: true
@@ -22,7 +21,6 @@ onlyBuiltDependencies:
   - '@nkzw/mdx-editor'
   - '@swc/core'
   - electron
-  - electron-winstaller
   - unrs-resolver
 overrides:
   extract-zip>yauzl: ^3.4.0

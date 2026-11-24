@@ -2273,11 +2273,11 @@ export default function App({
         />
         {updateStatus ? (
           <UpdatePill
-            onApply={() => {
-              window.codiff.applyUpdate().then(setUpdateStatus, () => {});
-            }}
             onDismiss={() => {
               window.codiff.dismissUpdate().then(setUpdateStatus, () => {});
+            }}
+            onOpen={() => {
+              void window.codiff.openReleasePage();
             }}
             status={updateStatus}
           />

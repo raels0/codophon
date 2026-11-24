@@ -6,13 +6,11 @@ import http from 'node:http';
 import https from 'node:https';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import packageJson from '../package.json' with { type: 'json' };
 import { formatHelpText, parseArguments, resolvePullRequestTargetUrl } from './arguments.js';
 import { completionShells, generateCompletionScript } from './completions.js';
-import { runUpdateCommand } from './update-command.js';
-import { getUpdateNotice } from './update-notice.js';
 import { waitForWalkthroughResult } from './walkthrough-result.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -80,30 +78,48 @@ const buildWalkthroughGuide = () => {
   return `${guide}\n\n\`\`\`json\n${JSON.stringify(narrativeWalkthroughSchema, null, 2)}\n\`\`\`\n`;
 };
 
-const runCodiffUpdate = () => {
-  const appBundleMatch = process.platform === 'darwin' ? root.match(/^(.*\.app)\//) : null;
-  return runUpdateCommand({
-    currentVersion: packageJson.version,
-    isSourceCheckout: existsSync(resolve(root, '.git')),
-    log: (line) => process.stdout.write(`${line}\n`),
-    openApp: appBundleMatch
-      ? () => {
-          spawn('open', ['-n', appBundleMatch[1], '--args', '--apply-update'], {
-            detached: true,
-            stdio: 'ignore',
-          }).unref();
-        }
-      : null,
-  });
+/**
+ * Start the app with one encoded launch request. Packaged builds go through the OS so the app
+ * activates normally; a source checkout runs Electron against this directory.
+ */
+const launchApp = async (launchArgument) => {
+  // Agent harnesses sometimes export ELECTRON_RUN_AS_NODE, which would make the app binary run as
+  // plain Node and crash on boot.
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  delete env.ELECTRON_NO_ATTACH_CONSOLE;
+  const spawnDetached = (command, args) => {
+    const child = spawn(command, args, { detached: true, env, stdio: 'ignore' });
+    child.unref();
+    return child;
+  };
+
+  const appBundle = process.platform === 'darwin' ? root.match(/^(.*\.app)\//)?.[1] : null;
+  if (appBundle) {
+    return spawnDetached('open', ['-n', appBundle, '--args', launchArgument]);
+  }
+  // Windows and Linux packages put the executable two levels above resources/app.
+  const isPackaged = basename(root) === 'app' && basename(dirname(root)) === 'resources';
+  const packagedExecutable = isPackaged
+    ? ['codiff.exe', 'codiff'].map((name) => resolve(root, '../..', name)).find(existsSync)
+    : null;
+  if (packagedExecutable) {
+    return spawnDetached(packagedExecutable, [launchArgument]);
+  }
+
+  // Prefer an explicit ELECTRON_RENDERER_URL; otherwise auto-use Codiff's dev
+  // server when it is actually running and identifies as Codiff.
+  env.ELECTRON_RENDERER_URL =
+    process.env.ELECTRON_RENDERER_URL || (await detectDevServer(DEV_SERVER_URL)) || '';
+  if (!env.ELECTRON_RENDERER_URL && !existsSync(resolve(root, 'dist/index.html'))) {
+    console.error('Codiff has not been built yet. Run `pnpm build` first, or start `pnpm dev`.');
+    process.exit(1);
+  }
+  const { default: electron } = await import('electron');
+  return spawnDetached(electron, [root, launchArgument]);
 };
 
 const run = async () => {
-  const rawArguments = process.argv.slice(2);
-  if (rawArguments.length === 1 && rawArguments[0] === 'update') {
-    process.exitCode = await runCodiffUpdate();
-    return;
-  }
-
   const parsedArguments = parseArguments(process.argv.slice(2));
 
   if (parsedArguments.help) {
@@ -113,10 +129,6 @@ const run = async () => {
 
   if (parsedArguments.version) {
     process.stdout.write(`codiff v${packageJson.version}\n`);
-    const notice = getUpdateNotice({ currentVersion: packageJson.version });
-    if (notice) {
-      process.stderr.write(`${notice}\n`);
-    }
     return;
   }
 
@@ -178,67 +190,42 @@ const run = async () => {
     }
   }
 
-  // Prefer an explicit ELECTRON_RENDERER_URL; otherwise auto-use Codiff's dev
-  // server when it is actually running and identifies as Codiff.
-  const rendererURL =
-    process.env.ELECTRON_RENDERER_URL || (await detectDevServer(DEV_SERVER_URL)) || '';
-
-  if (!rendererURL && !existsSync(resolve(root, 'dist/index.html'))) {
-    console.error('Codiff has not been built yet. Run `pnpm build` first, or start `pnpm dev`.');
-    process.exit(1);
-  }
-
+  const { encodeLaunchRequest } = require(resolve(root, 'electron/main/launch-request.cjs'));
   // The app launches detached, so wait for it to report whether it applied the
   // walkthrough file; otherwise a file it rejects would still exit 0 here.
   const walkthroughResultDirectory = walkthroughFilePath
     ? mkdtempSync(join(tmpdir(), 'codiff-walkthrough-result-'))
     : null;
-  const walkthroughResultPath = walkthroughResultDirectory
-    ? join(walkthroughResultDirectory, 'result.txt')
-    : '';
-  const childEnv = {
-    ...process.env,
-    CODIFF_AGENT_BACKEND: agentBackend ?? '',
-    CODIFF_BRANCH_REF: branchRef ?? '',
-    CODIFF_CLAUDE_SESSION_ID: claudeSessionId ?? '',
-    CODIFF_COMMIT_REF: commitRef ?? '',
-    CODIFF_CODEX_SESSION_ID: codexSessionId ?? '',
-    CODIFF_OPENCODE_SESSION_ID: opencodeSessionId ?? '',
-    CODIFF_PULL_REQUEST_URL: pullRequestUrl ?? '',
-    CODIFF_REVIEW_PROVIDER: pullRequestProvider ?? '',
-    CODIFF_RANGE: range ? `${range.base}${range.symmetric ? '...' : '..'}${range.head}` : '',
-    CODIFF_REPOSITORY_PATH: requestedPath,
-    CODIFF_WALKTHROUGH: walkthrough ? '1' : '',
-    CODIFF_WALKTHROUGH_CONTEXT: walkthroughContextPath ?? '',
-    CODIFF_WALKTHROUGH_FILE: walkthroughFilePath ?? '',
-    CODIFF_WALKTHROUGH_RESULT_FILE: walkthroughResultPath,
-    ELECTRON_RENDERER_URL: rendererURL,
-  };
-
-  // Electron must launch as a GUI. Some launchers (e.g. an agent/CLI harness)
-  // export ELECTRON_RUN_AS_NODE=1, which makes the electron binary run as plain
-  // Node — `require('electron')` then returns a path string and the app crashes
-  // on boot. Strip it (and the console-detach flag) so the window always opens.
-  delete childEnv.ELECTRON_RUN_AS_NODE;
-  delete childEnv.ELECTRON_NO_ATTACH_CONSOLE;
-
-  const updateNotice = getUpdateNotice({ currentVersion: packageJson.version });
-  if (updateNotice) {
-    process.stderr.write(`${updateNotice}\n`);
-  }
-
-  const { default: electron } = await import('electron');
-
-  const child = spawn(electron, [root], {
-    detached: true,
-    env: childEnv,
-    stdio: 'ignore',
+  const launchArgument = encodeLaunchRequest({
+    agentBackend,
+    claudeSessionId,
+    codexSessionId,
+    opencodeSessionId,
+    repositoryPath: requestedPath,
+    source: range
+      ? { ...range, type: 'range' }
+      : pullRequestUrl
+        ? { type: 'pull-request', url: pullRequestUrl }
+        : commitRef
+          ? { ref: commitRef, type: 'commit' }
+          : branchRef
+            ? { ref: branchRef, type: 'branch-working-tree' }
+            : undefined,
+    walkthrough,
+    walkthroughContextPath,
+    walkthroughFile: walkthroughFilePath,
+    walkthroughResultFile: walkthroughResultDirectory
+      ? join(walkthroughResultDirectory, 'result.txt')
+      : undefined,
   });
 
-  child.unref();
+  const child = await launchApp(launchArgument);
   if (walkthroughResultDirectory) {
     try {
-      const result = await waitForWalkthroughResult(walkthroughResultPath, child);
+      const result = await waitForWalkthroughResult(
+        join(walkthroughResultDirectory, 'result.txt'),
+        child,
+      );
       if (result.status === 'unavailable') {
         process.stderr.write(`${result.reason}\n`);
         process.exitCode = 1;

@@ -116,10 +116,6 @@ const createCommitMetadataFixture = (body: string): CommitMetadata => ({
 });
 
 const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['codiff'] => ({
-  applyUpdate: vi.fn(async () => ({
-    currentVersion: '1.9.2',
-    phase: 'idle' as const,
-  })),
   askReviewAssistant: vi.fn(async () => ({
     reason: 'Unavailable in tests.',
     status: 'unavailable' as const,
@@ -131,7 +127,6 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
   decreaseCodeFontSize: vi.fn(async () => {}),
   dismissUpdate: vi.fn(async () => ({
     currentVersion: '1.9.2',
-    phase: 'idle' as const,
   })),
   findDefinitions: vi.fn(async (request) => ({
     candidates: [],
@@ -212,7 +207,6 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
   })),
   getUpdateStatus: vi.fn(async () => ({
     currentVersion: '1.9.2',
-    phase: 'idle' as const,
   })),
   increaseCodeFontSize: vi.fn(async () => {}),
   installAgentSkill: vi.fn(async () => ({

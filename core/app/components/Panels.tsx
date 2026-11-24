@@ -4,10 +4,8 @@ import { CaretUpIcon as CaretUp } from '@phosphor-icons/react/CaretUp';
 import { ChatCircleIcon as ChatCircle } from '@phosphor-icons/react/ChatCircle';
 import { CheckIcon as Check } from '@phosphor-icons/react/Check';
 import { CheckCircleIcon as CheckCircle } from '@phosphor-icons/react/CheckCircle';
-import { CircleNotchIcon as CircleNotch } from '@phosphor-icons/react/CircleNotch';
 import { PowerIcon as Power } from '@phosphor-icons/react/Power';
 import { SealQuestionIcon as SealQuestion } from '@phosphor-icons/react/SealQuestion';
-import { WarningOctagonIcon as WarningOctagon } from '@phosphor-icons/react/WarningOctagon';
 import { XIcon as X } from '@phosphor-icons/react/X';
 import { Copy as LucideCopy } from 'lucide-react';
 import {
@@ -101,75 +99,38 @@ export function RepositoryChangeBanner({
 export type { CodiffUpdateStatus as UpdateStatus } from '../../types.ts';
 
 export function UpdatePill({
-  onApply,
   onDismiss,
+  onOpen,
   status,
 }: {
-  onApply: () => void;
-  onDismiss?: () => void;
+  onDismiss: () => void;
+  onOpen: () => void;
   status: CodiffUpdateStatus;
 }) {
-  const { currentVersion, message, phase, strategy, version } = status;
-
-  if (phase === 'idle') {
+  const { availableVersion, currentVersion } = status;
+  if (!availableVersion) {
     return null;
   }
-
-  const actionable = phase === 'available' || phase === 'error';
-  const applyEffect =
-    strategy === 'squirrel'
-      ? 'Downloads the update and restarts the app.'
-      : strategy === 'download'
-        ? 'Downloads and opens the update. Quit Codiff to finish installing.'
-        : strategy === 'manual'
-          ? 'Opens the download page for the new version.'
-          : 'Downloads the update.';
-  const title =
-    phase === 'available'
-      ? `Update Codiff${version ? ` v${currentVersion} -> v${version}` : ''}. ${applyEffect}`
-      : phase === 'updating'
-        ? version
-          ? `Updating to Codiff ${version}…`
-          : 'Updating Codiff…'
-        : phase === 'installerReady'
-          ? 'The installer was downloaded and opened. Quit Codiff to finish updating.'
-          : `${message ?? 'Something went wrong while updating.'} Click to try again.`;
 
   return (
     <div aria-live="polite" className="update-pill-anchor">
       <Button
-        className={`update-pill ${phase === 'installerReady' ? 'installer-ready' : phase}`}
-        disabled={!actionable}
-        onClick={onApply}
-        title={title}
+        className="update-pill available"
+        onClick={onOpen}
+        title={`Codiff ${availableVersion} is available (you have ${currentVersion}). Opens the release page.`}
         type="button"
       >
-        {phase === 'updating' ? (
-          <CircleNotch aria-hidden className="update-pill-spinner" size={14} weight="bold" />
-        ) : phase === 'error' ? (
-          <WarningOctagon aria-hidden size={14} weight="bold" />
-        ) : null}
-        <span>
-          {phase === 'available'
-            ? 'Update'
-            : phase === 'updating'
-              ? 'Updating…'
-              : phase === 'installerReady'
-                ? 'Quit to finish update'
-                : 'Update failed. Try again'}
-        </span>
+        <span>Update available</span>
       </Button>
-      {actionable && onDismiss ? (
-        <button
-          aria-label="Dismiss update"
-          className="update-pill-dismiss"
-          onClick={onDismiss}
-          title="Dismiss"
-          type="button"
-        >
-          <X aria-hidden size={13} weight="bold" />
-        </button>
-      ) : null}
+      <button
+        aria-label="Dismiss update"
+        className="update-pill-dismiss"
+        onClick={onDismiss}
+        title="Dismiss"
+        type="button"
+      >
+        <X aria-hidden size={13} weight="bold" />
+      </button>
     </div>
   );
 }

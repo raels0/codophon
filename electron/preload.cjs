@@ -33,7 +33,6 @@ if (document.documentElement) {
 
 /** @type {Window['codiff']} */
 const codiff = {
-  applyUpdate: () => ipcRenderer.invoke('codiff:applyUpdate'),
   askReviewAssistant: (request) => ipcRenderer.invoke('codiff:askReviewAssistant', request),
   getReviewBriefComments: (source) => ipcRenderer.invoke('codiff:getReviewBriefComments', source),
   dismissUpdate: () => ipcRenderer.invoke('codiff:dismissUpdate'),

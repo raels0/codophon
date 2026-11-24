@@ -1,4 +1,5 @@
 // @ts-check
+/// <reference types="node" />
 
 /* eslint-disable @typescript-eslint/no-require-imports, no-undef */
 const assert = require('node:assert/strict');

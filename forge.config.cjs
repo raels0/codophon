@@ -14,10 +14,7 @@ const macIconAssetName = 'Icon';
 const macAssetCatalogPath = existsSync(join(__dirname, 'electron/icons/Assets.car'))
   ? './electron/icons/Assets.car'
   : undefined;
-const linuxIconPath = './electron/icons/icon.png';
-const windowsIconPath = './electron/icons/icon.ico';
 const walkthroughDiffRuntimePath = 'core/lib/narrative-walkthrough-diff.cjs';
-const skipSquirrel = process.env.CODIFF_SKIP_SQUIRREL === '1';
 const osxNotarize =
   process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID
     ? {
@@ -79,13 +76,6 @@ module.exports = {
   },
   makers: [
     {
-      config: {
-        setupIcon: windowsIconPath,
-      },
-      enabled: !skipSquirrel,
-      name: '@electron-forge/maker-squirrel',
-    },
-    {
       arch: ['arm64'],
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
@@ -93,18 +83,6 @@ module.exports = {
     {
       name: '@electron-forge/maker-zip',
       platforms: ['win32'],
-    },
-    {
-      config: {
-        icon: linuxIconPath,
-      },
-      name: '@electron-forge/maker-deb',
-    },
-    {
-      config: {
-        icon: linuxIconPath,
-      },
-      name: '@electron-forge/maker-rpm',
     },
   ],
   packagerConfig: {
@@ -129,7 +107,6 @@ module.exports = {
       /^\/README\.md$/,
       /^\/coverage(?:$|\/)/,
       /^\/docs(?:$|\/)/,
-      /^\/examples(?:$|\/)/,
       /^\/forge\.config\.cjs$/,
       /^\/index\.html$/,
       /^\/out(?:$|\/)/,

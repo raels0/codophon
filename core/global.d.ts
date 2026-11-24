@@ -52,7 +52,6 @@ declare module '*.css';
 declare global {
   interface Window {
     codiff: {
-      applyUpdate: () => Promise<CodiffUpdateStatus>;
       askReviewAssistant: (request: ReviewAssistantRequest) => Promise<ReviewAssistantResult>;
       createWalkthroughCommit: (
         request: WalkthroughCommitRequest,

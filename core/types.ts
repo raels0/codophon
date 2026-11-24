@@ -324,7 +324,6 @@ export type WalkthroughContext = {
 
 export type CodiffLaunchOptions = {
   agentBackend?: 'codex' | 'claude' | 'opencode';
-  applyUpdate?: boolean;
   claudeSessionId?: string;
   codexSessionId?: string;
   opencodeSessionId?: string;
@@ -725,14 +724,10 @@ export type CodiffPreferences = {
   wordWrap: boolean;
 };
 
-export type CodiffUpdatePhase = 'available' | 'error' | 'idle' | 'installerReady' | 'updating';
-
+/** A newer GitHub release than the running build, if one is known and not dismissed. */
 export type CodiffUpdateStatus = {
+  availableVersion?: string;
   currentVersion: string;
-  message?: string;
-  phase: CodiffUpdatePhase;
-  strategy?: 'download' | 'manual' | 'squirrel';
-  version?: string;
 };
 
 export type PullRequestReviewComment = {
