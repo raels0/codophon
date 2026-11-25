@@ -210,9 +210,6 @@ importers:
       '@nkzw/mdx-editor':
         specifier: ^1.0.4
         version: 1.0.4(@codemirror/language@6.13.1)(@lezer/highlight@1.2.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)(yjs@13.6.33)
-      '@nkzw/use-relative-time':
-        specifier: ^1.2.3
-        version: 1.2.3(react@19.3.1)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -261,9 +258,6 @@ importers:
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
-      proper-lockfile:
-        specifier: ^4.1.2
-        version: 4.1.2
     devDependencies:
       '@electron-forge/cli':
         specifier: ^8.0.1
@@ -1135,11 +1129,6 @@ packages:
     resolution: {integrity: sha512-TgQjl5adJlTg10EU8WmvS78Ce7q+Un59Wyd6lq62Vg/pM8GLa2SEuG3koCziDm+pXJ2d+qkuQgcZ0Ton883yBg==}
     peerDependencies:
       oxlint: '>=1.79.0'
-
-  '@nkzw/use-relative-time@1.2.3':
-    resolution: {integrity: sha512-ED/MOkgHf4NfWVSk69TlCVwndGG2xZIYSWC7VT1EliT0/Q7ovFdsbAegci/Secx7I46Gvu0cCr7Fah9VBSVAwA==}
-    peerDependencies:
-      react: '>=18'
 
   '@noble/hashes@2.4.0':
     resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
@@ -3979,9 +3968,6 @@ packages:
   prop-types@15.8.1:
     resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
 
-  proper-lockfile@4.1.2:
-    resolution: {integrity: sha512-TjNPblN4BwAWMXU8s9AEz4JmQxnD1NNL7bNOY/AKUzyamc379FWASUhc/K1pL2noVb+XmZKLL68cjzLsiOAMaA==}
-
   property-information@7.2.0:
     resolution: {integrity: sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg==}
 
@@ -5669,10 +5655,6 @@ snapshots:
       - eslint
       - supports-color
       - typescript
-
-  '@nkzw/use-relative-time@1.2.3(react@19.3.1)':
-    dependencies:
-      react: 19.3.1
 
   '@noble/hashes@2.4.0':
     optional: true
@@ -8547,12 +8529,6 @@ snapshots:
       loose-envify: 1.4.0
       object-assign: 4.1.1
       react-is: 16.13.1
-
-  proper-lockfile@4.1.2:
-    dependencies:
-      graceful-fs: 4.2.11
-      retry: 0.12.0
-      signal-exit: 3.0.7
 
   property-information@7.2.0: {}
 

@@ -30,9 +30,6 @@ export const createChangedFile = (
     status,
   }) satisfies ChangedFile;
 
-export const createChangedFileWithPatch = (path: string, patch: string) =>
-  createChangedFile(path, { patch });
-
 type SectionFixture = Omit<ChangedFile['sections'][number], 'binary'> & { binary?: boolean };
 type FileFixture = Omit<ChangedFile, 'fingerprint' | 'sections'> & {
   fingerprint?: string;

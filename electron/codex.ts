@@ -9,7 +9,7 @@ import {
   findAgentCommand,
   resolveAgentCommandTransport,
 } from './agent-command.ts';
-import { cleanText, oneLine, truncate } from './agent-shared.ts';
+import { oneLine } from './agent-shared.ts';
 import type { AgentOptions } from './agent.ts';
 import { getCommandEnvironment } from './login-shell-environment.ts';
 
@@ -20,13 +20,12 @@ const CODEX_REASONING_EFFORT = 'low';
 const CODEX_MACOS_BLOCKED_MESSAGE =
   'macOS blocked the local Codex CLI. Update Codex CLI from the official OpenAI release, then run `codex --version` and try again.';
 const CODEX_NOT_FOUND_CODE = 'CODEX_NOT_FOUND';
-const CODEX_APP_SERVER_UNAVAILABLE_CODE = 'CODEX_APP_SERVER_UNAVAILABLE';
 const CODEX_NOT_FOUND_MESSAGE =
   'Codex CLI was not found. Install Codex and verify `codex --version` works in Terminal. On macOS, Codophon also checks for the CLI bundled with Codex.app or ChatGPT.app. If Codex is installed somewhere else, launch Codophon with `CODOPHON_CODEX_PATH=/absolute/path/to/codex codophon -w`.';
 export type CodexOptions = AgentOptions & {
   commandTransport?: import('./agent-command.ts').AgentCommandTransport;
   onMetrics?: (metrics: {
-    transport: 'app-server' | 'exec';
+    transport: 'exec';
     usage?: {
       cachedInputTokens: number;
       inputTokens: number;
@@ -219,8 +218,8 @@ const normalizeCodexUsage = (usage: any) => {
 };
 
 /**
- * Consume `codex exec --json` JSONL without exposing model output. This is the
- * compatibility parser for older CLIs without app-server support.
+ * Consume `codex exec --json` JSONL, turning its events into progress phases without exposing
+ * model output.
  */
 const createCodexEventParser = (onProgress: CodexOptions['onProgress']) => {
   let lastMessage = '';
@@ -278,14 +277,6 @@ const createCodexEventParser = (onProgress: CodexOptions['onProgress']) => {
 
   return { flush, push: reader.push };
 };
-
-const isCodexAppServerUnavailableError = (error: unknown) =>
-  Boolean(
-    error &&
-    typeof error === 'object' &&
-    'code' in error &&
-    error.code === CODEX_APP_SERVER_UNAVAILABLE_CODE,
-  );
 
 const runCodex = async (
   repoRoot: string,
@@ -361,321 +352,10 @@ const runCodex = async (
     }
   };
 
-  /**
-   * Use Codex app-server for walkthroughs because it exposes genuine reasoning
-   * and agent-message deltas. The deltas are accumulated privately into the
-   * same final structured response returned by `codex exec`.
-   */
-  const invokeCodexAppServer = async (codexModel: string): Promise<string> => {
-    const reasoningEffort = getOpenAIModelReasoningEffort(codexModel, options.reasoningEffort);
-    const environment = await getCommandEnvironment();
-    return new Promise((resolve, reject) => {
-      const commandTransport = resolveAgentCommandTransport(
-        options.commandTransport,
-        getCodexCommand,
-      );
-      const child = commandTransport.spawn(
-        commandTransport.command,
-        [
-          'app-server',
-          '--stdio',
-          ...(reasoningEffort
-            ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
-            : []),
-        ],
-        {
-          cwd: repoRoot,
-          env: environment,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        },
-      );
-      let finished = false;
-      let lastError = '';
-      let lineBuffer = '';
-      let nextRequestId = 1;
-      let stderr = '';
-      let streamedMessage = '';
-      let usage:
-        | {
-            cachedInputTokens: number;
-            inputTokens: number;
-            outputTokens: number;
-            reasoningOutputTokens: number;
-            totalTokens: number;
-          }
-        | undefined;
-
-      const pendingRequests: Map<
-        number,
-        { reject: (error: Error) => void; resolve: (result: any) => void }
-      > = new Map();
-
-      const timer = setTimeout(() => {
-        if (!finished) {
-          finished = true;
-          child.kill('SIGTERM');
-          reject(new Error(timeoutMessage));
-        }
-      }, timeoutMs);
-
-      const send = (message: unknown) => {
-        if (!finished) {
-          child.stdin.write(`${JSON.stringify(message)}\n`);
-        }
-      };
-
-      const request = (method: string, params: unknown) => {
-        const id = nextRequestId;
-        nextRequestId += 1;
-        return new Promise((resolveRequest, rejectRequest) => {
-          pendingRequests.set(id, {
-            reject: rejectRequest,
-            resolve: resolveRequest,
-          });
-          send({ id, method, params });
-        });
-      };
-
-      const fail = (error: Error) => {
-        if (finished) {
-          return;
-        }
-        finished = true;
-        clearTimeout(timer);
-        child.kill('SIGTERM');
-        reject(error);
-      };
-
-      const succeed = (message: string) => {
-        if (finished) {
-          return;
-        }
-        finished = true;
-        clearTimeout(timer);
-        child.kill('SIGTERM');
-        resolve(message);
-      };
-
-      const handleMessage = (message: any) => {
-        if (message?.id != null && pendingRequests.has(message.id)) {
-          const pending = pendingRequests.get(message.id);
-          pendingRequests.delete(message.id);
-          if (message.error) {
-            const detail = oneLine(
-              message.error?.message || JSON.stringify(message.error),
-              'Codex app server request failed.',
-            );
-            pending?.reject(new Error(detail));
-          } else {
-            pending?.resolve(message.result);
-          }
-          return;
-        }
-
-        // App-server can issue approval/tool requests to the client. Walkthrough
-        // generation is deliberately non-interactive and read-only.
-        if (message?.id != null && typeof message.method === 'string') {
-          send({
-            error: {
-              code: -32601,
-              message: 'Codophon walkthrough generation does not handle interactive requests.',
-            },
-            id: message.id,
-          });
-          return;
-        }
-
-        const method = message?.method;
-        const params = message?.params;
-        if (method === 'thread/tokenUsage/updated') {
-          usage = normalizeCodexUsage(params?.tokenUsage?.total);
-          return;
-        }
-        if (
-          method === 'thread/started' ||
-          method === 'turn/started' ||
-          (method === 'item/started' && params?.item?.type === 'reasoning') ||
-          method === 'item/reasoning/textDelta' ||
-          method === 'item/reasoning/summaryTextDelta'
-        ) {
-          options.onProgress?.('agent-generation');
-          return;
-        }
-        if (method === 'item/agentMessage/delta') {
-          options.onProgress?.('response-received');
-          if (typeof params?.delta === 'string') {
-            streamedMessage += params.delta;
-          }
-          return;
-        }
-        if (method === 'item/completed' && params?.item?.type === 'agentMessage') {
-          options.onProgress?.('response-received');
-          if (!streamedMessage && typeof params.item.text === 'string') {
-            streamedMessage = params.item.text;
-          }
-          return;
-        }
-        if (method === 'error') {
-          const detail = oneLine(params?.error?.message);
-          if (detail) {
-            lastError = detail;
-          }
-          return;
-        }
-        if (method !== 'turn/completed') {
-          return;
-        }
-
-        const turn = params?.turn;
-        if (turn?.status !== 'completed') {
-          fail(
-            new Error(
-              oneLine(
-                turn?.error?.message || lastError,
-                'Codex could not complete the walkthrough.',
-              ),
-            ),
-          );
-          return;
-        }
-        if (!streamedMessage) {
-          const finalMessage = Array.isArray(turn.items)
-            ? turn.items.findLast((item: { type: string }) => item?.type === 'agentMessage')?.text
-            : '';
-          if (typeof finalMessage === 'string') {
-            streamedMessage = finalMessage;
-          }
-        }
-        if (!streamedMessage.trim()) {
-          fail(new Error('Codex did not produce a final answer.'));
-          return;
-        }
-        options.onMetrics?.({
-          transport: 'app-server',
-          usage: usage ?? normalizeCodexUsage(turn?.usage ?? params?.usage),
-        });
-        succeed(streamedMessage);
-      };
-
-      child.stdout.on('data', (chunk) => {
-        lineBuffer += chunk.toString();
-        let newlineIndex = lineBuffer.indexOf('\n');
-        while (newlineIndex !== -1) {
-          const line = lineBuffer.slice(0, newlineIndex).trim();
-          lineBuffer = lineBuffer.slice(newlineIndex + 1);
-          if (line) {
-            try {
-              handleMessage(JSON.parse(line));
-            } catch {
-              // App-server stdout is JSONL; malformed lines are retained via
-              // stderr/close diagnostics instead of reaching the renderer.
-            }
-          }
-          newlineIndex = lineBuffer.indexOf('\n');
-        }
-      });
-      child.stderr.on('data', (chunk) => {
-        stderr += chunk.toString();
-      });
-      child.stdin.on('error', (error) => {
-        if (!finished) {
-          fail(error);
-        }
-      });
-      child.on('error', (error) => {
-        fail(getCodexLaunchError(error));
-      });
-      child.on('close', (code, signal) => {
-        if (finished) {
-          return;
-        }
-        const message = oneLine(
-          stderr || lastError,
-          signal
-            ? `Codex app server was terminated by ${signal}.`
-            : `Codex app server exited with code ${code}.`,
-        );
-        const error = new Error(message);
-        if (
-          /\b(?:app-server|stdio)\b.*\b(?:unrecognized|unknown|unsupported)\b/i.test(message) ||
-          /\b(?:unrecognized|unknown|unsupported)\b.*\b(?:app-server|stdio)\b/i.test(message)
-        ) {
-          Object.assign(error, { code: CODEX_APP_SERVER_UNAVAILABLE_CODE });
-        }
-        fail(getCodexLaunchError(error));
-      });
-
-      void (async () => {
-        await request('initialize', {
-          capabilities: {
-            experimentalApi: true,
-            requestAttestation: false,
-          },
-          clientInfo: {
-            name: 'codophon',
-            title: 'Codophon',
-            version: '1',
-          },
-        });
-        send({ method: 'initialized' });
-        const thread = await request('thread/start', {
-          approvalPolicy: 'never',
-          config: {
-            model_reasoning_effort: reasoningEffort,
-          },
-          cwd: repoRoot,
-          ephemeral: true,
-          model: codexModel,
-          sandbox: 'read-only',
-          serviceName: 'codophon',
-        });
-        const threadId = (thread as { thread?: { id?: unknown } } | undefined)?.thread?.id;
-        if (typeof threadId !== 'string' || !threadId) {
-          throw new Error('Codex app server did not create a thread.');
-        }
-        await request('turn/start', {
-          approvalPolicy: 'never',
-          cwd: repoRoot,
-          effort: reasoningEffort,
-          input: [
-            {
-              text: prompt,
-              text_elements: [],
-              type: 'text',
-            },
-          ],
-          model: codexModel,
-          outputSchema: schema,
-          sandboxPolicy: {
-            networkAccess: false,
-            type: 'readOnly',
-          },
-          threadId,
-        });
-      })().catch((error) => {
-        fail(getCodexLaunchError(error));
-      });
-    });
-  };
-
-  const invokeCodex = async (codexModel: string) => {
-    if (!options.onProgress) {
-      return invokeCodexExec(codexModel);
-    }
-    try {
-      return await invokeCodexAppServer(codexModel);
-    } catch (error) {
-      if (!isCodexAppServerUnavailableError(error)) {
-        throw error;
-      }
-      return invokeCodexExec(codexModel);
-    }
-  };
-
   return withModelFallback(
     model,
     fallbackModels,
-    invokeCodex,
+    invokeCodexExec,
     isOpenAIModelAvailabilityError,
     options,
     Boolean(options.reasoningEffort?.trim()),
@@ -685,7 +365,6 @@ const runCodex = async (
 export {
   CODEX_NOT_FOUND_CODE,
   CODEX_TIMEOUT_MS,
-  cleanText,
   DEFAULT_OPENAI_MODEL,
   FALLBACK_OPENAI_MODEL,
   getCodexCommand,
@@ -694,5 +373,4 @@ export {
   normalizeOpenAIModel,
   OPENAI_MODELS,
   runCodex,
-  truncate,
 };

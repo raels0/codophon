@@ -1,6 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
-import { createServer, type RequestListener, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { removeGitTestDirectory } from './git.ts';
@@ -34,21 +33,6 @@ export const createTemporaryWorkingDirectory = (cwd: string) => {
     },
   };
 };
-
-export const bindDisposableHttpServer = async (server: Server, host = '127.0.0.1') => {
-  await new Promise<void>((resolveListen) => {
-    server.listen(0, host, resolveListen);
-  });
-  return {
-    ...server,
-    async [Symbol.asyncDispose]() {
-      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
-    },
-  };
-};
-
-export const createDisposableHttpServer = async (handler: RequestListener, host = '127.0.0.1') =>
-  bindDisposableHttpServer(createServer(handler), host);
 
 export const createTemporaryEnvironment = (
   overrides: Readonly<Record<string, string | undefined>>,

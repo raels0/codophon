@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { beforeEach, expect, test } from 'vite-plus/test';
 import {
@@ -302,144 +302,6 @@ test.each([
   expect(attempts).toEqual(['gpt-6-sol', 'gpt-5.6-terra']);
 });
 
-test('streams Codex app-server reasoning and message deltas as semantic progress', async () => {
-  await using directory = await createTemporaryDirectory('codophon-codex-progress-');
-  const fakeCodexPath = join(directory.path, 'codex');
-  const requestsPath = join(directory.path, 'requests.txt');
-  await using _environment = createTemporaryEnvironment({ CODOPHON_CODEX_PATH: fakeCodexPath });
-
-  await writeFile(
-    fakeCodexPath,
-    `#!/usr/bin/env node
-const { appendFileSync } = require('node:fs');
-const readline = require('node:readline');
-const requestsPath = ${JSON.stringify(requestsPath)};
-for (const arg of process.argv.slice(2)) {
-  appendFileSync(requestsPath, JSON.stringify({ arg }) + '\\n');
-}
-const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');
-readline.createInterface({ input: process.stdin }).on('line', (line) => {
-  const message = JSON.parse(line);
-  appendFileSync(requestsPath, JSON.stringify({ message }) + '\\n');
-  if (message.method === 'initialize') {
-    send({ id: message.id, result: {} });
-  } else if (message.method === 'thread/start') {
-    send({ id: message.id, result: { thread: { id: 'thread-1' } } });
-    send({ method: 'thread/started', params: { thread: { id: 'thread-1' } } });
-  } else if (message.method === 'turn/start') {
-    send({ id: message.id, result: { turn: { id: 'turn-1' } } });
-    send({ method: 'turn/started', params: { threadId: 'thread-1', turn: { id: 'turn-1' } } });
-    send({
-      method: 'item/started',
-      params: { item: { id: 'reasoning-1', type: 'reasoning' } },
-    });
-    send({
-      method: 'item/reasoning/summaryTextDelta',
-      params: { delta: 'Reasoning privately.' },
-    });
-    send({
-      method: 'item/agentMessage/delta',
-      params: { delta: '{"version":' },
-    });
-    send({
-      method: 'item/agentMessage/delta',
-      params: { delta: '1}' },
-    });
-    send({
-      method: 'item/completed',
-      params: { item: { text: '{"version":1}', type: 'agentMessage' } },
-    });
-    send({
-      method: 'thread/tokenUsage/updated',
-      params: {
-        tokenUsage: {
-          total: {
-            cachedInputTokens: 80,
-            inputTokens: 100,
-            outputTokens: 25,
-            reasoningOutputTokens: 10,
-            totalTokens: 125,
-          },
-        },
-      },
-    });
-    send({
-      method: 'turn/completed',
-      params: { turn: { items: [], status: 'completed' } },
-    });
-  }
-});
-`,
-  );
-  await chmod(fakeCodexPath, 0o755);
-  const phases: Array<string> = [];
-  const metrics: Array<any> = [];
-
-  await expect(
-    runCodex(directory.path, 'prompt', {}, 'walkthrough.json', 'Timed out.', {
-      model: 'gpt-6.1-sol',
-      reasoningEffort: 'high',
-      onProgress: (phase) => phases.push(phase),
-      onMetrics: (value) => metrics.push(value),
-    }),
-  ).resolves.toBe('{"version":1}');
-
-  expect(phases).toEqual([
-    'agent-generation',
-    'agent-generation',
-    'agent-generation',
-    'agent-generation',
-    'response-received',
-    'response-received',
-    'response-received',
-  ]);
-  expect(metrics).toEqual([
-    {
-      transport: 'app-server',
-      usage: {
-        cachedInputTokens: 80,
-        inputTokens: 100,
-        outputTokens: 25,
-        reasoningOutputTokens: 10,
-        totalTokens: 125,
-      },
-    },
-  ]);
-
-  const records = (await readFile(requestsPath, 'utf8'))
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line));
-  expect(records.filter((record) => record.arg).map((record) => record.arg)).toContain(
-    'app-server',
-  );
-  expect(records.filter((record) => record.arg).map((record) => record.arg)).toContain(
-    'model_reasoning_effort="high"',
-  );
-  const threadStart = records.find((record) => record.message?.method === 'thread/start').message;
-  expect(threadStart.params).toMatchObject({
-    approvalPolicy: 'never',
-    cwd: directory.path,
-    ephemeral: true,
-    model: 'gpt-6.1-sol',
-    config: { model_reasoning_effort: 'high' },
-    sandbox: 'read-only',
-  });
-  const turnStart = records.find((record) => record.message?.method === 'turn/start').message;
-  expect(turnStart.params).toMatchObject({
-    approvalPolicy: 'never',
-    cwd: directory.path,
-    effort: 'high',
-    model: 'gpt-6.1-sol',
-    outputSchema: {},
-    sandboxPolicy: {
-      networkAccess: false,
-      type: 'readOnly',
-    },
-    threadId: 'thread-1',
-  });
-});
-
 test('reports Codex exec token usage for eval instrumentation', async () => {
   const { transport } = createCommandTransport((commandProcess) => {
     commandProcess.stdin.on(
@@ -483,24 +345,31 @@ test('reports Codex exec token usage for eval instrumentation', async () => {
   ]);
 });
 
-test('falls back to codex exec when app-server is unavailable', async () => {
+test('reports walkthrough progress from codex exec events', async () => {
+  const events = [
+    { thread_id: 't1', type: 'thread.started' },
+    { item: { type: 'reasoning' }, type: 'item.completed' },
+    { item: { text: '{"version":1}', type: 'agent_message' }, type: 'item.completed' },
+  ];
   const { transport } = createCommandTransport((commandProcess) => {
-    if (commandProcess.args[0] === 'app-server') {
-      queueMicrotask(() => {
-        commandProcess.stderr("error: unrecognized subcommand 'app-server'");
-        commandProcess.close(2);
-      });
-      return;
-    }
-    commandProcess.stdin.on('finish', () => void completeCodexExec(commandProcess));
+    commandProcess.stdin.on(
+      'finish',
+      () =>
+        void completeCodexExec(
+          commandProcess,
+          '{"version":1}',
+          events.map((event) => `${JSON.stringify(event)}\n`).join(''),
+        ),
+    );
+  });
+  const phases: Array<string> = [];
+
+  await runCodex('/repo', 'prompt', {}, 'walkthrough.json', 'Timed out.', {
+    commandTransport: transport,
+    onProgress: (phase) => phases.push(phase),
   });
 
-  await expect(
-    runCodex('/repo', 'prompt', {}, 'walkthrough.json', 'Timed out.', {
-      commandTransport: transport,
-      onProgress: () => {},
-    }),
-  ).resolves.toBe('{"version":1}');
+  expect(phases).toEqual(['agent-generation', 'agent-generation', 'response-received']);
 });
 
 test('forwards per-call Codex reasoning effort overrides', async () => {
@@ -554,8 +423,8 @@ test('authenticates Codex from the login shell environment when the app inherite
   await using directory = await createTemporaryDirectory('codophon-codex-login-env-');
   const fakeShell = join(directory.path, 'fake-login-shell');
   // A GUI-launched Codophon keeps launchd's minimal environment: no
-  // OPENAI_API_KEY, even when the user's login shell exports one. Both the
-  // app-server and exec transports must receive the login shell variables.
+  // OPENAI_API_KEY, even when the user's login shell exports one, so Codex must
+  // receive the login shell variables.
   await writeFile(
     fakeShell,
     `#!/bin/sh
@@ -568,13 +437,6 @@ OPENAI_API_KEY='from-login-shell' exec /bin/sh -c "$4"
     SHELL: fakeShell,
   });
   const { calls, transport } = createCommandTransport((commandProcess) => {
-    if (commandProcess.args[0] === 'app-server') {
-      queueMicrotask(() => {
-        commandProcess.stderr("error: unrecognized subcommand 'app-server'");
-        commandProcess.close(2);
-      });
-      return;
-    }
     commandProcess.stdin.on('finish', () => void completeCodexExec(commandProcess));
   });
 
@@ -585,9 +447,6 @@ OPENAI_API_KEY='from-login-shell' exec /bin/sh -c "$4"
     }),
   ).resolves.toBe('{"version":1}');
 
-  expect(calls[0].args[0]).toBe('app-server');
-  expect(calls).toHaveLength(2);
-  for (const call of calls) {
-    expect(call.options.env?.OPENAI_API_KEY).toBe('from-login-shell');
-  }
+  expect(calls).toHaveLength(1);
+  expect(calls[0].options.env?.OPENAI_API_KEY).toBe('from-login-shell');
 });

@@ -1,4 +1,3 @@
-import type { MarkdownAnnotationAnchor } from '@nkzw/mdx-editor';
 import type { AgentBackend, AgentNotFoundCode } from './config/agents.ts';
 
 export type DiffSection = {
@@ -253,38 +252,6 @@ export type SaveRepositoryFileResult = {
   status: 'conflict' | 'saved';
 };
 
-export type PlanCommentAuthor = {
-  avatarUrl?: string;
-  email?: string;
-  id: string;
-  name: string;
-  username?: string;
-};
-
-export type PlanCommentMessage = {
-  author: PlanCommentAuthor;
-  body: string;
-  createdAt: string;
-  id: string;
-  updatedAt: string;
-};
-
-export type PlanCommentThread = {
-  anchor: MarkdownAnnotationAnchor;
-  canReply?: boolean;
-  canResolve?: boolean;
-  createdAt: string;
-  createdBy: PlanCommentAuthor;
-  id: string;
-  messages: ReadonlyArray<PlanCommentMessage>;
-  resolution?: {
-    reason: 'agent-handled' | 'anchor-removed';
-    resolvedAt: string;
-  };
-  status: 'open' | 'resolved';
-  updatedAt: string;
-};
-
 export type WalkthroughContext = {
   changedFiles?: ReadonlyArray<{
     path: string;
@@ -334,8 +301,6 @@ export type AgentSkillStatus = {
 };
 
 /** @deprecated Use {@link AgentSkillStatus}. */
-export type CodexSkillStatus = AgentSkillStatus;
-
 export type TerminalHelperStatus = {
   command: string;
   installed: boolean;
