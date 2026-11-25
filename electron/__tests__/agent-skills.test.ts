@@ -1,49 +1,11 @@
 import { lstat, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import type { App, Dialog } from 'electron';
 import { expect, test, vi } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { buildInstallSkillMenuItem, listAgentSkills } = require('../agent-skills.cjs') as {
-  buildInstallSkillMenuItem: (install: (skill: { id: string }, browserWindow: unknown) => void) => {
-    label: string;
-    submenu: Array<{
-      click: (menuItem: unknown, browserWindow: unknown) => void;
-      label: string;
-    }>;
-  };
-  listAgentSkills: () => ReadonlyArray<{
-    agentLabel: string;
-    files?: ReadonlyArray<{
-      legacyManagedMarkers?: ReadonlyArray<string>;
-      managedMarker: string;
-      sourceSubdir: string;
-      targetSubdir: string;
-    }>;
-    id: string;
-    label: string;
-    targets: ReadonlyArray<{ sourceSubdir: string; targetSubdir: string }>;
-  }>;
-};
-const { createSkillInstaller } = require('../main/agent-skill.cjs') as {
-  createSkillInstaller: (options: {
-    app: {
-      getPath: (name: string) => string;
-      isPackaged: boolean;
-    };
-    dialog: {
-      showMessageBox: (options: unknown) => Promise<void>;
-    };
-    renderManagedFile?: (file: { sourceSubdir: string }, template: string) => string;
-    root: string;
-    skill: ReturnType<typeof listAgentSkills>[number];
-  }) => {
-    getStatus: () => { installed: boolean; path: string };
-    install: () => Promise<boolean>;
-    refreshManagedFiles: () => void;
-  };
-};
+import { buildInstallSkillMenuItem, listAgentSkills } from '../agent-skills.ts';
+import { createSkillInstaller } from '../main/agent-skill.ts';
+import { createTerminalHelper } from '../main/terminal-helper.ts';
 
 test('lists every bundled skill with its installation target', () => {
   expect(listAgentSkills()).toEqual([
@@ -211,41 +173,18 @@ test('replaces a dangling terminal helper symlink on reinstall', async () => {
   const root = join(directory.path, 'app');
   const source = join(root, 'bin/codophon.js');
   const target = join(home, '.local/bin/codophon');
-
-  const fs = require('node:fs') as typeof import('node:fs');
-  const accessSync = fs.accessSync;
-  // Keep the helper out of the real /opt/homebrew/bin and /usr/local/bin.
-  const access = vi.spyOn(fs, 'accessSync').mockImplementation((path, mode) => {
-    if (path === '/opt/homebrew/bin' || path === '/usr/local/bin') {
-      throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
-    }
-    accessSync(path, mode);
+  await mkdir(join(root, 'bin'), { recursive: true });
+  await writeFile(source, '');
+  await mkdir(join(home, '.local/bin'), { recursive: true });
+  await symlink(join(directory.path, 'old-app/bin/codophon.js'), target);
+  const helper = createTerminalHelper({
+    app: { getPath: () => home, isPackaged: false } as unknown as App,
+    dialog: { showMessageBox: async () => ({ response: 0 }) } as unknown as Dialog,
+    root,
+    // Keep the helper out of the real /opt/homebrew/bin and /usr/local/bin.
+    systemBinDirectories: [],
   });
-  const helperPath = require.resolve('../main/terminal-helper.cjs');
-  delete require.cache[helperPath];
-  const { createTerminalHelper } = require(helperPath) as {
-    createTerminalHelper: (options: {
-      app: { getPath: (name: string) => string; isPackaged: boolean };
-      dialog: { showMessageBox: (options: unknown) => Promise<void> };
-      root: string;
-    }) => { installTerminalHelper: (browserWindow?: unknown) => Promise<boolean> };
-  };
 
-  try {
-    await mkdir(join(root, 'bin'), { recursive: true });
-    await writeFile(source, '');
-    await mkdir(join(home, '.local/bin'), { recursive: true });
-    await symlink(join(directory.path, 'old-app/bin/codophon.js'), target);
-    const helper = createTerminalHelper({
-      app: { getPath: () => home, isPackaged: false },
-      dialog: { showMessageBox: async () => {} },
-      root,
-    });
-
-    await expect(helper.installTerminalHelper()).resolves.toBe(true);
-    await expect(realpath(target)).resolves.toBe(await realpath(source));
-  } finally {
-    access.mockRestore();
-    delete require.cache[helperPath];
-  }
+  await expect(helper.installTerminalHelper(null)).resolves.toBe(true);
+  await expect(realpath(target)).resolves.toBe(await realpath(source));
 });

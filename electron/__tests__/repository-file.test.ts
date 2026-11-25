@@ -1,5 +1,4 @@
 import { chmod, lstat, readFile, stat, symlink, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
@@ -8,15 +7,7 @@ import type {
   SaveRepositoryFileRequest,
   SaveRepositoryFileResult,
 } from '../../core/types.ts';
-
-const require = createRequire(import.meta.url);
-const { readRepositoryFile, writeRepositoryFile } = require('../repository-file.cjs') as {
-  readRepositoryFile: (root: string, path: string) => Promise<RepositoryFileDocument>;
-  writeRepositoryFile: (
-    root: string,
-    request: SaveRepositoryFileRequest,
-  ) => Promise<SaveRepositoryFileResult>;
-};
+import { readRepositoryFile, writeRepositoryFile } from '../repository-file.ts';
 
 test('saves UTF-8 source without changing line endings, BOM, or executable permissions', async () => {
   await using directory = await createTemporaryDirectory('codophon-edit-');

@@ -1,30 +1,5 @@
-import { createRequire } from 'node:module';
 import { expect, test } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-
-const { parseRemoteUrl, parseReviewUrl } = require('../review-source.cjs') as {
-  parseRemoteUrl: (value: string) => {
-    host: string;
-    organization?: string;
-    project?: string;
-    projectPath: string;
-    provider: 'github' | 'azure-devops';
-    repo?: string;
-    webHost?: string;
-  } | null;
-  parseReviewUrl: (value: string) => {
-    host: string;
-    number: number;
-    organization?: string;
-    owner?: string;
-    project?: string;
-    projectPath: string;
-    provider: 'github' | 'azure-devops';
-    repo?: string;
-    url: string;
-  } | null;
-};
+import { parseRemoteUrl, parseReviewUrl } from '../review-source.ts';
 
 test('parseReviewUrl reads canonical GitHub pull request URLs', () => {
   expect(parseReviewUrl('https://github.com/raels0/codophon/pull/1728')).toEqual({

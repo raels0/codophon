@@ -16,7 +16,7 @@ import {
   getHunkOrdinal,
   getSectionWalkthroughHunks,
   isSyntheticWalkthroughHunk,
-} from './narrative-walkthrough-diff.js';
+} from './narrative-walkthrough-diff.ts';
 import { getWalkthroughReviewIdentity } from './review-identity.ts';
 
 type NarrativeLineCount = {

@@ -1,3 +1,4 @@
+import { AGENT_LABELS } from '../config/agents.ts';
 import type { CodophonAgentBackend } from '../config/types.ts';
 import type { AgentSkillStatus, CodophonLaunchOptions, TerminalHelperStatus } from '../types.ts';
 
@@ -11,12 +12,6 @@ export const defaultLaunchOptions: CodophonLaunchOptions = {
 export const defaultAgentSkillStatus: AgentSkillStatus = {
   installed: false,
   path: '',
-};
-
-const AGENT_LABELS: Record<CodophonAgentBackend, string> = {
-  claude: 'Claude Code',
-  codex: 'Codex',
-  opencode: 'OpenCode',
 };
 
 export const getAgentLabel = (backend: CodophonAgentBackend): string =>

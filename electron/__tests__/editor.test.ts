@@ -1,28 +1,5 @@
-import { createRequire } from 'node:module';
 import { afterEach, beforeEach, expect, test } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-const { createEditorOpener } = require('../main/editor.cjs') as {
-  createEditorOpener: (options: {
-    getEditorCommand?: () => string;
-    platform?: NodeJS.Platform;
-    shell: {
-      openPath: (path: string) => Promise<string>;
-    };
-  }) => {
-    getEditorCommands: (
-      absolutePath: string,
-      context?: {
-        lineNumber?: number;
-        repoPath?: string;
-      },
-    ) => Array<{
-      args: Array<string>;
-      command: string;
-    }>;
-    parseEditorCommand: (command: string) => Array<string>;
-  };
-};
+import { createEditorOpener } from '../main/editor.ts';
 
 const originalCodophonEditor = process.env.CODOPHON_EDITOR;
 

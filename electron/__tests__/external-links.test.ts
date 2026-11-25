@@ -1,13 +1,5 @@
-import { createRequire } from 'node:module';
 import { expect, test, vi } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-const { attachExternalLinkHandling } = require('../external-links.cjs') as {
-  attachExternalLinkHandling: (
-    webContents: FakeWebContents,
-    openExternal: (url: string) => Promise<void>,
-  ) => void;
-};
+import { attachExternalLinkHandling } from '../external-links.ts';
 
 type WindowOpenHandler = (details: { url: string }) => { action: 'allow' | 'deny' };
 

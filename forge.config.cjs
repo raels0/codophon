@@ -10,7 +10,9 @@ const entitlementsPath = join(__dirname, 'electron/entitlements.plist');
 const iconPath = existsSync(join(__dirname, 'electron/icons/icon.icns'))
   ? './electron/icons/icon'
   : undefined;
-const walkthroughDiffRuntimePath = 'core/lib/narrative-walkthrough-diff.js';
+// The renderer source in core/ is bundled into dist/ and left out of the package, except for
+// these modules that the main process and CLI also load at runtime.
+const sharedRuntimeModules = ['core/config/agents.ts', 'core/lib/narrative-walkthrough-diff.ts'];
 const osxNotarize =
   process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID
     ? {
@@ -46,11 +48,10 @@ const osxNotarize =
 module.exports = {
   hooks: {
     packageAfterCopy: async (_forgeConfig, buildPath) => {
-      const source = join(__dirname, walkthroughDiffRuntimePath);
-      const destination = join(buildPath, walkthroughDiffRuntimePath);
-
-      await mkdir(dirname(destination), { recursive: true });
-      await copyFile(source, destination);
+      for (const path of sharedRuntimeModules) {
+        await mkdir(dirname(join(buildPath, path)), { recursive: true });
+        await copyFile(join(__dirname, path), join(buildPath, path));
+      }
     },
   },
   makers: [

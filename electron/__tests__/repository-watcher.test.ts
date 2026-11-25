@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
 import { readFile, realpath, stat, utimes, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
@@ -23,62 +22,14 @@ type SubscriberState = {
   visible: boolean;
 };
 
-type Coordinator = {
-  attach: (subscriber: {
-    getState: () => SubscriberState;
-    id: number;
-    notify: (root: string) => void;
-    root: string;
-  }) => Promise<void>;
-  beginWrite: (
-    id: number,
-    path: string,
-  ) => { generation: number; path: string; root: string } | null;
-  checkNow: (id: number) => Promise<void>;
-  detach: (id: number) => void;
-  finishWrite: (
-    token: { generation: number; path: string; root: string } | null,
-    version: string | null,
-  ) => void;
-  focus: (id: number) => void;
-  getWatcherCount: () => number;
-  getWatcherSubscriberCount: (root: string) => number;
-  reset: (id: number, root: string) => Promise<void>;
-  visibilityChanged: (id: number) => void;
-};
-
-const require = createRequire(import.meta.url);
-const {
+import {
   createRepositoryWatcherCoordinator,
   getRepositoryWatcherPollInterval,
   normalizeRepositoryWatcherPath,
   parseRepositoryWatcherStatus,
   readRepositoryWatcherSnapshot,
   repositoryWatcherSnapshotsMatchExpectedWrites,
-} = require('../repository-watcher.cjs') as {
-  createRepositoryWatcherCoordinator: (options: {
-    clearTimeoutImpl?: (timer: unknown) => void;
-    readSnapshot: (
-      root: string,
-      exactPaths: Iterable<string>,
-      knownDirtyPaths: Iterable<string>,
-    ) => Promise<Snapshot>;
-    setTimeoutImpl?: (callback: () => void, delay: number) => unknown;
-  }) => Coordinator;
-  getRepositoryWatcherPollInterval: (states: ReadonlyArray<SubscriberState>) => number;
-  normalizeRepositoryWatcherPath: (path: string, pathSeparator?: string) => string;
-  parseRepositoryWatcherStatus: (raw: string) => { head: string; paths: Array<string> };
-  readRepositoryWatcherSnapshot: (
-    root: string,
-    exactPaths?: Iterable<string>,
-    knownDirtyPaths?: Iterable<string>,
-  ) => Promise<Snapshot>;
-  repositoryWatcherSnapshotsMatchExpectedWrites: (
-    left: Snapshot,
-    right: Snapshot,
-    expectedPathVersions: ReadonlyMap<string, string>,
-  ) => boolean;
-};
+} from '../repository-watcher.ts';
 
 const execFileAsync = promisify(execFile);
 const largeTestFileSize = 8 * 1024 * 1024;

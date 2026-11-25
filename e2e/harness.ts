@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
@@ -10,13 +9,10 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
-import type { LaunchRequest } from '../electron/main/launch-request.cjs';
+import type { LaunchRequest } from '../electron/main/launch-request.ts';
 
 const root = resolve(import.meta.dirname, '..');
-const require = createRequire(import.meta.url);
-const { encodeLaunchRequest } = require('../electron/main/launch-request.cjs') as {
-  encodeLaunchRequest: (request: LaunchRequest) => string;
-};
+import { encodeLaunchRequest } from '../electron/main/launch-request.ts';
 
 const gitEnvironment = {
   GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z',

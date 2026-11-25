@@ -1,12 +1,12 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-const { encodeLaunchRequest, getInitialRepositoryPath, readLaunch } =
-  require('../main/launch-request.cjs') as typeof import('../main/launch-request.cjs');
+import {
+  encodeLaunchRequest,
+  getInitialRepositoryPath,
+  readLaunch,
+} from '../main/launch-request.ts';
 
 test('a CLI launch request reaches the app intact, wherever Electron puts it in argv', () => {
   const argument = encodeLaunchRequest({

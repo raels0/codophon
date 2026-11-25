@@ -71,9 +71,7 @@ const detectDevServer = (url) =>
 // Assemble the narrative walkthrough authoring guide: the prose, then the live
 // schema object serialized inline (single-sourced from the validator — no copy).
 const buildWalkthroughGuide = () => {
-  const { narrativeWalkthroughSchema } = require(
-    resolve(root, 'electron/narrative-walkthrough.cjs'),
-  );
+  const { narrativeWalkthroughSchema } = require('../electron/narrative-walkthrough.ts');
   const guide = readFileSync(resolve(root, 'bin/walkthrough-guide.md'), 'utf8').trimEnd();
   return `${guide}\n\n\`\`\`json\n${JSON.stringify(narrativeWalkthroughSchema, null, 2)}\n\`\`\`\n`;
 };
@@ -190,7 +188,7 @@ const run = async () => {
     }
   }
 
-  const { encodeLaunchRequest } = require(resolve(root, 'electron/main/launch-request.cjs'));
+  const { encodeLaunchRequest } = await import(resolve(root, 'electron/main/launch-request.ts'));
   // The app launches detached, so wait for it to report whether it applied the
   // walkthrough file; otherwise a file it rejects would still exit 0 here.
   const walkthroughResultDirectory = walkthroughFilePath

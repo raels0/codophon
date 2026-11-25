@@ -1,53 +1,17 @@
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { createRequire } from 'node:module';
 import { PassThrough } from 'node:stream';
 import { expect, test, vi } from 'vite-plus/test';
 import { createDefinitionNavigationRepository } from '../../core/__tests__/helpers/definition-navigation/create-repository.mjs';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
 import type { DefinitionSearchRequest, DefinitionSearchResult } from '../../core/types.ts';
-
-const require = createRequire(import.meta.url);
-const {
+import {
   classifyDefinition,
   createDefinitionSearchCoordinator,
   findDefinitions,
   parseGrepOutput,
   runBoundedGitGrep,
-} = require('../definition-search.cjs') as {
-  classifyDefinition: (
-    identifier: string,
-    path: string,
-    line: string,
-  ) => { kind: string; strength: number } | null;
-  createDefinitionSearchCoordinator: (searchDefinitions?: typeof findDefinitions) => {
-    cancel: (key: number) => void;
-    find: (
-      key: number,
-      repositoryPath: string,
-      request: DefinitionSearchRequest,
-    ) => Promise<DefinitionSearchResult>;
-  };
-  findDefinitions: (
-    repositoryPath: string,
-    request: DefinitionSearchRequest,
-  ) => Promise<DefinitionSearchResult>;
-  parseGrepOutput: (
-    output: string,
-    revision: string | null,
-  ) => Array<{ line: string; lineNumber: number; path: string }>;
-  runBoundedGitGrep: (
-    repositoryPath: string,
-    args: ReadonlyArray<string>,
-    options?: {
-      maxMatches?: number;
-      maxOutputBytes?: number;
-      signal?: AbortSignal;
-      spawnProcess?: typeof import('node:child_process').spawn;
-      timeoutMs?: number;
-    },
-  ) => Promise<string>;
-};
+} from '../definition-search.ts';
 
 const request = {
   identifier: 'formatGreeting',

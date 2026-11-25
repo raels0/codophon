@@ -1,18 +1,7 @@
 import { EventEmitter } from 'node:events';
-import { createRequire } from 'node:module';
 import type { BrowserWindow } from 'electron';
 import { afterEach, beforeEach, expect, test, vi } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-const { createWindowRevealController } = require('../window-reveal.cjs') as {
-  createWindowRevealController: (
-    window: BrowserWindow,
-    useOpacity?: boolean,
-  ) => {
-    isPending: () => boolean;
-    markContentReady: () => void;
-  };
-};
+import { createWindowRevealController } from '../window-reveal.ts';
 
 const createWindow = (useOpacity = false) => {
   const window = Object.assign(new EventEmitter(), {

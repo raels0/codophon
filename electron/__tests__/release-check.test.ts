@@ -1,12 +1,8 @@
 import { mkdtemp, rm } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-const { createReleaseCheck } =
-  require('../release-check.cjs') as typeof import('../release-check.cjs');
+import { createReleaseCheck } from '../release-check.ts';
 
 let stateDirectory = '';
 beforeEach(async () => {

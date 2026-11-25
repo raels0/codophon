@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
@@ -12,15 +11,7 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { createWalkthroughCommit } = require('../walkthrough-commit.cjs') as {
-  createWalkthroughCommit: (
-    repoPath: string,
-    request: { body?: string; paths?: ReadonlyArray<string>; subject?: string },
-    onOutput?: (chunk: string) => void,
-  ) => Promise<{ hash: string; status: 'committed' } | { reason: string; status: 'failed' }>;
-};
+import { createWalkthroughCommit } from '../walkthrough-commit.ts';
 
 const execFileAsync = promisify(execFile);
 

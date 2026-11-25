@@ -11,6 +11,7 @@ import {
   truncate,
   writeFile,
 } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -21,7 +22,7 @@ import {
   resolvePullRequestTargetUrl,
   resolvePullRequestUrl,
 } from '../../bin/arguments.js';
-import launchRequest from '../../electron/main/launch-request.cjs';
+import * as launchRequest from '../../electron/main/launch-request.ts';
 import { createFakeCommandLogger } from './helpers/cli.ts';
 import { removeGitTestDirectory } from './helpers/git.ts';
 import { getGitTestEnvironment } from './helpers/git.ts';
@@ -33,6 +34,9 @@ import {
 
 const execFileAsync = promisify(execFile);
 const { decodeLaunchRequest } = launchRequest;
+const forgeConfig = createRequire(import.meta.url)('../../forge.config.cjs') as {
+  hooks: { packageAfterCopy: (config: unknown, buildPath: string) => Promise<void> };
+};
 
 const git = async (repo: string, args: ReadonlyArray<string>) => {
   await execFileAsync('git', ['-C', repo, ...args], {
@@ -477,6 +481,7 @@ for (const executableName of ['codophon.exe', 'codophon']) {
     }
     await chmod(join(appPath, 'bin', 'codophon-app'), 0o755);
     await symlink(resolve('electron'), join(appPath, 'electron'), 'dir');
+    await forgeConfig.hooks.packageAfterCopy({}, appPath);
     await writeFile(join(appPath, 'package.json'), await readFile(resolve('package.json')));
     await writeFile(join(directory.path, executableName), fakePackagedExecutable);
     await chmod(join(directory.path, executableName), 0o755);

@@ -1,19 +1,7 @@
-import { createRequire } from 'node:module';
 import { expect, test } from 'vite-plus/test';
-import type { AgentPromptOverrides } from '../../core/config/types.ts';
+import { changedFiles, repositoryState } from '../../core/__tests__/helpers/fixtures.ts';
 import narrativeSchemaJson from '../../core/walkthrough/narrative-walkthrough.schema.json' with { type: 'json' };
-
-const require = createRequire(import.meta.url);
-const { readCommitMessageReply } = require('../walkthrough-commit-message.cjs') as {
-  readCommitMessageReply: (
-    state: unknown,
-    request: unknown,
-    agent: { label: string; run: (root: string, prompt: string) => Promise<string> },
-    options: unknown,
-    prompts: AgentPromptOverrides,
-  ) => Promise<unknown>;
-};
-const {
+import {
   assertWalkthroughHunkIdsResolve,
   buildNarrativeWalkthroughPrompt,
   getNarrativeWalkthroughCacheKey,
@@ -21,55 +9,8 @@ const {
   normalizeNarrativeWalkthrough,
   readNarrativeWalkthrough,
   resolveNarrativeWalkthroughModel,
-} = require('../narrative-walkthrough.cjs') as {
-  assertWalkthroughHunkIdsResolve: (input: unknown, files: ReadonlyArray<unknown>) => void;
-  buildNarrativeWalkthroughPrompt: (
-    state: any,
-    context?: unknown,
-    agentLabel?: string,
-    customPrompt?: string,
-    previousWalkthrough?: unknown,
-    prompts?: AgentPromptOverrides,
-  ) => string;
-  getNarrativeWalkthroughCacheKey: (
-    state: any,
-    agent: any,
-    model: unknown,
-    context?: unknown,
-    customPrompt?: string,
-    reasoningEffort?: string,
-    prompts?: AgentPromptOverrides,
-  ) => string;
-  narrativeWalkthroughSchema: {
-    properties: Record<string, any>;
-    required: ReadonlyArray<string>;
-    type: string;
-  };
-  normalizeNarrativeWalkthrough: (
-    input: unknown,
-    files: ReadonlyArray<{
-      oldPath?: string;
-      path: string;
-      sections: ReadonlyArray<{ id: string; kind: string; patch: string }>;
-      status: string;
-    }>,
-    facts?: Record<string, unknown>,
-  ) => any;
-  readNarrativeWalkthrough: (
-    state: any,
-    agent: any,
-    agentOptions: any,
-    context?: unknown,
-    customPrompt?: string,
-    previousWalkthrough?: unknown,
-  ) => Promise<any>;
-  resolveNarrativeWalkthroughModel: (
-    state: any,
-    agent: any,
-    model: unknown,
-    reasoningEffort?: string,
-  ) => string;
-};
+} from '../narrative-walkthrough.ts';
+import { readCommitMessageReply } from '../walkthrough-commit-message.ts';
 
 const addedPatch = (count: number) =>
   `@@ -0,0 +1,${count} @@\n${Array.from({ length: count }, (_, index) => `+line ${index + 1}`).join('\n')}\n`;
@@ -82,7 +23,7 @@ const manyHunkPatch = Array.from(
   (_, index) => `@@ -${index + 1} +${index + 1} @@\n-old ${index + 1}\n+new ${index + 1}\n`,
 ).join('');
 
-const files = [
+const files = changedFiles([
   {
     path: 'src/App.tsx',
     sections: [
@@ -115,19 +56,19 @@ const files = [
     sections: [{ id: 'wide.py:staged', kind: 'staged', patch: fourHunkPatch }],
     status: 'modified',
   },
-];
+]);
 
 test('reports only the long-running walkthrough generation phases', async () => {
   const phases: Array<string> = [];
   let runOptions: any;
   let runSchema: any;
-  const state = {
+  const state = repositoryState({
     branch: 'main',
     files,
     generatedAt: 1,
     root: '/repo',
     source: { type: 'working-tree' },
-  };
+  });
   const agent = {
     defaultTimeoutMs: 90_000,
     id: 'codex',
@@ -277,7 +218,7 @@ test('keeps the renderer JSON schema in sync with the live narrative schema', ()
 });
 
 test('generates an overview with snapshot evidence and resolves only real hunk links', async () => {
-  const state = {
+  const state = repositoryState({
     branch: 'main',
     files: [
       ...files,
@@ -295,7 +236,7 @@ test('generates an overview with snapshot evidence and resolves only real hunk l
       headSha: 'new-head',
       type: 'pull-request',
     },
-  };
+  });
   const diagram = {
     mermaid: 'flowchart LR\n  Keyboard --> NextVisibleFile',
     title: 'How keyboard navigation picks the next file',
@@ -697,13 +638,13 @@ test('walkthrough titles must stand alone, even when the previous prose is alrea
 });
 
 test('replaces the walkthrough summary guidance and invalidates the generation cache', () => {
-  const state = {
+  const state = repositoryState({
     branch: 'main',
     files: files.slice(0, 1),
     generatedAt: 1,
     root: '/repo',
     source: { type: 'working-tree' },
-  };
+  });
   const agent = { id: 'claude', label: 'Claude Code', normalizeModel: String };
   const overrides = { walkthroughSummary: 'Start by naming the main tradeoff.' };
   const prompt = buildNarrativeWalkthroughPrompt(
@@ -724,13 +665,13 @@ test('replaces the walkthrough summary guidance and invalidates the generation c
 });
 
 test('shares the commit guidance between the working tree walkthrough and rewrite', async () => {
-  const state = {
+  const state = repositoryState({
     branch: 'main',
     files: files.slice(0, 1),
     generatedAt: 1,
     root: '/repo',
     source: { type: 'working-tree' },
-  };
+  });
   const overrides = { commitMessage: 'Use Conventional Commits.' };
   let prompt = '';
   await readCommitMessageReply(
@@ -754,7 +695,7 @@ test('shares the commit guidance between the working tree walkthrough and rewrit
 });
 
 test('builds cache keys from semantic generation inputs', () => {
-  const state = {
+  const state = repositoryState({
     branch: 'main',
     files: [{ ...files[0], fingerprint: 'fingerprint-1' }],
     generatedAt: 1,
@@ -769,7 +710,7 @@ test('builds cache keys from semantic generation inputs', () => {
       type: 'pull-request',
       url: 'https://github.com/raels0/codophon/pull/42',
     },
-  };
+  });
   const agent = {
     id: 'claude',
     label: 'Claude Code',
@@ -1283,7 +1224,7 @@ test('generates ids for otherwise valid chapters that omit them', () => {
 });
 
 test('normalizes walkthroughs made only of synthetic hunks', () => {
-  const syntheticFiles = [
+  const syntheticFiles = changedFiles([
     {
       path: 'public/logo.png',
       sections: [
@@ -1312,7 +1253,7 @@ test('normalizes walkthroughs made only of synthetic hunks', () => {
       ],
       status: 'modified',
     },
-  ];
+  ]);
   const result = normalizeNarrativeWalkthrough(
     {
       chapters: [

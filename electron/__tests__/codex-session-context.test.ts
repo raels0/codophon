@@ -5,7 +5,7 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-import { readCodexSessionContext } from '../codex-session-context.cjs';
+import { readCodexSessionContext } from '../codex-session-context.ts';
 
 const sessionId = '019e5e57-e7d6-7392-9ad1-ad959319d2fb';
 

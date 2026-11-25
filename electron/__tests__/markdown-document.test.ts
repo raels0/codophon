@@ -1,37 +1,8 @@
 import { chmod, lstat, readFile, stat, symlink, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { readMarkdownDocument, writeMarkdownDocument } = require('../markdown-document.cjs') as {
-  readMarkdownDocument: (
-    request: { kind: 'plan' | 'repository'; path: string },
-    context: { planFile?: string; repositoryRoot: string },
-  ) => Promise<{
-    content: string;
-    id: string;
-    kind: 'plan' | 'repository';
-    path: string;
-    version: string;
-  }>;
-  writeMarkdownDocument: (
-    request: {
-      baseVersion: string;
-      content: string;
-      kind: 'plan' | 'repository';
-      path: string;
-    },
-    context: { planFile?: string; repositoryRoot: string },
-  ) => Promise<{
-    content: string;
-    id: string;
-    kind: 'plan' | 'repository';
-    path: string;
-    version: string;
-  }>;
-};
+import { readMarkdownDocument, writeMarkdownDocument } from '../markdown-document.ts';
 
 test('reads and atomically writes repository Markdown documents', async () => {
   await using directory = await createTemporaryDirectory('codophon-markdown-');

@@ -5,7 +5,7 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-import { createCopilotModelLoader, matchCopilotModels } from '../copilot-models.cjs';
+import { createCopilotModelLoader, matchCopilotModels } from '../copilot-models.ts';
 import {
   DEFAULT_OPENCODE_MODEL,
   FALLBACK_OPENCODE_MODEL,
@@ -17,7 +17,7 @@ import {
   normalizeOpenCodeModel,
   renderOpenCodeCommand,
   runOpenCode,
-} from '../opencode.cjs';
+} from '../opencode.ts';
 import { createCommandTransport } from './helpers/command-transport.ts';
 
 // Spawning OpenCode resolves the login shell environment, so tests either

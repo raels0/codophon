@@ -11,7 +11,7 @@ import {
   getClaudeCommand,
   normalizeClaudeModel,
   runClaude,
-} from '../claude.cjs';
+} from '../claude.ts';
 import { createCommandTransport } from './helpers/command-transport.ts';
 
 // Spawning Claude resolves the login shell environment, so tests either

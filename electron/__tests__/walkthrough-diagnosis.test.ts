@@ -1,20 +1,11 @@
 import { execFile } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
 import { getGitTestEnvironment } from '../../core/__tests__/helpers/git.ts';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { diagnoseWalkthroughMismatch } = require('../walkthrough-diagnosis.cjs') as {
-  diagnoseWalkthroughMismatch: (params: {
-    hasFiles: boolean;
-    input: unknown;
-    repositoryRoot: string;
-  }) => Promise<string | null>;
-};
+import { diagnoseWalkthroughMismatch } from '../walkthrough-diagnosis.ts';
 
 const execFileAsync = promisify(execFile);
 

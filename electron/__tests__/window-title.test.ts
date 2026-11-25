@@ -1,26 +1,9 @@
-import { createRequire } from 'node:module';
 import { expect, test } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-type WindowRepositoryState = {
-  root: string;
-  source:
-    | { type: 'working-tree' }
-    | { ref: string; type: 'branch-working-tree' }
-    | { ref: string; type: 'commit' }
-    | { number?: number; type: 'pull-request'; url: string }
-    | { base: string; head: string; symmetric: boolean; type: 'range' };
-};
-
-const { getPlanWindowTitle, getRepositoryWindowTitle, restoreRepositoryWindowTitleAfterLoad } =
-  require('../window-title.cjs') as {
-    getPlanWindowTitle: (planFile: string) => string;
-    getRepositoryWindowTitle: (state: WindowRepositoryState) => string;
-    restoreRepositoryWindowTitleAfterLoad: (
-      target: { isDestroyed: () => boolean; setTitle: (title: string) => void },
-      initialRepositoryState: Promise<WindowRepositoryState> | null,
-    ) => Promise<void>;
-  };
+import {
+  getPlanWindowTitle,
+  getRepositoryWindowTitle,
+  restoreRepositoryWindowTitleAfterLoad,
+} from '../window-title.ts';
 
 const root = '/Users/reviewer/Documents/GitHub/MyCoolRepo';
 

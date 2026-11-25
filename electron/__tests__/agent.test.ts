@@ -5,7 +5,7 @@ import {
   getAgentMenuModels,
   listAgents,
   normalizeAgentBackend,
-} from '../agent.cjs';
+} from '../agent.ts';
 
 test('normalizes unknown agent backends to the default', () => {
   expect(normalizeAgentBackend('claude')).toBe('claude');

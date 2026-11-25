@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
@@ -8,11 +7,7 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { readGitIdentity } = require('../git-state/working-tree.cjs') as {
-  readGitIdentity: (path: string) => Promise<{ email: string; name: string }>;
-};
+import { readGitIdentity } from '../git-state/working-tree.ts';
 
 const execFileAsync = promisify(execFile);
 const git = async (repo: string, args: ReadonlyArray<string>) => {

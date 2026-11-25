@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { expect, test } from 'vite-plus/test';
 
 type FakeBrowserWindow = {
@@ -15,25 +14,7 @@ type SentMessage = {
   requestId: number;
 };
 
-const require = createRequire(import.meta.url);
-const { createPendingCommentsClipboardController } = require('../pending-comments.cjs') as {
-  createPendingCommentsClipboardController: (options: {
-    clipboard: {
-      writeText: (text: string) => void;
-    };
-    timeoutMs?: number;
-  }) => {
-    copyPendingCommentsToClipboard: (
-      browserWindows: ReadonlyArray<FakeBrowserWindow>,
-    ) => Promise<void>;
-    handleCopyPendingCommentsResult: (
-      event: { sender: { id: number } },
-      requestId: number,
-      markdown: unknown,
-    ) => void;
-    requestPendingCommentsMarkdown: (browserWindow: FakeBrowserWindow) => Promise<string>;
-  };
-};
+import { createPendingCommentsClipboardController } from '../pending-comments.ts';
 
 const createFakeWindow = (id: number) => {
   const sentMessages: Array<SentMessage> = [];

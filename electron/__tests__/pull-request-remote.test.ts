@@ -1,32 +1,12 @@
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
 import { getGitTestEnvironment, removeGitTestDirectory } from '../../core/__tests__/helpers/git.ts';
-
-const require = createRequire(import.meta.url);
-
-const { selectPullRequestRemote } = require('../git-state/pull-request.cjs') as {
-  selectPullRequestRemote: (
-    repoRoot: string,
-    pullRequest: {
-      number: number;
-      owner: string;
-      repo: string;
-      url: string;
-    },
-    expectedHeadSha?: string,
-  ) => Promise<{
-    direction: 'fetch';
-    name: string;
-    owner: string;
-    repo: string;
-  }>;
-};
+import { selectPullRequestRemote } from '../git-state/pull-request.ts';
 
 const execFileAsync = promisify(execFile);
 const pullRequest = {

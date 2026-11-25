@@ -53,7 +53,10 @@ test('edits made on disk while reviewing show up after refreshing', async ({ hom
   try {
     await expect.poll(() => app.diffText()).toContain('export const sub');
     repo.write({ 'math.ts': `${after}export const mul = (a: number, b: number) => a * b;\n` });
-    await expect(app.page.getByText('Local changes detected,')).toBeVisible();
+    // Codophon re-checks the repository when its window regains focus, as when a user switches
+    // back from their editor. (Without focus it polls every 30s.)
+    await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.emit('focus'));
+    await expect(app.page.locator('.repository-change-banner')).toHaveClass(/\bvisible\b/);
     expect(await app.diffText()).not.toContain('export const mul');
     await app.page.getByRole('button', { name: 'refresh to see them.' }).click();
     await expect.poll(() => app.diffText()).toContain('export const mul');

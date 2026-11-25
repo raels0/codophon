@@ -1,22 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vite-plus/test';
 import type { AgentPromptOverrides } from '../../core/config/types.ts';
 import type { ReviewAssistantResult } from '../../core/types.ts';
-
-const require = createRequire(import.meta.url);
-const { readReviewAssistantReply } = require('../review-assist.cjs') as {
-  readReviewAssistantReply: (
-    state: unknown,
-    request: unknown,
-    agent: unknown,
-    options: unknown,
-    prompts?: AgentPromptOverrides,
-  ) => Promise<ReviewAssistantResult>;
-};
+import { readReviewAssistantReply } from '../review-assist.ts';
 const answer = { reply: 'Use the shared helper.', requests: [], version: 1 };
 type Run = (
   root: string,

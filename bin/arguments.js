@@ -2,9 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import reviewSource from '../electron/review-source.cjs';
-
-const { parseReviewUrl, resolveReviewUrl } = reviewSource;
+import { isAgentBackend } from '../core/config/agents.ts';
+import { parseReviewUrl, resolveReviewUrl } from '../electron/review-source.ts';
 
 export const flagDefinitions = [
   {
@@ -290,10 +289,7 @@ export const parseArguments = (args) => {
       : values.completions === true
         ? ''
         : null;
-  const agentBackend =
-    values.agent === 'codex' || values.agent === 'claude' || values.agent === 'opencode'
-      ? values.agent
-      : null;
+  const agentBackend = isAgentBackend(values.agent) ? values.agent : null;
   let pullRequestBranch = null;
   let pullRequestNumber = null;
   let pullRequestProvider = null;

@@ -25,9 +25,9 @@ afterEach(() => {
 });
 
 const loadStore = () => {
-  const path = require.resolve('../walkthrough-store.cjs');
+  const path = require.resolve('../walkthrough-store.ts');
   delete require.cache[path];
-  return require('../walkthrough-store.cjs') as typeof import('../walkthrough-store.cjs');
+  return require('../walkthrough-store.ts') as typeof import('../walkthrough-store.ts');
 };
 
 const sampleWalkthrough = () =>

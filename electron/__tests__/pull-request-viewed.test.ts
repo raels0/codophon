@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
@@ -9,23 +8,11 @@ import {
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
 import type { RepositoryState, SetPullRequestFileViewedRequest } from '../../core/types.ts';
-
-const require = createRequire(import.meta.url);
-const { readPullRequestState, readPullRequestViewedFiles, setPullRequestFileViewed } =
-  require('../git-state/pull-request.cjs') as {
-    readPullRequestState: (
-      path: string,
-      source: SetPullRequestFileViewedRequest['source'],
-    ) => Promise<RepositoryState>;
-    readPullRequestViewedFiles: (
-      path: string,
-      reference: typeof pullRequest,
-    ) => Promise<{ headSha: string; paths: Set<string> }>;
-    setPullRequestFileViewed: (
-      path: string,
-      request: SetPullRequestFileViewedRequest,
-    ) => Promise<void>;
-  };
+import {
+  readPullRequestState,
+  readPullRequestViewedFiles,
+  setPullRequestFileViewed,
+} from '../git-state/pull-request.ts';
 const execFileAsync = promisify(execFile);
 const pullRequest = {
   number: 12,

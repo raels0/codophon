@@ -5,7 +5,7 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-import { readOpenCodeSessionContext } from '../opencode-session-context.cjs';
+import { readOpenCodeSessionContext } from '../opencode-session-context.ts';
 
 const sessionId = 'ses_121b4816bffebMr9YE52O4870p';
 

@@ -1,13 +1,9 @@
 import { readFile, unlink, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
 import type { CodophonLaunchOptions, RepositoryState } from '../../core/types.ts';
-
-const require = createRequire(import.meta.url);
-const { createWalkthroughLaunchController } =
-  require('../main/walkthrough-launch.cjs') as typeof import('../main/walkthrough-launch.cjs');
+import { createWalkthroughLaunchController } from '../main/walkthrough-launch.ts';
 
 const createLaunch = async () => {
   const directory = await createTemporaryDirectory('codophon-walkthrough-launch-');

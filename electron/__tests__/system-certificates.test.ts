@@ -1,32 +1,12 @@
-import { createRequire } from 'node:module';
 import { expect, test, vi } from 'vite-plus/test';
+import { createSystemCertificateTrust } from '../system-certificates.ts';
 
-const require = createRequire(import.meta.url);
-const tls = require('node:tls') as {
-  getCACertificates?: (source?: string) => Array<string>;
-  setDefaultCACertificates?: (certificates: Array<string>) => void;
-};
-const modulePath = require.resolve('../system-certificates.cjs');
+type FakeTls = Parameters<typeof createSystemCertificateTrust>[0];
 
-const loadTrustSystemCertificates = (tlsImpl: typeof tls) => {
-  const originalGetCACertificates = tls.getCACertificates;
-  const originalSetDefaultCACertificates = tls.setDefaultCACertificates;
-  tls.getCACertificates = tlsImpl.getCACertificates;
-  tls.setDefaultCACertificates = tlsImpl.setDefaultCACertificates;
-  delete require.cache[modulePath];
-  const { trustSystemCertificates } = require(modulePath) as {
-    trustSystemCertificates: () => { reason?: string; status: string };
-  };
-
-  return {
-    restore: () => {
-      tls.getCACertificates = originalGetCACertificates;
-      tls.setDefaultCACertificates = originalSetDefaultCACertificates;
-      delete require.cache[modulePath];
-    },
-    trustSystemCertificates,
-  };
-};
+const loadTrustSystemCertificates = (tlsImpl: FakeTls) => ({
+  restore: () => {},
+  trustSystemCertificates: createSystemCertificateTrust(tlsImpl),
+});
 
 test('merges default, extra, and system certificates once', { concurrent: false }, () => {
   const setDefaultCACertificates = vi.fn();

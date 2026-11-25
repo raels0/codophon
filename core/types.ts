@@ -1,4 +1,5 @@
 import type { MarkdownAnnotationAnchor } from '@nkzw/mdx-editor';
+import type { AgentBackend, AgentNotFoundCode } from './config/agents.ts';
 import type { CodophonDiffStyle, CodophonReviewTheme } from './config/types.ts';
 
 export type DiffSection = {
@@ -316,7 +317,7 @@ export type WalkthroughContext = {
 };
 
 export type CodophonLaunchOptions = {
-  agentBackend?: 'codex' | 'claude' | 'opencode';
+  agentBackend?: AgentBackend;
   claudeSessionId?: string;
   codexSessionId?: string;
   opencodeSessionId?: string;
@@ -477,7 +478,7 @@ export type WalkthroughDesignOverview = {
 };
 
 export type NarrativeWalkthrough = {
-  agent: 'codex' | 'claude' | 'opencode';
+  agent: AgentBackend;
   chapters: ReadonlyArray<WalkthroughChapter>;
   /**
    * When present, the diff is a committable staging set: Codophon adds a commit
@@ -510,7 +511,7 @@ export type NarrativeWalkthroughResult =
       walkthrough: NarrativeWalkthrough;
     }
   | {
-      code?: 'CODEX_NOT_FOUND' | 'CLAUDE_NOT_FOUND' | 'OPENCODE_NOT_FOUND';
+      code?: AgentNotFoundCode;
       reason: string;
       status: 'unavailable';
     };
@@ -617,7 +618,7 @@ export type ReviewAssistantResult =
       status: 'ready';
     }
   | {
-      code?: 'CODEX_NOT_FOUND' | 'CLAUDE_NOT_FOUND' | 'OPENCODE_NOT_FOUND';
+      code?: AgentNotFoundCode;
       context?: ReviewAssistantContext;
       reason: string;
       status: 'unavailable';
@@ -694,7 +695,7 @@ export type DiffImageContentResult =
 export type CodophonTheme = 'system' | 'light' | 'dark';
 
 export type CodophonPreferences = {
-  agentBackend: 'codex' | 'claude' | 'opencode';
+  agentBackend: AgentBackend;
   claudeModel: string;
   codeFontFamily: string;
   codeFontSize: number;

@@ -1,17 +1,14 @@
 import { execFile } from 'node:child_process';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, test } from 'vite-plus/test';
-import type { PullRequestReviewComment, ReviewSource } from '../types.ts';
-import { getGitTestEnvironment } from './helpers/git.ts';
-import { createTemporaryDirectory, createTemporaryEnvironment } from './helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { AZ_NOT_FOUND_CODE, getAzCommand, getAzCommandTransport } =
-  require('../../electron/git-state/azure-devops-api.cjs') as typeof import('../../electron/git-state/azure-devops-api.cjs');
-const {
+import {
+  AZ_NOT_FOUND_CODE,
+  getAzCommand,
+  getAzCommandTransport,
+} from '../../electron/git-state/azure-devops-api.ts';
+import {
   createAzureDevOpsThreadContext,
   normalizeAzureDevOpsReviewComment,
   parseAzureDevOpsPullRequestUrl,
@@ -21,8 +18,10 @@ const {
   resolveAzureDevOpsContentRefs,
   submitAzureDevOpsComment,
   submitAzureDevOpsReview,
-} =
-  require('../../electron/git-state/azure-devops.cjs') as typeof import('../../electron/git-state/azure-devops.cjs');
+} from '../../electron/git-state/azure-devops.ts';
+import type { PullRequestReviewComment, ReviewSource } from '../types.ts';
+import { getGitTestEnvironment } from './helpers/git.ts';
+import { createTemporaryDirectory, createTemporaryEnvironment } from './helpers/resources.ts';
 
 const execFileAsync = promisify(execFile);
 

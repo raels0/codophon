@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
 import { chmod, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
@@ -9,43 +8,11 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { findMatchingWindowIdentity, getWindowIdentity, getWindowIdentityForRepositoryState } =
-  require('../window-identity.cjs') as {
-    findMatchingWindowIdentity: (
-      identity: { key: string } | null,
-      existingIdentities: ReadonlyMap<number, { key: string } | null>,
-    ) => number | null;
-    getWindowIdentity: (
-      repositoryPath: string,
-      launchOptions?: {
-        source?:
-          | { type: 'working-tree' }
-          | { ref: string; type: 'branch' }
-          | { baseRef: string; headRef: string; ref: string; type: 'branch-diff' }
-          | { ref: string; type: 'commit' }
-          | {
-              number?: number;
-              owner?: string;
-              repo?: string;
-              type: 'pull-request';
-              url: string;
-            };
-        walkthrough?: boolean;
-        walkthroughFile?: string;
-        planFile?: string;
-        planResultFile?: string;
-      },
-    ) => { key: string; repositoryRoot: string; sourceKey: string } | null;
-    getWindowIdentityForRepositoryState: (state: {
-      root: string;
-      source:
-        | { type: 'working-tree' }
-        | { ref: string; type: 'commit' }
-        | { baseRef: string; headRef: string; ref: string; type: 'branch-diff' };
-    }) => { key: string; repositoryRoot: string; sourceKey: string } | null;
-  };
+import {
+  findMatchingWindowIdentity,
+  getWindowIdentity,
+  getWindowIdentityForRepositoryState,
+} from '../window-identity.ts';
 
 const execFileAsync = promisify(execFile);
 

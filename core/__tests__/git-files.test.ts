@@ -1,6 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
 import { mkdtemp, readFile, realpath } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -23,18 +22,8 @@ type FileContentResult = {
   };
 };
 
-type GitFilesModule = {
-  readGitFiles: (
-    repoRoot: string,
-    ref: string,
-    paths: ReadonlyArray<string>,
-    options?: { refScopedEmptyCacheKey?: boolean },
-  ) => Promise<Map<string, FileContentResult>>;
-};
-
 const execFileAsync = promisify(execFile);
-const require = createRequire(import.meta.url);
-const { readGitFiles } = require('../../electron/git-state/git-files.cjs') as GitFilesModule;
+import { readGitFiles } from '../../electron/git-state/git-files.ts';
 const batchCases = [
   { fileCount: 20, maximumProcesses: 6 },
   { fileCount: 160, maximumProcesses: 6 },

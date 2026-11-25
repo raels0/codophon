@@ -1,0 +1,105 @@
+import { spawn } from 'node:child_process';
+
+// Marks where login shell startup noise (version manager banners, greetings)
+// ends and the `env -0` dump begins.
+const ENVIRONMENT_MARKER = '__CODOPHON_LOGIN_SHELL_ENVIRONMENT__';
+const ENVIRONMENT_COMMAND = `printf '${ENVIRONMENT_MARKER}'; /usr/bin/env -0`;
+const RESOLUTION_TIMEOUT = 10_000;
+const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+const cache: Map<string, Promise<Readonly<Record<string, string>>>> = new Map();
+
+/**
+ * Environment for spawning CLIs on the user's behalf: the login shell fills
+ * variables a GUI launch never inherited, such as `GH_TOKEN` or
+ * `ANTHROPIC_API_KEY`, and the process environment wins for anything it
+ * already defines.
+ */
+const getCommandEnvironment = async (): Promise<Record<string, string | undefined>> => ({
+  ...(await getLoginShellEnvironment()),
+  ...process.env,
+});
+
+/**
+ * The environment of the user's interactive login shell, resolved once per
+ * shell and cached. GUI launches inherit launchd's minimal environment, so variables
+ * like `GH_TOKEN` may only exist in the login shell; resolving them lets CLI
+ * spawns behave the way they would in a terminal. Resolution failures yield
+ * an empty environment instead of an error.
+ */
+const getLoginShellEnvironment = (): Promise<Readonly<Record<string, string>>> => {
+  const shell = process.env.SHELL;
+  if (!shell) {
+    return Promise.resolve({});
+  }
+
+  let environment = cache.get(shell);
+  if (!environment) {
+    environment = resolveLoginShellEnvironment(shell);
+    cache.set(shell, environment);
+  }
+  return environment;
+};
+
+/**
+ * Resolution settles no matter how the interactive login shell behaves: the deadline
+ * force-kills a shell that ignores termination and releases a stdout pipe
+ * kept open by a background child the shell left behind, the case where
+ * `close` trails `exit` indefinitely. A dump the shell completed cleanly
+ * before such a straggler is still used.
+ */
+const resolveLoginShellEnvironment = (
+  shell: string,
+  timeout: number = RESOLUTION_TIMEOUT,
+): Promise<Readonly<Record<string, string>>> =>
+  new Promise((resolve) => {
+    const child = spawn(shell, ['-l', '-i', '-c', ENVIRONMENT_COMMAND], {
+      // Interactive shells can take over the controlling terminal even with
+      // redirected stdio, suspending the caller on its next terminal access.
+      detached: process.platform !== 'win32',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+
+    const stdout: Array<Buffer> = [];
+
+    const finish = (code: number | null) => {
+      clearTimeout(deadline);
+      resolve(code === 0 ? parseEnvironment(Buffer.concat(stdout).toString('utf8')) : {});
+    };
+    const deadline = setTimeout(() => {
+      finish(child.exitCode);
+      if (process.platform !== 'win32' && child.pid) {
+        try {
+          // Include descendants holding stdout open after the shell exits.
+          process.kill(-child.pid, 'SIGKILL');
+        } catch {
+          child.kill('SIGKILL');
+        }
+      } else {
+        child.kill('SIGKILL');
+      }
+      child.stdout.destroy();
+    }, timeout);
+
+    child.stdout.on('data', (chunk) => stdout.push(chunk));
+    child.on('error', () => finish(null));
+    child.on('close', finish);
+  });
+
+const parseEnvironment = (output: string): Readonly<Record<string, string>> => {
+  const markerIndex = output.indexOf(ENVIRONMENT_MARKER);
+  if (markerIndex === -1) {
+    return {};
+  }
+
+  const environment: Record<string, string> = {};
+  for (const entry of output.slice(markerIndex + ENVIRONMENT_MARKER.length).split('\0')) {
+    const separator = entry.indexOf('=');
+    if (separator > 0 && VARIABLE_NAME.test(entry.slice(0, separator))) {
+      environment[entry.slice(0, separator)] = entry.slice(separator + 1);
+    }
+  }
+  return environment;
+};
+
+export { getCommandEnvironment, getLoginShellEnvironment, resolveLoginShellEnvironment };

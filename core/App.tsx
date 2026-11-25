@@ -57,6 +57,7 @@ import { useInitialWindowReveal } from './app/hooks/useInitialWindowReveal.ts';
 import { usePullRequestViewedSync } from './app/hooks/usePullRequestViewedSync.ts';
 import { useResizableSidebar } from './app/hooks/useResizableSidebar.ts';
 import { useReviewFileState } from './app/hooks/useReviewState.ts';
+import { isAgentNotFoundCode } from './config/agents.ts';
 import { createDefaultConfig } from './config/defaults.ts';
 import { getShortcutLabel } from './config/keymap.ts';
 import type { AgentSettingsSection, CodophonConfig } from './config/types.ts';
@@ -1807,9 +1808,7 @@ export default function App({
     sidebarMode === 'walkthrough' &&
     !narrativeWalkthrough &&
     !walkthroughLoading &&
-    (walkthroughError?.code === 'CODEX_NOT_FOUND' ||
-      walkthroughError?.code === 'CLAUDE_NOT_FOUND' ||
-      walkthroughError?.code === 'OPENCODE_NOT_FOUND');
+    isAgentNotFoundCode(walkthroughError?.code);
   const markInitialContentReady = useInitialWindowReveal(
     configLoaded &&
       Boolean(

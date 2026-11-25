@@ -1,38 +1,8 @@
 import { writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const { readWindowState, validateWindowStateOnScreen, writeWindowState } =
-  require('../window-state.cjs') as {
-    readWindowState: (configDir?: string) => {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      isMaximized: boolean;
-      isFullScreen: boolean;
-    } | null;
-    validateWindowStateOnScreen: (
-      state: { x: number; y: number; width: number; height: number },
-      displays: ReadonlyArray<{
-        workArea: { x: number; y: number; width: number; height: number };
-      }>,
-    ) => { x: number; y: number; width: number; height: number } | null;
-    writeWindowState: (
-      state: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        isMaximized: boolean;
-        isFullScreen: boolean;
-      },
-      configDir?: string,
-    ) => void;
-  };
+import { readWindowState, validateWindowStateOnScreen, writeWindowState } from '../window-state.ts';
 
 const validState = {
   height: 720,

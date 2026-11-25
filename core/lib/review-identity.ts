@@ -1,6 +1,6 @@
 import type { ChangedFile } from '../types.ts';
 import type { ReviewIdentity } from './app-types.ts';
-import { getSectionWalkthroughHunks } from './narrative-walkthrough-diff.js';
+import { getSectionWalkthroughHunks } from './narrative-walkthrough-diff.ts';
 
 export const getFileReviewIdentity = (file: ChangedFile): ReviewIdentity => ({
   fingerprint: file.fingerprint,

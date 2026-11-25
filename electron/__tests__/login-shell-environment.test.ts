@@ -8,19 +8,13 @@ import {
 } from '../../core/__tests__/helpers/resources.ts';
 
 const require = createRequire(import.meta.url);
-const { getCommandEnvironment, getLoginShellEnvironment, resolveLoginShellEnvironment } =
-  require('../login-shell-environment.cjs') as {
-    getCommandEnvironment: () => Promise<Record<string, string | undefined>>;
-    getLoginShellEnvironment: () => Promise<Readonly<Record<string, string>>>;
-    resolveLoginShellEnvironment: (
-      shell: string,
-      timeout?: number,
-    ) => Promise<Readonly<Record<string, string>>>;
-  };
-const { findExecutableOnPath } = require('../agent-shared.cjs') as {
-  findExecutableOnPath: (command: string) => string | null;
-};
-const { spawnPty } = require('../pty.cjs') as { spawnPty: typeof import('node-pty').spawn };
+import { findExecutableOnPath } from '../agent-shared.ts';
+import {
+  getCommandEnvironment,
+  getLoginShellEnvironment,
+  resolveLoginShellEnvironment,
+} from '../login-shell-environment.ts';
+import { spawnPty } from '../pty.ts';
 
 const fishPath = findExecutableOnPath('fish');
 const zshPath = findExecutableOnPath('zsh');
@@ -73,7 +67,7 @@ exec /bin/sh -c "$4"
       [
         '-e',
         `const { openSync, closeSync } = require('node:fs');
-const { resolveLoginShellEnvironment } = require(${JSON.stringify(require.resolve('../login-shell-environment.cjs'))});
+const { resolveLoginShellEnvironment } = require(${JSON.stringify(require.resolve('../login-shell-environment.ts'))});
 closeSync(openSync('/dev/tty', 'r'));
 resolveLoginShellEnvironment(${JSON.stringify(shell)}).then((environment) => {
   console.log('CODOPHON_HAS_TERMINAL=' + environment.CODOPHON_HAS_TERMINAL);

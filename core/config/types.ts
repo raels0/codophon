@@ -1,7 +1,8 @@
 export type CodophonDiffStyle = 'split' | 'unified';
 export type CodophonTheme = 'system' | 'light' | 'dark';
 export type CodophonReviewTheme = 'neutral' | 'blue-amber';
-export type CodophonAgentBackend = 'codex' | 'claude' | 'opencode';
+export type { AgentBackend as CodophonAgentBackend } from './agents.ts';
+import type { AgentBackend as CodophonAgentBackend } from './agents.ts';
 
 export type AgentPromptId =
   | 'ask'

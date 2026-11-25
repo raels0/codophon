@@ -1,11 +1,5 @@
-import { createRequire } from 'node:module';
 import { expect, test } from 'vite-plus/test';
-
-const require = createRequire(import.meta.url);
-
-const { normalizeKeyboardLayout } = require('../keyboard-layout.cjs') as {
-  normalizeKeyboardLayout: (raw: unknown) => Record<string, unknown> | null;
-};
+import { normalizeKeyboardLayout } from '../keyboard-layout.ts';
 
 test('rejects the empty array the native module returns when it fails', () => {
   // Arrange: native-keymap catches its own load and read errors internally and

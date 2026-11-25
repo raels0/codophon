@@ -12,7 +12,7 @@ import {
   getCodexInstallPaths,
   normalizeOpenAIModel,
   runCodex,
-} from '../codex.cjs';
+} from '../codex.ts';
 import { createCommandTransport, type FakeCommandProcess } from './helpers/command-transport.ts';
 
 const getArgumentValue = (args: ReadonlyArray<string>, name: string) => {

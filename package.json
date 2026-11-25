@@ -24,7 +24,7 @@
     "skills"
   ],
   "type": "module",
-  "main": "./electron/main.cjs",
+  "main": "./electron/main.ts",
   "scripts": {
     "build": "vp build",
     "codophon": "node ./bin/codophon.js",

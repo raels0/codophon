@@ -1,18 +1,7 @@
-import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline';
 import { beforeEach, expect, test, vi } from 'vite-plus/test';
+import { readCodexModels } from '../codex-models.ts';
 import { createCommandTransport, type FakeCommandProcess } from './helpers/command-transport.ts';
-
-const require = createRequire(import.meta.url);
-const { readCodexModels } = require('../codex-models.cjs') as {
-  readCodexModels: (options?: {
-    commandTransport?: ReturnType<typeof createCommandTransport>['transport'];
-    signal?: AbortSignal;
-    timeoutMs?: number;
-  }) => Promise<
-    ReadonlyArray<{ id: string; label: string; reasoningEfforts: ReadonlyArray<string> }>
-  >;
-};
 
 type Request = {
   id?: number;

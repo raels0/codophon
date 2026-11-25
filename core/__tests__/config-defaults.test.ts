@@ -2,23 +2,16 @@ import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vite-plus/test';
+import {
+  createDefaultConfig as createElectronDefaultConfig,
+  readConfig,
+  watchConfig,
+  writeConfig,
+} from '../../electron/config.ts';
 import packageJson from '../../package.json' with { type: 'json' };
 import schema from '../config/codophon-config.schema.json' with { type: 'json' };
 import { createDefaultConfig } from '../config/defaults.ts';
 import { createTemporaryDirectorySync, createTemporaryEnvironment } from './helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
-const {
-  createDefaultConfig: createElectronDefaultConfig,
-  readConfig,
-  watchConfig,
-  writeConfig,
-} = require('../../electron/config.cjs') as {
-  createDefaultConfig: typeof createDefaultConfig;
-  readConfig: () => ReturnType<typeof createDefaultConfig>;
-  watchConfig: (onChange: (config: ReturnType<typeof createDefaultConfig>) => void) => () => void;
-  writeConfig: (config: ReturnType<typeof createDefaultConfig>) => void;
-};
 
 const readElectronConfig = (raw: unknown) => {
   using home = createTemporaryDirectorySync('codophon-config-home.');
@@ -234,17 +227,25 @@ test('electron config strips trailing commas without changing strings', () => {
   expect(config.keymap.nextHunk).toEqual(['j', 'n']);
 });
 
-test('electron defaults load from packaged app shape', () => {
+const forgeConfig = createRequire(import.meta.url)('../../forge.config.cjs') as {
+  hooks: { packageAfterCopy: (config: unknown, buildPath: string) => Promise<void> };
+};
+
+test('electron defaults load from packaged app shape', async () => {
   using directory = createTemporaryDirectorySync('codophon-package-shape.');
   const packageRoot = directory.path;
   mkdirSync(join(packageRoot, 'config'));
   mkdirSync(join(packageRoot, 'electron'));
+  writeFileSync(join(packageRoot, 'package.json'), '{"type":"module"}');
   copyFileSync('config/defaults.json', join(packageRoot, 'config/defaults.json'));
-  copyFileSync('electron/config.cjs', join(packageRoot, 'electron/config.cjs'));
-  copyFileSync('electron/agent-prompts.cjs', join(packageRoot, 'electron/agent-prompts.cjs'));
+  copyFileSync('electron/config.ts', join(packageRoot, 'electron/config.ts'));
+  copyFileSync('electron/agent-prompts.ts', join(packageRoot, 'electron/agent-prompts.ts'));
+  await forgeConfig.hooks.packageAfterCopy({}, packageRoot);
 
-  const packageRequire = createRequire(join(packageRoot, 'electron/config.cjs'));
-  expect(packageRequire('./config.cjs').createDefaultConfig()).toEqual(createDefaultConfig());
+  const packaged = (await import(
+    join(packageRoot, 'electron/config.ts')
+  )) as typeof import('../../electron/config.ts');
+  expect(packaged.createDefaultConfig()).toEqual(createDefaultConfig());
 });
 
 test('npm package includes runtime config and bundled skills', () => {
