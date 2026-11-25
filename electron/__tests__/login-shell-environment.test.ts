@@ -63,22 +63,23 @@ fi
 exec /bin/sh -c "$4"
 `,
     );
-    const program = `const { openSync, closeSync } = require('node:fs');
+    const probe = join(directory.path, 'probe.cjs');
+    await writeFile(
+      probe,
+      `const { openSync, closeSync } = require('node:fs');
 const { resolveLoginShellEnvironment } = require(${JSON.stringify(require.resolve('../login-shell-environment.ts'))});
 closeSync(openSync('/dev/tty', 'r'));
 resolveLoginShellEnvironment(${JSON.stringify(shell)}).then((environment) => {
   console.log('CODOPHON_HAS_TERMINAL=' + environment.CODOPHON_HAS_TERMINAL);
-});`;
-    // script(1) runs the program on a fresh pseudo-terminal, standing in for
+});
+`,
+    );
+    // script(1) runs the probe on a fresh pseudo-terminal, standing in for
     // launching Codophon from a shell. BSD and util-linux spell it differently.
     const args =
       process.platform === 'darwin'
-        ? ['-q', '/dev/null', process.execPath, '-e', program]
-        : [
-            '-qec',
-            `${JSON.stringify(process.execPath)} -e ${JSON.stringify(program)}`,
-            '/dev/null',
-          ];
+        ? ['-q', '/dev/null', process.execPath, probe]
+        : ['-qec', `'${process.execPath}' '${probe}'`, '/dev/null'];
     const child = spawn('script', args, {
       cwd: directory.path,
       stdio: ['ignore', 'pipe', 'inherit'],
