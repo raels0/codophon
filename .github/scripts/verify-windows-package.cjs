@@ -23,35 +23,13 @@ assert.ok(
   'The native keyboard module must load and run.',
 );
 
-const pty = appRequire('node-pty');
-const marker = 'codophon-native-package-ok';
-const terminal = pty.spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', `echo ${marker}`], {
-  cols: 80,
-  cwd: packagePath,
-  rows: 24,
-});
-let output = '';
-let timedOut = false;
-const timeout = setTimeout(() => {
-  timedOut = true;
-  terminal.kill();
-}, 15_000);
-terminal.onData((/** @type {string} */ data) => {
-  output += data;
-});
-terminal.onExit((/** @type {{ exitCode: number }} */ { exitCode }) => {
-  clearTimeout(timeout);
-  assert.equal(timedOut, false, 'The packaged native terminal must finish within 15 seconds.');
-  assert.equal(exitCode, 0, 'The packaged native terminal must exit successfully.');
-  assert.ok(output.includes(marker), 'The packaged native terminal must return its output.');
-  // Flush the result before exiting: native-keymap keeps its layout listener alive.
-  process.stdout.write(
-    `Verified Windows ${expectedArch}: Electron, keyboard mapping, and native terminal.\n`,
-    (error) => {
-      if (error) {
-        throw error;
-      }
-      process.exit(0);
-    },
-  );
-});
+// Flush the result before exiting: native-keymap keeps its layout listener alive.
+process.stdout.write(
+  `Verified Windows ${expectedArch}: Electron and keyboard mapping.\n`,
+  (error) => {
+    if (error) {
+      throw error;
+    }
+    process.exit(0);
+  },
+);

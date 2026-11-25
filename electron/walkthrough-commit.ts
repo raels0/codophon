@@ -3,21 +3,14 @@
 // reviewer chose to include. Only those paths are committed — any other staged
 // changes are left untouched — so a reviewer can land part of a working tree.
 
+import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { WalkthroughCommitRequest, WalkthroughCommitResult } from '../core/types.ts';
 import { git, validateRepositoryPath } from './git-state/common.ts';
-import { spawnPty } from './pty.ts';
-
-// Cols must match the xterm instance in
-// core/app/components/walkthrough/CommitView.tsx so hook output wraps where the
-// renderer's terminal does.
-const TERMINAL_COLS = 80;
-const TERMINAL_ROWS = 24;
 
 /** Remove ANSI escape sequences (colors, cursor movement, OSC) from text. */
-
 const stripAnsi = (text: string) =>
   text.replaceAll(
     // eslint-disable-next-line no-control-regex
@@ -25,14 +18,9 @@ const stripAnsi = (text: string) =>
     '',
   );
 
-const normalizeTerminalOutput = (text: string) =>
-  stripAnsi(text).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-
 /**
- * Run `git commit` inside a pseudo-terminal, forwarding output chunks as they
- * arrive so the renderer can show pre-commit hook output live. The PTY makes
- * git and its hooks believe they are attached to a real terminal, so they emit
- * the same colors and progress output they would in a shell.
+ * Run `git commit`, forwarding its output (pre-commit hook output included) as
+ * plain text as it arrives so the renderer can show hooks running live.
  */
 const gitStreaming = (
   repoPath: string,
@@ -40,37 +28,32 @@ const gitStreaming = (
   onOutput: ((chunk: string) => void) | undefined,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
-    let child: import('node-pty').IPty;
-    try {
-      child = spawnPty('git', ['-C', repoPath, ...args], {
-        cols: TERMINAL_COLS,
-        cwd: repoPath,
-        env: process.env,
-        name: 'xterm-256color',
-        rows: TERMINAL_ROWS,
-      });
-    } catch (error) {
-      reject(error instanceof Error ? error : new Error(String(error)));
-      return;
-    }
+    const child = spawn('git', ['-C', repoPath, ...args], {
+      cwd: repoPath,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let combined = '';
-    child.onData((chunk) => {
+    const forward = (data: Buffer) => {
+      const chunk = stripAnsi(data.toString()).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
       combined += chunk;
       onOutput?.(chunk);
-    });
-    child.onExit(({ exitCode }) => {
+    };
+    child.stdout.on('data', forward);
+    child.stderr.on('data', forward);
+    child.on('error', reject);
+    child.on('close', (exitCode) => {
       if (exitCode === 0) {
         resolve();
       } else {
-        const output = normalizeTerminalOutput(combined).trim();
-        reject(new Error(output || `git exited with status ${exitCode}`));
+        reject(new Error(combined.trim() || `git exited with status ${exitCode}`));
       }
     });
   });
 
 /**
- * @param repoPath Absolute repository root. *  * @param [onOutput] Receives commit output (hook
- *    output included) as it is produced. *
+ * @param repoPath Absolute repository root.
+ * @param onOutput Receives commit output (hook output included) as it is produced.
  */
 const createWalkthroughCommit = async (
   repoPath: string,

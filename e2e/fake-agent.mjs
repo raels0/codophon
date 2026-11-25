@@ -33,6 +33,7 @@ const answer = schema.properties?.chapters
           title: 'Math helpers',
         },
       ],
+      commit: { body: 'Adds sub next to add.', title: 'Add subtraction helper' },
       designOverview: {
         after: 'Callers can subtract.',
         before: 'Only addition existed.',

@@ -227,7 +227,7 @@ locally; Codophon does not send it to an agent or post it to the PR.
 
 ## Commit from Walkthrough
 
-For local changes, Walkthrough can propose a commit message and run `git commit`. The terminal in the commit view displays Git and hook output while they run. A pseudo-terminal (PTY) lets hooks use terminal colors and prompts.
+For local changes, Walkthrough can propose a commit message and run `git commit`. The commit view streams Git and pre-commit hook output as plain text while they run; if a hook fails, its output stays visible and the commit is not created.
 
 ## Configuration
 

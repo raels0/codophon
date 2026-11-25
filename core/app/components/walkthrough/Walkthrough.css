@@ -1061,13 +1061,14 @@
     transform: scale(0.72);
   }
 }
-.wt-commit-log-term {
+.wt-commit-log-output {
   color: var(--text);
-  font-family: var(--font-mono);
-  overflow-x: auto;
+  font: var(--text-xs) / 1.5 var(--font-mono);
+  margin: 0;
+  max-height: 18em;
+  overflow: auto;
   padding: 10px 14px 12px;
-  /* Anchor ghostty-web's hidden absolutely-positioned input textarea here. */
-  position: relative;
+  white-space: pre-wrap;
 }
 
 .wt-commit-recap {

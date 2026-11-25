@@ -39,11 +39,6 @@ export default defineConfig({
     ],
     options: { typeAware: true, typeCheck: true },
   },
-  optimizeDeps: {
-    // ghostty-web inlines its WASM binary as a huge base64 data URL, which
-    // stalls the dep optimizer; it ships as plain ESM, so skip prebundling.
-    exclude: ['ghostty-web'],
-  },
   plugins: [react({ compiler: true })],
   resolve: {
     alias: [

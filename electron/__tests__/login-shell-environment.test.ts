@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -6,15 +8,14 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-
-const require = createRequire(import.meta.url);
 import { findExecutableOnPath } from '../agent-shared.ts';
 import {
   getCommandEnvironment,
   getLoginShellEnvironment,
   resolveLoginShellEnvironment,
 } from '../login-shell-environment.ts';
-import { spawnPty } from '../pty.ts';
+
+const require = createRequire(import.meta.url);
 
 const fishPath = findExecutableOnPath('fish');
 const zshPath = findExecutableOnPath('zsh');
@@ -62,31 +63,31 @@ fi
 exec /bin/sh -c "$4"
 `,
     );
-    const terminal = spawnPty(
-      process.execPath,
-      [
-        '-e',
-        `const { openSync, closeSync } = require('node:fs');
+    const program = `const { openSync, closeSync } = require('node:fs');
 const { resolveLoginShellEnvironment } = require(${JSON.stringify(require.resolve('../login-shell-environment.ts'))});
 closeSync(openSync('/dev/tty', 'r'));
 resolveLoginShellEnvironment(${JSON.stringify(shell)}).then((environment) => {
   console.log('CODOPHON_HAS_TERMINAL=' + environment.CODOPHON_HAS_TERMINAL);
-});`,
-      ],
-      { cwd: directory.path },
-    );
+});`;
+    // script(1) runs the program on a fresh pseudo-terminal, standing in for
+    // launching Codophon from a shell. BSD and util-linux spell it differently.
+    const args =
+      process.platform === 'darwin'
+        ? ['-q', '/dev/null', process.execPath, '-e', program]
+        : [
+            '-qec',
+            `${JSON.stringify(process.execPath)} -e ${JSON.stringify(program)}`,
+            '/dev/null',
+          ];
+    const child = spawn('script', args, {
+      cwd: directory.path,
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     let output = '';
-    const dataListener = terminal.onData((data) => (output += data));
-    try {
-      const result = await new Promise<{ exitCode: number }>((resolve) => {
-        terminal.onExit(resolve);
-      });
-      expect(result.exitCode).toBe(0);
-      expect(output).toContain('CODOPHON_HAS_TERMINAL=no');
-    } finally {
-      dataListener.dispose();
-      terminal.kill();
-    }
+    child.stdout.on('data', (data: Buffer) => (output += data));
+    const [exitCode] = await once(child, 'close');
+    expect(exitCode).toBe(0);
+    expect(output).toContain('CODOPHON_HAS_TERMINAL=no');
   },
 );
 
