@@ -1,187 +1,105 @@
 name: build-app
 
+# Every push and pull request packages the app for macOS and Windows so packaging breaks
+# surface before a release. Pushing a version tag (v1.2.3) also publishes the zips as a
+# GitHub release.
 on:
   push:
+    branches:
+      - main
     tags:
-      - '*'
+      - 'v*'
+  pull_request:
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: Existing release tag to attach builds to
-        required: true
-        type: string
-      platform:
-        description: Platform to rebuild
-        required: true
-        default: windows
-        type: choice
-        options:
-          - windows
-          - linux
-          - all
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  TAG_NAME: ${{ inputs.release_tag || github.ref_name }}
-
 jobs:
-  create-release:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
+  build-macos:
+    runs-on: macos-latest
+    timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Validate Release Version
-        run: |
-          [[ "${TAG_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          test "${TAG_NAME}" = "v$(node -p "require('./package.json').version")"
-
-      - name: Create Release
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "${TAG_NAME}" >/dev/null 2>&1 \
-            || gh release create "${TAG_NAME}" --draft --generate-notes --title "${TAG_NAME}" --verify-tag
-
-      - name: Verify Existing Release
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release view "${TAG_NAME}"
-
-  build-linux:
-    needs: create-release
-    if: github.event_name == 'push' || inputs.platform == 'linux' || inputs.platform == 'all'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js 24.21.0
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version: 24
 
-      - name: Install Dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y fakeroot rpm libx11-dev libxkbfile-dev
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        id: pnpm-install
+      - uses: pnpm/action-setup@v6
         with:
-          run_install: false
+          cache: true
 
       - name: Cache Electron Downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/electron-cache
-          key: ${{ runner.os }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-arm64-electron-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-electron-
+            ${{ runner.os }}-arm64-electron-
 
-      - name: Install Node Dependencies
-        run: pnpm install
+      - run: pnpm install --frozen-lockfile
 
-      - name: Build Renderer
-        run: pnpm exec vp build
-
-      - name: Build Linux App
-        timeout-minutes: 45
+      - name: Build macOS App
         env:
-          DEBUG: electron-forge:*,electron-packager,@electron/get:*
+          # No signing identity is configured for CI; release zips are unsigned.
+          CODOPHON_UNSIGNED_BUILD: '1'
           ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
-        run: |
-          rm -rf ./out
+        run: pnpm make:mac
 
-          pnpm exec electron-forge make --platform=linux --arch=x64
-          test -d ./out
-
-      - name: Attach Linux App to Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          shopt -s nullglob
-
-          assets=(
-            out/make/deb/x64/*.deb
-            out/make/rpm/x64/*.rpm
-          )
-
-          if [ "${#assets[@]}" -eq 0 ]; then
-            echo "No Linux release assets found."
-            find out -type f
-            exit 1
-          fi
-
-          gh release upload "${TAG_NAME}" "${assets[@]}" --clobber
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codophon-darwin-arm64
+          path: out/make/zip/darwin/arm64/*.zip
+          if-no-files-found: error
 
   build-windows:
-    needs: create-release
-    if: github.event_name == 'push' || inputs.platform == 'windows' || inputs.platform == 'all'
-    name: Windows (${{ matrix.arch }})
+    name: build-windows (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x64
-            runner: windows-2022
+            runner: windows-2025
           - arch: arm64
             runner: windows-11-arm
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Use Node.js 24.21.0
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           architecture: ${{ matrix.arch }}
-          node-version: 24.21.0
+          node-version: 24
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        id: pnpm-install
+      - uses: pnpm/action-setup@v6
         with:
-          run_install: false
+          cache: true
 
       - name: Cache Electron Downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/electron-cache
           key: ${{ runner.os }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.arch }}-electron-
 
-      - name: Install Node Dependencies
-        run: pnpm install
-
-      - name: Build Renderer
-        run: pnpm exec vp build
+      - run: pnpm install --frozen-lockfile
 
       - name: Build Windows App
         shell: bash
-        timeout-minutes: 45
         env:
-          DEBUG: electron-forge:*,electron-packager,@electron/get:*
           ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
         run: |
-          rm -rf ./out
-
+          pnpm exec vp build
           pnpm exec electron-forge make --platform=win32 --arch=${{ matrix.arch }}
-          test -d ./out
 
       - name: Verify Windows Runtime and Native Modules
         shell: pwsh
@@ -193,33 +111,35 @@ jobs:
               ".\out\Codophon-win32-${{ matrix.arch }}", '${{ matrix.arch }}'
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
 
-      - name: Attach Windows App to Release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          shopt -s nullglob
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codophon-win32-${{ matrix.arch }}
+          path: out/make/zip/win32/${{ matrix.arch }}/*.zip
+          if-no-files-found: error
 
-          assets=(
-            out/make/zip/win32/${{ matrix.arch }}/*.zip
-          )
-
-          if [ "${#assets[@]}" -eq 0 ]; then
-            echo "No Windows release assets found."
-            find out -type f
-            exit 1
-          fi
-
-          gh release upload "${TAG_NAME}" "${assets[@]}" --clobber
-
-  publish-release:
-    needs: [build-linux, build-windows]
-    if: github.event_name == 'push'
-    runs-on: ubuntu-22.04
+  release:
+    needs: [build-macos, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
 
     steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate Release Version
+        run: test "${GITHUB_REF_NAME}" = "v$(node -p "require('./package.json').version")"
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+
       - name: Publish Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false --latest
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}" --verify-tag
+          gh release upload "${GITHUB_REF_NAME}" assets/*.zip --clobber
