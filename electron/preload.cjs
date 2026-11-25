@@ -32,44 +32,53 @@ if (document.documentElement) {
 }
 
 /**
- * @template T
- * @param {string} channel
- * @param {(payload: T) => void} callback
+ * @template {keyof import('../core/ipc.ts').Events} K
+ * @param {K} channel
+ * @param {import('../core/ipc.ts').Events[K]} callback
  */
 const subscribe = (channel, callback) => {
-  /** @param {Electron.IpcRendererEvent} _event @param {T} payload */
-  const listener = (_event, payload) => callback(payload);
-  ipcRenderer.on(channel, listener);
-  return () => ipcRenderer.removeListener(channel, listener);
+  /** @param {Electron.IpcRendererEvent} _event @param {Parameters<import('../core/ipc.ts').Events[K]>} args */
+  const listener = (_event, ...args) => Reflect.apply(callback, undefined, args);
+  ipcRenderer.on('codophon:' + channel, listener);
+  return () => ipcRenderer.removeListener('codophon:' + channel, listener);
 };
+
+/**
+ * @template {keyof import('../core/ipc.ts').Invoke} K
+ * @param {K} method
+ * @returns {(...args: Parameters<import('../core/ipc.ts').Invoke[K]>) => ReturnType<import('../core/ipc.ts').Invoke[K]>}
+ */
+const invoke =
+  (method) =>
+  (...args) =>
+    /** @type {ReturnType<import('../core/ipc.ts').Invoke[K]>} */ (
+      ipcRenderer.invoke('codophon:' + method, ...args)
+    );
 
 /** @type {Window['codophon']} */
 const codophon = {
-  askReviewAssistant: (request) => ipcRenderer.invoke('codophon:askReviewAssistant', request),
-  getReviewBriefComments: (source) => ipcRenderer.invoke('codophon:getReviewBriefComments', source),
-  dismissUpdate: () => ipcRenderer.invoke('codophon:dismissUpdate'),
-  createWalkthroughCommit: (request) =>
-    ipcRenderer.invoke('codophon:createWalkthroughCommit', request),
-  updateWalkthroughCommitMessage: (request) =>
-    ipcRenderer.invoke('codophon:updateWalkthroughCommitMessage', request),
-  getAgentSkillStatus: () => ipcRenderer.invoke('codophon:getAgentSkillStatus'),
-  getAgentModelCatalog: (refresh) => ipcRenderer.invoke('codophon:getAgentModelCatalog', refresh),
-  getAgentPrompts: () => ipcRenderer.invoke('codophon:getAgentPrompts'),
+  askReviewAssistant: invoke('askReviewAssistant'),
+  updateSettings: invoke('updateSettings'),
+  getReviewBriefComments: invoke('getReviewBriefComments'),
+  dismissUpdate: invoke('dismissUpdate'),
+  createWalkthroughCommit: invoke('createWalkthroughCommit'),
+  updateWalkthroughCommitMessage: invoke('updateWalkthroughCommitMessage'),
+  getAgentSkillStatus: invoke('getAgentSkillStatus'),
+  getAgentModelCatalog: invoke('getAgentModelCatalog'),
+  getAgentPrompts: invoke('getAgentPrompts'),
   getConfig: () => {
     const initial = initialConfig;
     initialConfig = undefined;
     return initial ?? ipcRenderer.invoke('codophon:getConfig');
   },
-  decreaseCodeFontSize: () => ipcRenderer.invoke('codophon:decreaseCodeFontSize'),
-  getDiffSectionContent: (request) => ipcRenderer.invoke('codophon:getDiffSectionContent', request),
-  getDiffImageContent: (request) => ipcRenderer.invoke('codophon:getDiffImageContent', request),
-  getGitIdentity: () => ipcRenderer.invoke('codophon:getGitIdentity'),
-  getKeyboardLayout: () => ipcRenderer.invoke('codophon:getKeyboardLayout'),
+  getDiffSectionContent: invoke('getDiffSectionContent'),
+  getDiffImageContent: invoke('getDiffImageContent'),
+  getGitIdentity: invoke('getGitIdentity'),
+  getKeyboardLayout: invoke('getKeyboardLayout'),
   getLaunchOptions: () => launchOptions,
-  getMarkdownDocument: (request) => ipcRenderer.invoke('codophon:getMarkdownDocument', request),
-  getRepositoryFile: (path) => ipcRenderer.invoke('codophon:getRepositoryFile', path),
-  getRepositoryHistory: (limit, source) =>
-    ipcRenderer.invoke('codophon:getRepositoryHistory', limit, source),
+  getMarkdownDocument: invoke('getMarkdownDocument'),
+  getRepositoryFile: invoke('getRepositoryFile'),
+  getRepositoryHistory: invoke('getRepositoryHistory'),
   getRepositoryState: (source) => {
     const initial = source ? undefined : initialRepositoryState;
     initialRepositoryState = undefined;
@@ -77,19 +86,20 @@ const codophon = {
       ? initial.then((state) => state ?? ipcRenderer.invoke('codophon:getRepositoryState', source))
       : ipcRenderer.invoke('codophon:getRepositoryState', source);
   },
-  getTerminalHelperStatus: () => ipcRenderer.invoke('codophon:getTerminalHelperStatus'),
-  getUpdateStatus: () => ipcRenderer.invoke('codophon:getUpdateStatus'),
-  getNarrativeWalkthrough: (source, options) =>
-    ipcRenderer.invoke('codophon:getNarrativeWalkthrough', source, options),
-  installAgentSkill: () => ipcRenderer.invoke('codophon:installAgentSkill'),
-  installTerminalHelper: () => ipcRenderer.invoke('codophon:installTerminalHelper'),
-  increaseCodeFontSize: () => ipcRenderer.invoke('codophon:increaseCodeFontSize'),
-  isWindowFullScreen: () => ipcRenderer.invoke('codophon:isWindowFullScreen'),
+  getTerminalHelperStatus: invoke('getTerminalHelperStatus'),
+  getUpdateStatus: invoke('getUpdateStatus'),
+  getNarrativeWalkthrough: invoke('getNarrativeWalkthrough'),
+  installAgentSkill: invoke('installAgentSkill'),
+  installTerminalHelper: invoke('installTerminalHelper'),
+  isWindowFullScreen: invoke('isWindowFullScreen'),
   markWindowReady: () => ipcRenderer.send('codophon:windowReady'),
-  onConfigChanged: (callback) => subscribe('codophon:configChanged', callback),
-  onOpenAgentSettings: (callback) => subscribe('codophon:openAgentSettings', callback),
-  onCopyPendingCommentsRequest: (callback) =>
-    subscribe('codophon:copyPendingCommentsRequest', (requestId) => {
+  onConfigChanged: (callback) => subscribe('configChanged', callback),
+  onOpenAgentSettings: (callback) => subscribe('openAgentSettings', callback),
+  onCopyPendingCommentsRequest: (callback) => {
+    const listener = (
+      /** @type {Electron.IpcRendererEvent} */ _event,
+      /** @type {string} */ requestId,
+    ) => {
       Promise.resolve(callback()).then(
         (markdown) => {
           ipcRenderer.send(
@@ -102,40 +112,36 @@ const codophon = {
           ipcRenderer.send('codophon:copyPendingCommentsResult', requestId, '');
         },
       );
-    }),
-  onFindInDiffs: (callback) => subscribe('codophon:findInDiffs', () => callback()),
-  onKeyboardLayoutChanged: (callback) => subscribe('codophon:keyboardLayoutChanged', callback),
-  onOpenReviewSource: (callback) => subscribe('codophon:openReviewSource', callback),
-  onMarkdownDocumentChanged: (callback) => subscribe('codophon:markdownDocumentChanged', callback),
+    };
+    const channel = 'codophon:copyPendingCommentsRequest';
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  },
+  onFindInDiffs: (callback) => subscribe('findInDiffs', () => callback()),
+  onKeyboardLayoutChanged: (callback) => subscribe('keyboardLayoutChanged', callback),
+  onOpenReviewSource: (callback) => subscribe('openReviewSource', callback),
+  onMarkdownDocumentChanged: (callback) => subscribe('markdownDocumentChanged', callback),
   onWalkthroughCommitOutput: (callback) =>
-    subscribe('codophon:walkthroughCommitOutput', (chunk) => callback(String(chunk))),
+    subscribe('walkthroughCommitOutput', (chunk) => callback(String(chunk))),
   onWindowFullScreenChanged: (callback) =>
-    subscribe('codophon:windowFullScreenChanged', (value) => callback(Boolean(value))),
-  onRepositoryChanged: (callback) => subscribe('codophon:repositoryChanged', callback),
-  onWalkthroughProgress: (callback) => subscribe('codophon:walkthroughProgress', callback),
-  onRefreshRequest: (callback) => subscribe('codophon:refreshRequest', () => callback()),
-  onUpdateStatusChanged: (callback) => subscribe('codophon:updateStatusChanged', callback),
-  findDefinitions: (request) => ipcRenderer.invoke('codophon:findDefinitions', request),
-  openConfigFile: () => ipcRenderer.invoke('codophon:openConfigFile'),
-  selectAgentModel: (agent, model) => ipcRenderer.invoke('codophon:selectAgentModel', agent, model),
-  setAgentPrompt: (id, text) => ipcRenderer.invoke('codophon:setAgentPrompt', id, text),
-  openReleasePage: () => ipcRenderer.invoke('codophon:openReleasePage'),
-  openFile: (path, lineNumber) => ipcRenderer.invoke('codophon:openFile', path, lineNumber),
-  openRepositoryFolder: () => ipcRenderer.invoke('codophon:openRepositoryFolder'),
-  resolvePullRequestUrl: (value) => ipcRenderer.invoke('codophon:resolvePullRequestUrl', value),
-  setDiffStyle: (value) => ipcRenderer.invoke('codophon:setDiffStyle', value),
-  setReviewTheme: (value) => ipcRenderer.invoke('codophon:setReviewTheme', value),
-  setShowOutdated: (value) => ipcRenderer.invoke('codophon:setShowOutdated', value),
-  setWordWrap: (value) => ipcRenderer.invoke('codophon:setWordWrap', value),
-  resetCodeFontSize: () => ipcRenderer.invoke('codophon:resetCodeFontSize'),
-  saveMarkdownDocument: (request) => ipcRenderer.invoke('codophon:saveMarkdownDocument', request),
-  saveRepositoryFile: (request) => ipcRenderer.invoke('codophon:saveRepositoryFile', request),
-  submitPullRequestComment: (request) =>
-    ipcRenderer.invoke('codophon:submitPullRequestComment', request),
-  submitPullRequestReview: (request) =>
-    ipcRenderer.invoke('codophon:submitPullRequestReview', request),
-  setPullRequestFileViewed: (request) =>
-    ipcRenderer.invoke('codophon:setPullRequestFileViewed', request),
+    subscribe('windowFullScreenChanged', (value) => callback(Boolean(value))),
+  onRepositoryChanged: (callback) => subscribe('repositoryChanged', callback),
+  onWalkthroughProgress: (callback) => subscribe('walkthroughProgress', callback),
+  onRefreshRequest: (callback) => subscribe('refreshRequest', () => callback()),
+  onUpdateStatusChanged: (callback) => subscribe('updateStatusChanged', callback),
+  findDefinitions: invoke('findDefinitions'),
+  openConfigFile: invoke('openConfigFile'),
+  selectAgentModel: invoke('selectAgentModel'),
+  setAgentPrompt: invoke('setAgentPrompt'),
+  openReleasePage: invoke('openReleasePage'),
+  openFile: invoke('openFile'),
+  openRepositoryFolder: invoke('openRepositoryFolder'),
+  resolvePullRequestUrl: invoke('resolvePullRequestUrl'),
+  saveMarkdownDocument: invoke('saveMarkdownDocument'),
+  saveRepositoryFile: invoke('saveRepositoryFile'),
+  submitPullRequestComment: invoke('submitPullRequestComment'),
+  submitPullRequestReview: invoke('submitPullRequestReview'),
+  setPullRequestFileViewed: invoke('setPullRequestFileViewed'),
 };
 
 contextBridge.exposeInMainWorld('codophon', codophon);

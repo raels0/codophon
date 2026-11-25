@@ -1,5 +1,7 @@
+import './ReviewTopBar.css';
 import { SidebarSimpleIcon as SidebarSimple } from '@phosphor-icons/react/SidebarSimple';
 import type { ReactNode } from 'react';
+import { Button } from './Button.tsx';
 import { ReviewModeControl, type ReviewModeItem } from './ReviewModeControl.tsx';
 
 export function ReviewTopBar<Mode extends string>({
@@ -30,15 +32,17 @@ export function ReviewTopBar<Mode extends string>({
   toggleTitle: string;
 }) {
   const sidebarToggle = (
-    <button
+    <Button
       aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       className="review-top-bar-icon-button sidebar-toggle-button"
       onClick={onToggleSidebar}
+      size="icon"
       title={toggleTitle}
       type="button"
+      variant="ghost"
     >
       <SidebarSimple aria-hidden mirrored={sidebarPosition === 'right'} size={18} weight="bold" />
-    </button>
+    </Button>
   );
 
   return (

@@ -1,3 +1,4 @@
+import './ReviewMarkdown.css';
 import type { MarkdownEditor as MarkdownEditorComponent } from '@nkzw/mdx-editor';
 import type { ComponentProps, ReactNode } from 'react';
 import { Suspense, useMemo } from 'react';

@@ -5,6 +5,7 @@ export type { AgentBackend as CodophonAgentBackend } from './agents.ts';
 import type { AgentBackend as CodophonAgentBackend } from './agents.ts';
 
 export type AgentPromptId =
+  | 'walkthrough'
   | 'ask'
   | 'commitMessage'
   | 'walkthroughDesign'
@@ -20,30 +21,37 @@ export type AgentModelCatalog = {
   note?: string;
 };
 
-export type CodophonSettings = {
+type Schema = typeof import('./codophon-config.schema.json');
+type SettingDescriptors = Schema['properties']['settings']['properties'];
+type PrimitiveSettings = {
+  [
+    K in keyof SettingDescriptors as SettingDescriptors[K] extends {
+      default: string | boolean | number;
+    }
+      ? K
+      : never
+  ]: SettingDescriptors[K] extends { default: infer V } ? V : never;
+};
+type ChoiceSettings = {
   agentBackend: CodophonAgentBackend;
-  agentPrompts: AgentPromptOverrides;
-  checkForUpdates: boolean;
-  claudeModel: string;
-  codeFontFamily: string;
-  codeFontSize: number;
-  copyCommentsOnClose: boolean;
   diffStyle: CodophonDiffStyle;
-  editorCommand: string;
-  expandUnchanged: boolean;
-  lastRepositoryPath: string;
-  openAIModel: string;
-  openAIReasoningEffort: string;
-  opencodeModel: string;
   renderMarkdownAs: 'preview' | 'source';
-  reviewCommentsPrefix: string;
   reviewTheme: CodophonReviewTheme;
-  showOutdated: boolean;
-  showWhitespace: boolean;
   sidebarPosition: 'left' | 'right';
   theme: CodophonTheme;
-  walkthroughPrompt: string;
-  wordWrap: boolean;
+};
+export type CodophonSettings = Omit<PrimitiveSettings, keyof ChoiceSettings> &
+  ChoiceSettings & {
+    agentPrompts: AgentPromptOverrides;
+    agents: { [K in CodophonAgentBackend]: { model: string } } & {
+      codex: { model: string; reasoningEffort: string };
+    };
+  };
+
+export type SettingsPatch = Partial<
+  Pick<CodophonSettings, 'diffStyle' | 'reviewTheme' | 'showOutdated' | 'wordWrap'>
+> & {
+  codeFontSize?: 'increase' | 'decrease' | 'reset';
 };
 
 export type KeyCombo = string;
@@ -51,24 +59,11 @@ export type KeyCombo = string;
 // A shortcut can be a single combo or a list of aliases that all trigger the action.
 export type KeyComboBinding = KeyCombo | ReadonlyArray<KeyCombo>;
 
+type KeyDescriptors = Schema['properties']['keymap']['properties'];
 export type CodophonKeymap = {
-  askAgent: KeyCombo;
-  closeSearch: KeyCombo;
-  commandBar: KeyComboBinding;
-  diffSearch: KeyCombo;
-  discardComment: KeyCombo;
-  doneEditing: KeyCombo;
-  editFile: KeyCombo;
-  fileFilter: KeyCombo;
-  nextHunk: KeyComboBinding;
-  nextSearchMatch: KeyCombo;
-  openFile: KeyCombo;
-  prevHunk: KeyComboBinding;
-  prevSearchMatch: KeyCombo;
-  shortcutsHelp: KeyCombo;
-  submitComment: KeyCombo;
-  toggleSidebar: KeyCombo;
-  toggleWordWrap: KeyCombo;
+  [K in keyof KeyDescriptors]: KeyDescriptors[K] extends { oneOf: unknown }
+    ? KeyComboBinding
+    : KeyCombo;
 };
 
 export type CodophonConfig = {

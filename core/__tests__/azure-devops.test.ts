@@ -412,6 +412,7 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
         },
         {
           id: 18,
+          status: 'active',
           threadContext: {
             filePath: '/src/a.ts',
             rightFileEnd: { line: 12, offset: 1 },
@@ -443,6 +444,7 @@ describe('Azure DevOps pull requests', { concurrent: false }, () => {
         },
         {
           id: 19,
+          status: 'active',
           threadContext: { filePath: '/src/a.ts' },
         },
         'https://dev.azure.com/org/project/_git/repo/pullrequest/42',

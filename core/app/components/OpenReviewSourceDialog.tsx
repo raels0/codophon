@@ -1,3 +1,4 @@
+import './ReviewDialogs.css';
 import { useCallback, useState, type FormEvent } from 'react';
 import type { OpenReviewSourceKind } from '../../types.ts';
 import { Button } from './Button.tsx';

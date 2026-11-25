@@ -1,22 +1,19 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import type { AgentSettingsSection } from '../../config/types.ts';
+import type { AgentSettingsSection, CodophonSettings } from '../../config/types.ts';
 import { EDIT_SELECTED_FILE_EVENT } from '../../lib/app-constants.ts';
 import type { ReviewComment, ReviewIdentity, SidebarMode } from '../../lib/app-types.ts';
 import { createCommandRegistry, type Command } from '../../lib/command-registry.ts';
 import type { ReviewCommandTarget } from '../../lib/review-command-target.ts';
 import { buildReviewCommentsMarkdown } from '../../lib/review-comments.ts';
 import { isReviewIdentityViewed } from '../../lib/review-identity.ts';
-import type {
-  ChangedFile,
-  CodophonPreferences,
-  OpenReviewSourceKind,
-  RepositoryState,
-} from '../../types.ts';
+import type { ChangedFile, OpenReviewSourceKind, RepositoryState } from '../../types.ts';
 
 type UseAppCommandsOptions = {
   changeSidebarMode: (mode: SidebarMode) => void;
   focusFileFilter: () => void;
+  getRepository: () => RepositoryState | null;
   getReviewCommandTarget: () => ReviewCommandTarget | null;
+  getViewed: () => Record<string, string>;
   onOpenAgentSettings?: (section: AgentSettingsSection) => void;
   onOpenAskHistory: (() => void) | null;
   onOpenDiffSearch: () => void;
@@ -25,20 +22,20 @@ type UseAppCommandsOptions = {
   onOpenSelectedFile: () => void;
   onOpenShortcutsHelp: () => void;
   onRefreshRepository: () => void;
-  onSetReviewTheme: (theme: CodophonPreferences['reviewTheme']) => void;
+  onSetReviewTheme: (theme: CodophonSettings['reviewTheme']) => void;
   onToggleSidebar: () => void;
   onToggleViewed: (file: ChangedFile, isViewed: boolean, reviewIdentity: ReviewIdentity) => void;
   onToggleWordWrap: () => void;
-  preferencesRef: RefObject<CodophonPreferences>;
+  preferencesRef: RefObject<CodophonSettings>;
   reviewCommentsRef: RefObject<ReadonlyArray<ReviewComment>>;
-  stateRef: RefObject<RepositoryState | null>;
-  viewedRef: RefObject<Record<string, string>>;
 };
 
 export function useAppCommands({
   changeSidebarMode,
   focusFileFilter,
+  getRepository,
   getReviewCommandTarget,
+  getViewed,
   onOpenAgentSettings,
   onOpenAskHistory,
   onOpenDiffSearch,
@@ -53,8 +50,6 @@ export function useAppCommands({
   onToggleWordWrap,
   preferencesRef,
   reviewCommentsRef,
-  stateRef,
-  viewedRef,
 }: UseAppCommandsOptions) {
   const registryRef = useRef(createCommandRegistry());
   const [commands, setCommands] = useState<ReadonlyArray<Command>>([]);
@@ -113,7 +108,7 @@ export function useAppCommands({
       }),
       registry.register({
         execute: () => {
-          const currentState = stateRef.current;
+          const currentState = getRepository();
           if (!currentState) {
             return;
           }
@@ -151,7 +146,7 @@ export function useAppCommands({
         : []),
       registry.register({
         execute: () => {
-          const currentState = stateRef.current;
+          const currentState = getRepository();
           if (!currentState) {
             return;
           }
@@ -181,7 +176,7 @@ export function useAppCommands({
             return;
           }
 
-          const isViewed = isReviewIdentityViewed(viewedRef.current, target.reviewIdentity);
+          const isViewed = isReviewIdentityViewed(getViewed(), target.reviewIdentity);
           onToggleViewed(target.file, isViewed, target.reviewIdentity);
         },
         id: 'toggle-viewed',
@@ -210,7 +205,7 @@ export function useAppCommands({
       registry.register({
         execute: () => {
           void window.codophon
-            .setShowOutdated(!preferencesRef.current.showOutdated)
+            .updateSettings({ showOutdated: !preferencesRef.current.showOutdated })
             .catch(() => {});
         },
         id: 'toggle-outdated-comments',
@@ -221,7 +216,7 @@ export function useAppCommands({
           preferencesRef.current.diffStyle === 'split' ? 'Switch to Unified' : 'Switch to Split',
         execute: () => {
           const nextDiffStyle = preferencesRef.current.diffStyle === 'split' ? 'unified' : 'split';
-          void window.codophon.setDiffStyle(nextDiffStyle).catch(() => {});
+          void window.codophon.updateSettings({ diffStyle: nextDiffStyle }).catch(() => {});
         },
         id: 'toggle-diff-layout',
         title: 'Toggle Diff Layout',
@@ -254,21 +249,21 @@ export function useAppCommands({
       }),
       registry.register({
         execute: () => {
-          void window.codophon.increaseCodeFontSize().catch(() => {});
+          void window.codophon.updateSettings({ codeFontSize: 'increase' }).catch(() => {});
         },
         id: 'increase-code-font-size',
         title: 'Increase Code Font Size',
       }),
       registry.register({
         execute: () => {
-          void window.codophon.decreaseCodeFontSize().catch(() => {});
+          void window.codophon.updateSettings({ codeFontSize: 'decrease' }).catch(() => {});
         },
         id: 'decrease-code-font-size',
         title: 'Decrease Code Font Size',
       }),
       registry.register({
         execute: () => {
-          void window.codophon.resetCodeFontSize().catch(() => {});
+          void window.codophon.updateSettings({ codeFontSize: 'reset' }).catch(() => {});
         },
         id: 'reset-code-font-size',
         title: 'Reset Code Font Size',
@@ -331,8 +326,8 @@ export function useAppCommands({
     onToggleWordWrap,
     preferencesRef,
     reviewCommentsRef,
-    stateRef,
-    viewedRef,
+    getRepository,
+    getViewed,
   ]);
 
   return commands;

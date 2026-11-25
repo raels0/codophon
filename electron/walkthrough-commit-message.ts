@@ -1,17 +1,14 @@
 import { getAgentPrompt } from './agent-prompts.ts';
-// Ask the connected agent to rewrite a walkthrough's commit message for the
-// reviewer's CURRENT file selection. The walkthrough ships a pre-drafted body
-// describing the whole change; when the reviewer drops files from the staging
-// set, that prose no longer matches what is being committed, so this asks the
-// agent (running in the repo root, with real diff access) to revise it.
-import { parseJSONMessage } from './agent-shared.ts';
+import { truncate } from './agent-shared.ts';
 
 const MAX_OTHER_FILES = 60;
+const MAX_PATCH_CHARS = 80_000;
 
 import type {
   ChangedFile,
   RepositoryState,
   WalkthroughCommitMessageRequest,
+  WalkthroughCommitMessageResult,
 } from '../core/types.ts';
 import type { Agent, AgentOptions } from './agent.ts';
 
@@ -40,6 +37,8 @@ const buildCommitMessageInput = (
   request: Partial<WalkthroughCommitMessageRequest> | null | undefined,
 ) => {
   const paths = new Set(Array.isArray(request?.paths) ? request.paths.map(String) : []);
+  let remaining = MAX_PATCH_CHARS;
+  const selectedFiles = state.files.filter((file) => paths.has(file.path));
   return {
     currentMessage: {
       body: typeof request?.body === 'string' ? request.body : '',
@@ -50,7 +49,14 @@ const buildCommitMessageInput = (
       .slice(0, MAX_OTHER_FILES)
       .map(getFileDigest),
     root: state.root,
-    selectedFiles: state.files.filter((file) => paths.has(file.path)).map(getFileDigest),
+    selectedFiles: selectedFiles.map((file) => ({
+      ...getFileDigest(file),
+      changes: file.sections.map((section) => {
+        const patch = truncate(section.patch, Math.min(remaining, 12_000));
+        remaining = Math.max(0, remaining - patch.length);
+        return { kind: section.kind, patch, summary: section.summary?.reason };
+      }),
+    })),
     source: state.source,
   };
 };
@@ -67,7 +73,7 @@ The reviewer is committing only a SUBSET of the working tree — the files liste
 Rewrite the message so it describes exactly the change represented by the selected files.
 
 Your job:
-- Read the real diff for the selected files in ${state.root} — run \`git diff -- <paths>\` and \`git diff --staged -- <paths>\` for the selectedFiles paths. Use what you read, not just the digest.
+- Use the supplied staged and unstaged changes for each selected file. When a patch is unavailable or shortened, describe only what the evidence supports.
 - Return an updated \`subject\` and \`body\`.
 - Do not mention or describe any file under "droppedFiles" — they are NOT in this commit.
 - Do not invent changes, requirements, or files outside the selected set.
@@ -96,7 +102,7 @@ const readCommitMessageReply = async (
   agent: Pick<Agent, 'label' | 'run'>,
   agentOptions: AgentOptions,
   prompts?: import('../core/config/types.ts').AgentPromptOverrides,
-) => {
+): Promise<WalkthroughCommitMessageResult> => {
   try {
     const response = await agent.run(
       state.root,
@@ -106,7 +112,7 @@ const readCommitMessageReply = async (
       `${agent.label} commit-message rewrite timed out.`,
       agentOptions,
     );
-    const { body, subject } = normalizeCommitMessageReply(parseJSONMessage(response));
+    const { body, subject } = normalizeCommitMessageReply(response);
     if (!subject && !body) {
       return {
         reason: `${agent.label} could not produce a commit message.`,

@@ -1,6 +1,5 @@
 import type { MarkdownAnnotationAnchor } from '@nkzw/mdx-editor';
 import type { AgentBackend, AgentNotFoundCode } from './config/agents.ts';
-import type { CodophonDiffStyle, CodophonReviewTheme } from './config/types.ts';
 
 export type DiffSection = {
   binary: boolean;
@@ -318,9 +317,7 @@ export type WalkthroughContext = {
 
 export type CodophonLaunchOptions = {
   agentBackend?: AgentBackend;
-  claudeSessionId?: string;
-  codexSessionId?: string;
-  opencodeSessionId?: string;
+  agentSessions?: ReadonlyArray<{ agent: AgentBackend; id: string }>;
   repositoryPathProvided: boolean;
   source?: ReviewSource;
   walkthrough: boolean;
@@ -693,30 +690,6 @@ export type DiffImageContentResult =
     };
 
 export type CodophonTheme = 'system' | 'light' | 'dark';
-
-export type CodophonPreferences = {
-  agentBackend: AgentBackend;
-  claudeModel: string;
-  codeFontFamily: string;
-  codeFontSize: number;
-  copyCommentsOnClose: boolean;
-  diffStyle: CodophonDiffStyle;
-  editorCommand: string;
-  expandUnchanged: boolean;
-  lastRepositoryPath: string;
-  openAIModel: string;
-  openAIReasoningEffort: string;
-  opencodeModel: string;
-  renderMarkdownAs: 'preview' | 'source';
-  reviewCommentsPrefix: string;
-  reviewTheme: CodophonReviewTheme;
-  showOutdated: boolean;
-  showWhitespace: boolean;
-  sidebarPosition: 'left' | 'right';
-  theme: CodophonTheme;
-  walkthroughPrompt: string;
-  wordWrap: boolean;
-};
 
 /** A newer GitHub release than the running build, if one is known and not dismissed. */
 export type CodophonUpdateStatus = {

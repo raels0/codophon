@@ -1,3 +1,4 @@
+import './ReviewDialogs.css';
 import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { getShortcutLabel } from '../../config/keymap.ts';
 import type { CodophonKeymap } from '../../config/types.ts';

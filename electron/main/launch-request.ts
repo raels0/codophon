@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { isAgentBackend } from '../../core/config/agents.ts';
+import { AGENT_BACKENDS, isAgentBackend, type AgentBackend } from '../../core/config/agents.ts';
 /**
  * What the `codophon` CLI asks the app to open. The CLI does all argument parsing and passes this
  * to Electron as one `--launch=` argument, so the app never re-parses a command line and the
@@ -12,9 +12,7 @@ import { readWalkthroughContext } from '../walkthrough-context.ts';
 
 export type LaunchRequest = {
   agentBackend?: CodophonLaunchOptions['agentBackend'];
-  claudeSessionId?: string;
-  codexSessionId?: string;
-  opencodeSessionId?: string;
+  agentSessions?: CodophonLaunchOptions['agentSessions'];
   repositoryPath?: string;
   source?: ReviewSource;
   walkthrough?: boolean;
@@ -51,19 +49,26 @@ const toLaunchOptions = (request: LaunchRequest): CodophonLaunchOptions => {
       ? { ...request.source, provider }
       : request.source;
   const agentBackend = isAgentBackend(request.agentBackend) ? request.agentBackend : undefined;
+  const legacy = request as Partial<Record<`${AgentBackend}SessionId`, string>>;
+  const agentSessions = AGENT_BACKENDS.flatMap((agent) => {
+    const id = Array.isArray(request.agentSessions)
+      ? request.agentSessions.find((session) => session?.agent === agent)?.id
+      : legacy[`${agent}SessionId`];
+    return typeof id === 'string' && id ? [{ agent, id }] : [];
+  });
   return {
     ...(agentBackend ? { agentBackend } : {}),
-    ...(request.claudeSessionId ? { claudeSessionId: request.claudeSessionId } : {}),
-    ...(request.codexSessionId ? { codexSessionId: request.codexSessionId } : {}),
-    ...(request.opencodeSessionId ? { opencodeSessionId: request.opencodeSessionId } : {}),
+    ...(agentSessions.length ? { agentSessions } : {}),
     repositoryPathProvided: Boolean(request.repositoryPath),
     ...(source ? { source } : {}),
     walkthrough: request.walkthrough === true,
     ...(request.walkthroughContextPath
       ? {
           walkthroughContext:
-            readWalkthroughContext(request.walkthroughContextPath, request.codexSessionId) ??
-            undefined,
+            readWalkthroughContext(
+              request.walkthroughContextPath,
+              agentSessions.find((session) => session.agent === 'codex')?.id,
+            ) ?? undefined,
         }
       : {}),
     ...(request.walkthroughFile ? { walkthroughFile: resolve(request.walkthroughFile) } : {}),

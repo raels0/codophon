@@ -1,6 +1,5 @@
 import { expect, test } from 'vite-plus/test';
 import {
-  getPlanWindowTitle,
   getRepositoryWindowTitle,
   restoreRepositoryWindowTitleAfterLoad,
 } from '../window-title.ts';

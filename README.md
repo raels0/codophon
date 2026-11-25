@@ -244,21 +244,21 @@ counts; when it is `false`, Codophon hides those changes from the working-tree r
   "settings": {
     "agentBackend": "codex",
     "agentPrompts": {},
-    "claudeModel": "sonnet",
+    "agents": {
+      "claude": { "model": "sonnet" },
+      "codex": { "model": "gpt-5.6-terra", "reasoningEffort": "" },
+      "opencode": { "model": "opencode-default" },
+    },
     "codeFontFamily": "",
     "codeFontSize": 13,
     "copyCommentsOnClose": false,
     "diffStyle": "split",
     "editorCommand": "",
     "lastRepositoryPath": "",
-    "openAIModel": "gpt-5.6-terra",
-    "openAIReasoningEffort": "",
-    "opencodeModel": "opencode-default",
     "sidebarPosition": "left",
     "reviewTheme": "neutral",
     "showWhitespace": false,
     "theme": "system",
-    "walkthroughPrompt": "",
     "wordWrap": false,
   },
   "keymap": {
@@ -314,10 +314,10 @@ are installed, Codophon keeps Codex as the default. After that, select a backend
 `settings.agentBackend` config value (or the `--agent` flag for a single launch) and the `Agent`
 application menu:
 
-- `codex` (default) — the OpenAI Codex CLI, configured with `settings.openAIModel`.
-- `claude` — the [Claude Code](https://claude.com/claude-code) CLI, configured with `settings.claudeModel`.
+- `codex` (default) — the OpenAI Codex CLI, configured with `settings.agents.codex.model`.
+- `claude` — the [Claude Code](https://claude.com/claude-code) CLI, configured with `settings.agents.claude.model`.
 - `opencode` — the [OpenCode](https://opencode.ai/) CLI, configured with
-  `settings.opencodeModel`.
+  `settings.agents.opencode.model`.
 
 For Codex, **Choose Model…** and **Reasoning Effort** use the installed CLI's model catalog.
 They show its visible models and supported reasoning efforts, including new models
@@ -325,10 +325,10 @@ without a Codophon update. Legacy models omitted from a successful catalog, incl
 remain configurable by ID; a selected model missing from the catalog appears as a custom choice.
 If discovery fails or an older CLI does not support it, the predefined model choices remain
 available, and selecting Codex or changing configuration retries discovery. Custom model IDs in
-`settings.openAIModel` are also accepted.
+`settings.agents.codex.model` are also accepted.
 
-Set `settings.openAIReasoningEffort` to an effort supported by your selected model, for example
-`"high"` with `settings.openAIModel` set to `"gpt-6.1-sol"`. Selecting a different model in the menu
+Set `settings.agents.codex.reasoningEffort` to an effort supported by your selected model, for example
+`"high"` with `settings.agents.codex.model` set to `"gpt-6.1-sol"`. Selecting a different model in the menu
 resets an explicit effort that the new model does not advertise. Leave the effort empty to keep
 Codophon's existing defaults for its predefined models and inherit Codex settings for other models.
 An unsupported explicit effort reports an error rather than triggering a model fallback.
@@ -365,7 +365,7 @@ CODOPHON_OPENCODE_PATH=/absolute/path/to/opencode codophon --agent opencode -w
 Claude Code rides your existing `claude` login (subscription or `ANTHROPIC_API_KEY`); run `claude`
 once and complete `/login` if you have not already.
 
-OpenCode keeps its own configured model when `settings.opencodeModel` is `opencode-default`.
+OpenCode keeps its own configured model when `settings.agents.opencode.model` is `opencode-default`.
 Choose another model from **Choose Model…**, or set a provider-qualified ID such as
 `anthropic/claude-sonnet-4-6`, `openai/gpt-5.5`, or another model available to your OpenCode
 account. When Codophon launches OpenCode for walkthroughs or review assistance and an explicit model
@@ -378,12 +378,12 @@ To change how a walkthrough reads, go to **File > Agent Settings… > Prompts** 
 opening. You can edit and reset the design overview, titles, stop explanations, regeneration
 guidance, Ask replies, and commit messages separately. Saving changes the next generation, not
 the walkthrough already on screen. The output format and diff evidence rules stay the same.
-If you already use `settings.walkthroughPrompt`, it still adds guidance across the walkthrough.
+Set `settings.agentPrompts.walkthrough` to add guidance across the walkthrough. Existing config files using `settings.walkthroughPrompt` or top-level model settings are read automatically.
 
 To drive Codophon from your agent, install its integration from the application menu under
 `Install Skill`, then choose Codex, Claude Code, or OpenCode. Codophon updates keep the installed
 skill current. The OpenCode integration also installs a managed `/codophon` command that uses
-`settings.opencodeModel`; choosing `opencode-default` leaves the command unpinned. Invoke it from
+`settings.agents.opencode.model`; choosing `opencode-default` leaves the command unpinned. Invoke it from
 the agent:
 
 ```text

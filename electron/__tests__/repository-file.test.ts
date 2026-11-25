@@ -2,11 +2,6 @@ import { chmod, lstat, readFile, stat, symlink, writeFile } from 'node:fs/promis
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';
-import type {
-  RepositoryFileDocument,
-  SaveRepositoryFileRequest,
-  SaveRepositoryFileResult,
-} from '../../core/types.ts';
 import { readRepositoryFile, writeRepositoryFile } from '../repository-file.ts';
 
 test('saves UTF-8 source without changing line endings, BOM, or executable permissions', async () => {

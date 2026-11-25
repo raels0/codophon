@@ -1,3 +1,4 @@
+import './DefinitionPopover.css';
 import { ArrowSquareOutIcon as ArrowSquareOut } from '@phosphor-icons/react/ArrowSquareOut';
 import { CrosshairSimpleIcon as CrosshairSimple } from '@phosphor-icons/react/CrosshairSimple';
 import { ProhibitIcon as Prohibit } from '@phosphor-icons/react/Prohibit';

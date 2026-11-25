@@ -11,7 +11,6 @@ import type {
 import { annotateGeneratedFiles } from './generated-files.ts';
 import {
   listAzureDevOpsHistory,
-  parseAzureDevOpsPullRequestUrl,
   readAzureDevOpsImageContent,
   readAzureDevOpsPullRequestState,
   readAzureDevOpsSectionContent,
@@ -26,29 +25,11 @@ import {
   readComparisonSourceState,
   readResolvedCommitState,
 } from './git-state/commit.ts';
+import { readRepositoryRoot, git, gitOrEmpty, validateRepositoryPath } from './git-state/common.ts';
 import {
-  readRepositoryRoot,
-  git,
-  gitOrEmpty,
-  parseStatus,
-  validateRepositoryPath,
-} from './git-state/common.ts';
-import {
-  PENDING_REVIEW_COMMENT_ERROR,
-  collectResolvedReviewCommentIds,
-  createPullRequestHistoryFetchRefspecs,
-  createPullRequestSection,
-  createPullRequestSource,
-  getPullRequestHeadImageSource,
   listPullRequestHistory,
-  normalizeGitHubPullRequestCommit,
-  normalizeGitHubReviewComment,
-  normalizePullRequestComment,
-  parseGitHubPullRequestUrl,
   readPullRequestImageContent,
   readPullRequestState,
-  resolvePullRequestContentRefs,
-  selectUnresolvedReviewComments,
   setPullRequestFileViewed,
   submitPullRequestComment,
   submitPullRequestReview,
@@ -57,7 +38,6 @@ import {
   readDiffSectionContent as readWorkingTreeDiffSectionContent,
   readDiffImageContent as readWorkingTreeDiffImageContent,
   readGitIdentity,
-  readRepositoryChangeSignature,
   readWorkingTreeState,
 } from './git-state/working-tree.ts';
 import { parseRepositoryWatcherStatus } from './repository-watcher.ts';
@@ -247,29 +227,12 @@ const submitReview = (launchPath: string, request: SubmitPullRequestReviewReques
   getPullRequestProvider(request.source).submitReview(launchPath, request);
 
 export {
-  PENDING_REVIEW_COMMENT_ERROR,
-  collectResolvedReviewCommentIds,
-  createPullRequestHistoryFetchRefspecs,
-  createPullRequestSection,
-  createPullRequestSource,
-  getPullRequestHeadImageSource,
   readRepositoryHistory as listRepositoryHistory,
-  normalizeGitHubPullRequestCommit,
-  normalizeGitHubReviewComment,
-  normalizePullRequestComment,
-  parseStatus,
-  parseAzureDevOpsPullRequestUrl,
-  parseGitHubPullRequestUrl,
-  selectUnresolvedReviewComments,
   readDiffSectionContent,
   readDiffImageContent,
   readGitIdentity,
-  readRepositoryChangeSignature,
-  readPullRequestState,
   readRepositoryState,
   readWalkthroughRepositoryState,
-  readWorkingTreeState,
-  resolvePullRequestContentRefs,
   setPullRequestFileViewed,
   submitReviewComment as submitPullRequestComment,
   submitReview as submitPullRequestReview,

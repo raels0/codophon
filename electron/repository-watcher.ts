@@ -213,11 +213,12 @@ const getRepositoryWatcherPollInterval = (
 };
 
 const createRepositoryWatcherCoordinator = ({
-  clearTimeoutImpl = clearTimeout,
   readSnapshot,
-  setTimeoutImpl = setTimeout,
+  scheduleTimeout = (callback, delay) => {
+    const timer = setTimeout(callback, delay);
+    return () => clearTimeout(timer);
+  },
 }: {
-  clearTimeoutImpl?: typeof clearTimeout;
   readSnapshot: (
     root: string,
     exactPaths: Iterable<string>,
@@ -229,7 +230,7 @@ const createRepositoryWatcherCoordinator = ({
     root: string;
     signature: string;
   }>;
-  setTimeoutImpl?: typeof setTimeout;
+  scheduleTimeout?: (callback: () => void, delay: number) => () => void;
 }) => {
   type RepositoryWatcher = {
     checking: boolean;
@@ -250,7 +251,7 @@ const createRepositoryWatcherCoordinator = ({
         snapshot?: Awaited<ReturnType<typeof readSnapshot>>;
       }
     >;
-    timer?: ReturnType<typeof setTimeout>;
+    cancelTimer?: () => void;
   };
 
   const watchers: Map<string, RepositoryWatcher> = new Map();
@@ -258,10 +259,8 @@ const createRepositoryWatcherCoordinator = ({
   const subscriberRoots: Map<number, string> = new Map();
 
   const clearTimer = (watcher: RepositoryWatcher) => {
-    if (watcher.timer) {
-      clearTimeoutImpl(watcher.timer);
-      watcher.timer = undefined;
-    }
+    watcher.cancelTimer?.();
+    watcher.cancelTimer = undefined;
   };
 
   const getPollInterval = (watcher: RepositoryWatcher) =>
@@ -279,8 +278,8 @@ const createRepositoryWatcherCoordinator = ({
 
   const schedule = (watcher: RepositoryWatcher, delay: number) => {
     clearTimer(watcher);
-    watcher.timer = setTimeoutImpl(() => {
-      watcher.timer = undefined;
+    watcher.cancelTimer = scheduleTimeout(() => {
+      watcher.cancelTimer = undefined;
       void check(watcher);
     }, delay);
   };

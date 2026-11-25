@@ -1,3 +1,4 @@
+import './ReviewDialogs.css';
 import { useEffect, useRef, useState } from 'react';
 import { buildReviewBrief, getReviewBriefQuestions } from '../../lib/review-brief.ts';
 import type { ReviewBriefPostedComment, ReviewSource } from '../../types.ts';

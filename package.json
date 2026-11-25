@@ -17,7 +17,6 @@
   },
   "files": [
     "bin",
-    "config",
     "core",
     "dist",
     "electron",

@@ -30,7 +30,7 @@ import type {
   WalkthroughSupportGroup,
 } from '../core/types.ts';
 import { getAgentPrompt } from './agent-prompts.ts';
-import { cleanText, normalizeEnum, oneLine, parseJSONMessage, truncate } from './agent-shared.ts';
+import { cleanText, normalizeEnum, oneLine, truncate } from './agent-shared.ts';
 import type { Agent, AgentOptions, AgentRunner } from './agent.ts';
 import {
   AGENTS,
@@ -923,7 +923,7 @@ const getWalkthroughSize = (state: RepositoryState) => ({
  */
 const resolveNarrativeWalkthroughModel = (
   state: RepositoryState,
-  agent: Agent,
+  agent: Pick<Agent, 'id' | 'defaultModel' | 'fallbackModel' | 'normalizeModel'>,
   model: unknown,
   reasoningEffort?: string,
 ) => {
@@ -1147,9 +1147,8 @@ const readNarrativeWalkthrough = async (
       },
     );
     agentOptions?.onProgress?.('response-received');
-    const parsed = parseJSONMessage(response);
     const walkthrough = normalizeNarrativeWalkthrough(
-      parsed,
+      response,
       state.files,
       {
         agent: agent.id,

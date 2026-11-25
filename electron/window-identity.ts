@@ -203,25 +203,13 @@ const getWindowIdentityForRepositoryState = (state: { root: string; source: Revi
     : null;
 };
 
-const findMatchingWindowIdentity = (
-  identity: WindowIdentity | null,
-  existingIdentities: ReadonlyMap<number, WindowIdentity | null>,
-) => {
-  if (!identity) {
-    return null;
-  }
-
-  for (const [id, existingIdentity] of existingIdentities) {
-    if (existingIdentity?.key === identity.key) {
-      return id;
-    }
-  }
-
-  return null;
-};
+const findMatchingSession = <T extends { identity: Pick<WindowIdentity, 'key'> | null }>(
+  identity: Pick<WindowIdentity, 'key'> | null,
+  sessions: Iterable<T>,
+) => identity && Array.from(sessions).find((session) => session.identity?.key === identity.key);
 
 export {
-  findMatchingWindowIdentity,
+  findMatchingSession,
   getWindowIdentity,
   getWindowIdentityForRepositoryState,
   getWindowIdentityForSource,

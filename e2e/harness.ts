@@ -29,7 +29,10 @@ export type Files = Record<string, string | null>;
 
 /** A throwaway Git repository. `null` file contents delete the file. */
 export class Repo {
-  constructor(readonly path: string) {}
+  readonly path: string;
+  constructor(path: string) {
+    this.path = path;
+  }
 
   git(...args: Array<string>) {
     return execFileSync('git', ['-C', this.path, ...args], {
@@ -59,10 +62,12 @@ export class Repo {
 }
 
 export class Codophon {
-  private constructor(
-    readonly app: ElectronApplication,
-    readonly page: Page,
-  ) {}
+  readonly app: ElectronApplication;
+  readonly page: Page;
+  private constructor(app: ElectronApplication, page: Page) {
+    this.app = app;
+    this.page = page;
+  }
 
   static async launch(home: string, request: LaunchRequest, env: Record<string, string> = {}) {
     const app = await _electron.launch({
@@ -127,6 +132,23 @@ export class Codophon {
       .getByRole('textbox', { name: new RegExp(`Comment on ${path}`) })
       .and(this.page.locator('[contenteditable="true"]'))
       .click();
+  }
+
+  /**
+   * Enter edit mode for a file and wait for its editor to attach. The editor focuses the first
+   * changed line when it attaches; keys typed before that never reach the edit session.
+   */
+  async editFile(path: string) {
+    await this.page.getByRole('button', { name: `Edit ${path}` }).click();
+    await expect
+      .poll(() =>
+        this.page.evaluate(() =>
+          [...document.querySelectorAll('diffs-container')].some((host) =>
+            host.shadowRoot?.activeElement?.closest('[contenteditable="true"]'),
+          ),
+        ),
+      )
+      .toBe(true);
   }
 
   /** Text of the rendered diff, across the shadow roots the diff viewer uses. */

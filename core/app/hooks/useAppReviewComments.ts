@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type RefObject } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ReviewComment } from '../../lib/app-types.ts';
 import {
   clearAskCache,
@@ -12,6 +12,7 @@ import {
   restoreAskComments,
   updateAskThread,
 } from '../../lib/ask-cache.ts';
+import { isPullRequestReviewActionDisabled } from '../../lib/pull-request-actions.ts';
 import { clearReviewBriefQuestions, recordReviewBriefQuestion } from '../../lib/review-brief.ts';
 import {
   getPendingPullRequestReviewComments,
@@ -22,19 +23,14 @@ import {
 } from '../../lib/review-comments.ts';
 import type {
   PullRequestReviewEvent,
-  PullRequestReviewStatus,
   RepositoryState,
   ReviewAssistantRequest,
 } from '../../types.ts';
 import { useReviewCommentDrafts } from './useReviewCommentDrafts.ts';
 
 type UseAppReviewCommentsOptions = {
-  isReviewActionDisabled: (
-    reviewStatus: PullRequestReviewStatus | undefined,
-    event: PullRequestReviewEvent,
-  ) => boolean;
+  getRepository: () => RepositoryState | null;
   onCommentFileChange: (filePath: string) => void;
-  stateRef: RefObject<RepositoryState | null>;
 };
 
 export type AskNotification = Pick<
@@ -49,9 +45,8 @@ export type AskNotification = Pick<
 };
 
 export function useAppReviewComments({
-  isReviewActionDisabled,
+  getRepository,
   onCommentFileChange,
-  stateRef,
 }: UseAppReviewCommentsOptions) {
   const [reviewComments, setReviewComments] = useState<ReadonlyArray<ReviewComment>>([]);
   const [askCacheError, setAskCacheError] = useState<string | null>(null);
@@ -148,7 +143,7 @@ export function useAppReviewComments({
   const updateActiveReviewCommentDraft = useCallback(
     (draft: Pick<ReviewComment, 'body' | 'id'> | null) => {
       updateInlineDraft(draft);
-      const pr = getAskPR(stateRef.current);
+      const pr = getAskPR(getRepository());
       if (!draft || !pr) {
         return;
       }
@@ -160,12 +155,12 @@ export function useAppReviewComments({
         ),
       );
     },
-    [stateRef, updateInlineDraft, withAskStorage],
+    [getRepository, updateInlineDraft, withAskStorage],
   );
 
   const updateAskFollowUpDraft = useCallback(
     (id: string, body: string) => {
-      const pr = getAskPR(stateRef.current);
+      const pr = getAskPR(getRepository());
       if (pr) {
         withAskStorage(() =>
           updateAskThread(pr, id, (thread) =>
@@ -183,12 +178,12 @@ export function useAppReviewComments({
         ),
       );
     },
-    [stateRef, withAskStorage],
+    [getRepository, withAskStorage],
   );
 
   const updateCodexReply = useCallback(
     (commentId: string, filePath: string, codexReply: NonNullable<ReviewComment['codexReply']>) => {
-      const pr = getAskPR(stateRef.current);
+      const pr = getAskPR(getRepository());
       const comment = reviewCommentsRef.current.find(({ id }) => id === commentId);
       if (pr && comment && !comment.isReadOnly) {
         const { remoteSubmit: _submit, ...draft } = comment;
@@ -215,7 +210,13 @@ export function useAppReviewComments({
       );
       onCommentFileChange(filePath);
     },
-    [activeReviewCommentDraftRef, onCommentFileChange, reviewCommentsRef, stateRef, withAskStorage],
+    [
+      activeReviewCommentDraftRef,
+      onCommentFileChange,
+      reviewCommentsRef,
+      getRepository,
+      withAskStorage,
+    ],
   );
 
   const updateRemoteSubmit = useCallback(
@@ -240,7 +241,7 @@ export function useAppReviewComments({
 
   const askCodex = useCallback(
     (commentId: string, followUp?: string) => {
-      const currentState = stateRef.current;
+      const currentState = getRepository();
       const comment = reviewCommentsRef.current.find((candidate) => candidate.id === commentId);
       if (
         !currentState ||
@@ -301,7 +302,7 @@ export function useAppReviewComments({
       };
 
       const acceptReply = () => {
-        const latestState = stateRef.current;
+        const latestState = getRepository();
         const latestComment = reviewCommentsRef.current.find(
           (candidate) => candidate.id === commentId,
         );
@@ -399,12 +400,12 @@ export function useAppReviewComments({
         })
         .finally(() => pendingAnswers.current.delete(commentId));
     },
-    [activeReviewCommentDraftRef, reviewCommentsRef, stateRef, updateCodexReply],
+    [activeReviewCommentDraftRef, reviewCommentsRef, getRepository, updateCodexReply],
   );
 
   const submitPullRequestComment = useCallback(
     (commentId: string) => {
-      const currentState = stateRef.current;
+      const currentState = getRepository();
       const comment = reviewCommentsRef.current.find((candidate) => candidate.id === commentId);
       if (
         currentState?.source.type !== 'pull-request' ||
@@ -428,10 +429,8 @@ export function useAppReviewComments({
           if (askTargetGeneration.current === targetGeneration) {
             updateAskPublication(currentState, comment.id, 'archived');
           }
-          if (
-            !stateRef.current ||
-            getAskReviewKey(currentState) !== getAskReviewKey(stateRef.current)
-          ) {
+          const latest = getRepository();
+          if (!latest || getAskReviewKey(currentState) !== getAskReviewKey(latest)) {
             return;
           }
           clearCommentFocus(comment.id);
@@ -463,10 +462,8 @@ export function useAppReviewComments({
           if (askTargetGeneration.current === targetGeneration) {
             updateAskPublication(currentState, comment.id, 'draft');
           }
-          if (
-            !stateRef.current ||
-            getAskReviewKey(currentState) !== getAskReviewKey(stateRef.current)
-          ) {
+          const latest = getRepository();
+          if (!latest || getAskReviewKey(currentState) !== getAskReviewKey(latest)) {
             return;
           }
           updateRemoteSubmit(comment.id, {
@@ -479,7 +476,7 @@ export function useAppReviewComments({
       clearCommentFocus,
       onCommentFileChange,
       reviewCommentsRef,
-      stateRef,
+      getRepository,
       updateActiveReviewCommentDraft,
       updateAskPublication,
       updateRemoteSubmit,
@@ -488,11 +485,11 @@ export function useAppReviewComments({
 
   const submitPullRequestReview = useCallback(
     (event: PullRequestReviewEvent, body?: string) => {
-      const currentState = stateRef.current;
+      const currentState = getRepository();
       if (
         currentState?.source.type !== 'pull-request' ||
         pullRequestReviewSubmitting ||
-        isReviewActionDisabled(currentState.source.reviewStatus, event)
+        isPullRequestReviewActionDisabled(currentState.source.reviewStatus, event)
       ) {
         return;
       }
@@ -524,10 +521,8 @@ export function useAppReviewComments({
               updateAskPublication(currentState, id, 'archived');
             }
           }
-          if (
-            !stateRef.current ||
-            getAskReviewKey(currentState) !== getAskReviewKey(stateRef.current)
-          ) {
+          const latest = getRepository();
+          if (!latest || getAskReviewKey(currentState) !== getAskReviewKey(latest)) {
             return;
           }
           updateActiveReviewCommentDraft(null);
@@ -554,10 +549,9 @@ export function useAppReviewComments({
     },
     [
       activeReviewCommentDraftRef,
-      isReviewActionDisabled,
       pullRequestReviewSubmitting,
       reviewCommentsRef,
-      stateRef,
+      getRepository,
       updateActiveReviewCommentDraft,
       updateAskPublication,
       updateRemoteSubmit,
@@ -568,10 +562,10 @@ export function useAppReviewComments({
     getPendingPullRequestReviewComments(reviewComments, activeReviewCommentDraftState).length > 0;
   const deleteComment = useCallback(
     (id: string) => {
-      updateAskPublication(stateRef.current, id, 'archived');
+      updateAskPublication(getRepository(), id, 'archived');
       deleteInlineComment(id);
     },
-    [deleteInlineComment, stateRef, updateAskPublication],
+    [deleteInlineComment, getRepository, updateAskPublication],
   );
 
   return {

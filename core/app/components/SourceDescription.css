@@ -1,0 +1,114 @@
+.codophon-header-toggle.codophon-header-toggle-static {
+  cursor: default;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.codophon-file-path.source-description-title {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.source-description-review-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.codophon-source-description-panel {
+  background: var(--code-bg);
+  border-radius: var(--codophon-diff-radius);
+  box-shadow:
+    0 0 0 1px var(--file-border),
+    6px 18px 80px -54px rgb(0 0 0 / 0.78);
+  corner-shape: squircle;
+  flex: none;
+  overflow: clip;
+}
+
+.codophon-source-description-panel {
+  font-size: var(--text-lg);
+}
+
+/* The PR/commit description card renders in CodeView's non-virtualized header
+   region at the top of the scroll content; the host div inherits the
+   scroller's inline padding, so only vertical spacing is needed here. */
+.code-view [data-diffs-code-view-header] .codophon-code-view-source-description {
+  margin-top: 11px;
+}
+
+/* The title bar sticks to the top of the scroller while the card is in view
+   and unsticks naturally as the card scrolls past (sticky cannot escape the
+   panel; `overflow: clip` does not create a scroll container). */
+.code-view [data-diffs-code-view-header] .codophon-source-description-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.codophon-source-description-panel-body {
+  background: var(--code-bg);
+}
+
+.codophon-source-description-footer {
+  padding: 0 8px 8px 50px;
+}
+
+.source-description-comment-anonymous + .codophon-source-description-footer {
+  padding-left: 8px;
+}
+
+.source-description-comment.review-comment {
+  padding: 8px;
+}
+
+.source-description-comment-anonymous.review-comment {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.source-description-author-header.review-comment-header {
+  font: var(--text-lg)/1.3 var(--font-sans);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.source-description-author-header.without-description {
+  border-bottom: 0;
+}
+
+.source-description-body.review-comment-body {
+  background: color-mix(in srgb, var(--file-bg) 96%, var(--text) 2%);
+  font-size: var(--text-lg);
+}
+
+.source-description-markdown.codophon-markdown-preview:not(.editable) {
+  --mdx-editor-font-size: var(--text-lg);
+
+  padding: 0;
+}
+
+.source-description-markdown.codophon-markdown-preview:not(.editable) :is(h1, h2, h3, h4, h5, h6) {
+  border-bottom: none;
+  font-size: var(--text-lg);
+  margin: 14px 0 6px;
+  padding-bottom: 0;
+}
+
+.source-description-markdown-editor {
+  --mdx-editor-font-size: var(--text-lg);
+  --mdx-editor-line-height: 1.55;
+}
+
+.source-description-markdown-editor .review-comment-input {
+  font: var(--text-lg)/1.55 var(--font-sans);
+  min-height: 0;
+}
+
+.source-description-markdown-editor .mdx-editor-content > :last-child {
+  margin-bottom: 0;
+}
+
+.general-comment-input.review-comment-input {
+  padding: 8px 12px;
+}

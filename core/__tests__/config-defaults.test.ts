@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vite-plus/test';
@@ -9,7 +9,6 @@ import {
   writeConfig,
 } from '../../electron/config.ts';
 import packageJson from '../../package.json' with { type: 'json' };
-import schema from '../config/codophon-config.schema.json' with { type: 'json' };
 import { createDefaultConfig } from '../config/defaults.ts';
 import { createTemporaryDirectorySync, createTemporaryEnvironment } from './helpers/resources.ts';
 
@@ -31,23 +30,10 @@ const readElectronConfigText = (text: string) => {
   return readConfig();
 };
 
-const getSchemaDefaults = (section: 'keymap' | 'settings') =>
-  Object.fromEntries(
-    Object.entries(schema.properties[section].properties).map(([key, property]) => [
-      key,
-      property.default,
-    ]),
-  );
-
-test('schema defaults match config defaults', () => {
-  const defaults = createDefaultConfig();
-
-  expect(getSchemaDefaults('settings')).toEqual(defaults.settings);
-  expect(getSchemaDefaults('keymap')).toEqual(defaults.keymap);
-});
-
-test('electron and renderer defaults match', () => {
-  expect(createElectronDefaultConfig()).toEqual(createDefaultConfig());
+test('each config has independent defaults', () => {
+  const config = createDefaultConfig();
+  config.settings.agents.codex.model = 'custom';
+  expect(createElectronDefaultConfig().settings.agents.codex.model).toBe('gpt-5.6-terra');
 });
 
 test('prompt overrides persist independently of legacy guidance and can be reset', () => {
@@ -58,18 +44,18 @@ test('prompt overrides persist independently of legacy guidance and can be reset
     ask: '  Answer briefly.  ',
     walkthroughSummary: 'Name the risk.',
   };
-  config.settings.walkthroughPrompt = 'Use Japanese.';
+  config.settings.agentPrompts.walkthrough = 'Use Japanese.';
   writeConfig(config);
   const saved = readConfig();
   expect(saved.settings.agentPrompts).toEqual({
     ask: 'Answer briefly.',
+    walkthrough: 'Use Japanese.',
     walkthroughSummary: 'Name the risk.',
   });
   delete saved.settings.agentPrompts.ask;
   writeConfig(saved);
   expect(readConfig().settings).toMatchObject({
-    agentPrompts: { walkthroughSummary: 'Name the risk.' },
-    walkthroughPrompt: 'Use Japanese.',
+    agentPrompts: { walkthrough: 'Use Japanese.', walkthroughSummary: 'Name the risk.' },
   });
   expect(readConfig().settings.agentPrompts.ask).toBeUndefined();
   expect(
@@ -147,9 +133,10 @@ test('electron config normalizes sidebar position', () => {
 });
 
 test('old configurations retain automatic reasoning and custom values survive save and reload', async () => {
-  expect(readElectronConfig({}).settings.openAIReasoningEffort).toBe('');
+  expect(readElectronConfig({}).settings.agents.codex.reasoningEffort).toBe('');
   expect(
-    readElectronConfig({ settings: { openAIReasoningEffort: 42 } }).settings.openAIReasoningEffort,
+    readElectronConfig({ settings: { openAIReasoningEffort: 42 } }).settings.agents.codex
+      .reasoningEffort,
   ).toBe('');
   using home = createTemporaryDirectorySync('codophon-model-config.');
   using _environment = createTemporaryEnvironment({ HOME: home.path, USERPROFILE: home.path });
@@ -161,8 +148,7 @@ test('old configurations retain automatic reasoning and custom values survive sa
   );
   const config = readConfig();
   expect(config.settings).toMatchObject({
-    openAIModel: 'gpt-6.1-sol',
-    openAIReasoningEffort: 'high',
+    agents: { codex: { model: 'gpt-6.1-sol', reasoningEffort: 'high' } },
   });
   let reloaded: ReturnType<typeof createDefaultConfig> | undefined;
   const stop = watchConfig((next) => {
@@ -172,16 +158,15 @@ test('old configurations retain automatic reasoning and custom values survive sa
     // macOS FSEvents subscribes asynchronously and has no ready signal, so a write made the
     // instant the watcher starts can be missed. Real config edits never race startup like this.
     await new Promise((resolveWait) => setTimeout(resolveWait, 150));
-    writeConfig({ ...config, settings: { ...config.settings, openAIReasoningEffort: 'ultra' } });
+    config.settings.agents.codex.reasoningEffort = 'ultra';
+    writeConfig(config);
     expect(readConfig().settings).toMatchObject({
-      openAIModel: 'gpt-6.1-sol',
-      openAIReasoningEffort: 'ultra',
+      agents: { codex: { model: 'gpt-6.1-sol', reasoningEffort: 'ultra' } },
     });
     await vi.waitFor(
       () =>
         expect(reloaded?.settings).toMatchObject({
-          openAIModel: 'gpt-6.1-sol',
-          openAIReasoningEffort: 'ultra',
+          agents: { codex: { model: 'gpt-6.1-sol', reasoningEffort: 'ultra' } },
         }),
       { timeout: 5000 },
     );
@@ -196,7 +181,7 @@ test('electron config keeps custom walkthrough prompt text only when it is a str
       settings: {
         walkthroughPrompt: 'Respond in German with product-review terminology.',
       },
-    }).settings.walkthroughPrompt,
+    }).settings.agentPrompts.walkthrough,
   ).toBe('Respond in German with product-review terminology.');
 
   expect(
@@ -204,8 +189,8 @@ test('electron config keeps custom walkthrough prompt text only when it is a str
       settings: {
         walkthroughPrompt: ['Respond in German'],
       },
-    }).settings.walkthroughPrompt,
-  ).toBe('');
+    }).settings.agentPrompts.walkthrough,
+  ).toBeUndefined();
 });
 
 test('electron config strips trailing commas without changing strings', () => {
@@ -220,7 +205,7 @@ test('electron config strips trailing commas without changing strings', () => {
     },
   }`);
 
-  expect(config.settings.walkthroughPrompt).toBe(
+  expect(config.settings.agentPrompts.walkthrough).toBe(
     'Preserve comma,} and comma,] with an escaped quote: "',
   );
   expect(config.settings.wordWrap).toBe(false);
@@ -234,12 +219,11 @@ const forgeConfig = createRequire(import.meta.url)('../../forge.config.cjs') as 
 test('electron defaults load from packaged app shape', async () => {
   using directory = createTemporaryDirectorySync('codophon-package-shape.');
   const packageRoot = directory.path;
-  mkdirSync(join(packageRoot, 'config'));
-  mkdirSync(join(packageRoot, 'electron'));
+  cpSync('electron', join(packageRoot, 'electron'), {
+    filter: (path) => !path.includes('__tests__') && !path.includes('icons'),
+    recursive: true,
+  });
   writeFileSync(join(packageRoot, 'package.json'), '{"type":"module"}');
-  copyFileSync('config/defaults.json', join(packageRoot, 'config/defaults.json'));
-  copyFileSync('electron/config.ts', join(packageRoot, 'electron/config.ts'));
-  copyFileSync('electron/agent-prompts.ts', join(packageRoot, 'electron/agent-prompts.ts'));
   await forgeConfig.hooks.packageAfterCopy({}, packageRoot);
 
   const packaged = (await import(
@@ -249,6 +233,6 @@ test('electron defaults load from packaged app shape', async () => {
 });
 
 test('npm package includes runtime config and bundled skills', () => {
-  expect(packageJson.files).toContain('config');
+  expect(packageJson.files).toContain('core');
   expect(packageJson.files).toContain('skills');
 });

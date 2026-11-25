@@ -3,19 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vite-plus/test';
-import type { AgentPromptOverrides } from '../../core/config/types.ts';
-import type { ReviewAssistantResult } from '../../core/types.ts';
+import { createChangedFile, repositoryState } from '../../core/__tests__/helpers/fixtures.ts';
+import type { ReviewAssistantRequest } from '../../core/types.ts';
+import type { AgentRunner } from '../agent.ts';
 import { readReviewAssistantReply } from '../review-assist.ts';
 const answer = { reply: 'Use the shared helper.', requests: [], version: 1 };
-type Run = (
-  root: string,
-  prompt: string,
-  schema: unknown,
-  outputName?: string,
-  timeoutMessage?: string,
-  options?: { timeoutMs?: number },
-) => Promise<string>;
-const request = {
+type Run = AgentRunner['run'];
+const request: ReviewAssistantRequest = {
   comment: {
     body: 'How do these changes work together?',
     filePath: 'selected.ts',
@@ -24,25 +18,24 @@ const request = {
     side: 'additions',
   },
 };
-const file = (path: string, patch: string) => ({
-  path,
-  sections: [{ binary: false, id: path, kind: 'pull-request', patch }],
-  status: 'modified',
-});
-const state = (files = [file('selected.ts', '+const value = shared();')]) => ({
-  files,
-  root: '/repo',
-  source: { type: 'working-tree' },
-});
-const agent = (run: Run) => ({
+const file = (path: string, patch: string) =>
+  createChangedFile(path, { kind: 'pull-request', patch });
+const state = (files = [file('selected.ts', '+const value = shared();')]) =>
+  repositoryState({ files });
+const agent = (run: Run): AgentRunner => ({
+  id: 'codex',
   defaultTimeoutMs: 300_000,
   isNotFoundError: () => false,
   label: 'Codex',
   notFoundCode: 'CODEX_NOT_FOUND',
   run,
 });
-const read = async (input = state(), response: unknown = answer, question: unknown = request) => {
-  const run = vi.fn<Run>().mockResolvedValue(JSON.stringify(response));
+const read = async (
+  input = state(),
+  response: unknown = answer,
+  question: ReviewAssistantRequest = request,
+) => {
+  const run = vi.fn<Run>().mockResolvedValue(response);
   const result = await readReviewAssistantReply(input, question, agent(run), {});
   return { prompt: run.mock.calls[0]?.[1] as string, result, run };
 };
@@ -57,8 +50,8 @@ afterEach(() => {
 });
 
 test('another Ask reaches the agent and can finish while the first answer is pending', async () => {
-  const first = Promise.withResolvers<string>();
-  const second = Promise.withResolvers<string>();
+  const first = Promise.withResolvers<unknown>();
+  const second = Promise.withResolvers<unknown>();
   const question = 'What calls the shared helper?';
   const run = vi.fn<Run>((_root, prompt) =>
     prompt.includes(question) ? second.promise : first.promise,
@@ -74,21 +67,21 @@ test('another Ask reaches the agent and can finish while the first answer is pen
 
   try {
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2));
-    second.resolve(JSON.stringify({ ...answer, reply: 'The caller is in selected.ts.' }));
+    second.resolve({ ...answer, reply: 'The caller is in selected.ts.' });
     expect(await secondReply).toMatchObject({
       reply: 'The caller is in selected.ts.',
       status: 'ready',
     });
     expect(firstFinished).toBe(false);
   } finally {
-    first.resolve(JSON.stringify(answer));
-    second.resolve(JSON.stringify(answer));
+    first.resolve(answer);
+    second.resolve(answer);
     await Promise.all([firstReply, secondReply]);
   }
 });
 
 test('uses custom Ask guidance without replacing the evidence or context-read protocol', async () => {
-  const run = vi.fn<Run>().mockResolvedValue(JSON.stringify(answer));
+  const run = vi.fn<Run>().mockResolvedValue(answer);
   const overrides = { ask: 'Lead with a short answer. Keep {{REVIEW_MATERIAL}} literal here.' };
   await readReviewAssistantReply(state(), request, agent(run), {}, overrides);
   const prompt = run.mock.calls[0]?.[1];
@@ -153,8 +146,8 @@ test('carries earlier questions and answers through follow-up context reads in c
   ];
   const run = vi
     .fn<Run>()
-    .mockResolvedValueOnce(JSON.stringify(requestMore('changes', 'selected.ts')))
-    .mockResolvedValueOnce(JSON.stringify(answer));
+    .mockResolvedValueOnce(requestMore('changes', 'selected.ts'))
+    .mockResolvedValueOnce(answer);
   const result = await readReviewAssistantReply(
     state(),
     {
@@ -187,7 +180,10 @@ test.each([
 ])(
   'rejects invalid or oversized conversation history without silently discarding it',
   async (previousTurns) => {
-    const { result, run } = await read(state(), answer, { ...request, previousTurns });
+    const { result, run } = await read(state(), answer, {
+      ...request,
+      previousTurns: previousTurns as ReviewAssistantRequest['previousTurns'],
+    });
     expect(result).toMatchObject({
       status: 'unavailable',
       reason: expect.stringContaining('original note'),
@@ -197,13 +193,14 @@ test.each([
 );
 
 test('treats descriptions as intent and visibly discloses shortened material', async () => {
-  const run = vi.fn<Run>().mockResolvedValue(JSON.stringify(answer));
+  const run = vi.fn<Run>().mockResolvedValue(answer);
   const result = await readReviewAssistantReply(
     {
       ...state(),
       source: {
         description: `${'A'.repeat(6100)}HIDDEN_TAIL`,
-        type: 'pull-request',
+        provider: 'github' as const,
+        type: 'pull-request' as const,
         url: 'https://github.com/example/repo/pull/42',
       },
     },
@@ -228,18 +225,16 @@ test('retrieves omitted changes, source lines, and the rest of a large file list
   const input = state([file('selected.ts', large), ...files]);
   const run = vi
     .fn<Run>()
-    .mockResolvedValueOnce(
-      JSON.stringify({
-        reply: '',
-        requests: [
-          { path: '', search: '', startLine: 200, view: 'files' },
-          { path: 'selected.ts', search: '', startLine: 900, view: 'changes' },
-          { path: '', search: 'change249', startLine: 201, view: 'changes' },
-        ],
-        version: 1,
-      }),
-    )
-    .mockResolvedValueOnce(JSON.stringify(answer));
+    .mockResolvedValueOnce({
+      reply: '',
+      requests: [
+        { path: '', search: '', startLine: 200, view: 'files' },
+        { path: 'selected.ts', search: '', startLine: 900, view: 'changes' },
+        { path: '', search: 'change249', startLine: 201, view: 'changes' },
+      ],
+      version: 1,
+    })
+    .mockResolvedValueOnce(answer);
   const result = await readReviewAssistantReply(input, request, agent(run), {});
   expect(run).toHaveBeenCalledTimes(2);
   expect(run.mock.calls[0][1]).not.toContain('+line899 ');
@@ -268,7 +263,7 @@ test('keeps the selected lines in view when a large patch needs paging', async (
 });
 
 test('keeps additional context reads bounded and does not invent an answer on failure', async () => {
-  const run = vi.fn<Run>().mockResolvedValue(JSON.stringify(requestMore('changes', 'selected.ts')));
+  const run = vi.fn<Run>().mockResolvedValue(requestMore('changes', 'selected.ts'));
   const result = await readReviewAssistantReply(state(), request, agent(run), {
     timeoutMs: 20_000,
   });
@@ -318,25 +313,24 @@ test('uses pinned commits and the actual Git file list without reading a dirty, 
   const source = {
     baseSha,
     headSha,
-    type: 'pull-request',
+    provider: 'github' as const,
+    type: 'pull-request' as const,
     url: 'https://github.com/example/repo/pull/42',
   };
   const input = { ...state([file('selected.ts', '+WRONG_API_PATCH')]), root, source };
   const run = vi
     .fn<Run>()
-    .mockResolvedValueOnce(
-      JSON.stringify({
-        reply: '',
-        requests: [
-          { path: 'helper.ts', search: '', startLine: 1, view: 'after' },
-          { path: 'renamed.ts', search: '', startLine: 1, view: 'before' },
-          { path: 'removed.ts', search: '', startLine: 1, view: 'after' },
-          { path: '..\\outside.txt', search: '', startLine: 1, view: 'before' },
-        ],
-        version: 1,
-      }),
-    )
-    .mockResolvedValueOnce(JSON.stringify(answer));
+    .mockResolvedValueOnce({
+      reply: '',
+      requests: [
+        { path: 'helper.ts', search: '', startLine: 1, view: 'after' },
+        { path: 'renamed.ts', search: '', startLine: 1, view: 'before' },
+        { path: 'removed.ts', search: '', startLine: 1, view: 'after' },
+        { path: '..\\outside.txt', search: '', startLine: 1, view: 'before' },
+      ],
+      version: 1,
+    })
+    .mockResolvedValueOnce(answer);
   const result = await readReviewAssistantReply(input, { ...request, source }, agent(run), {});
   const prompt = run.mock.calls[1][1];
   expect(prompt).toContain('+newValue(shared());');
@@ -356,7 +350,8 @@ test('rejects changed PR commits before asking the assistant', async () => {
   const source = {
     baseSha: 'a'.repeat(40),
     headSha: 'b'.repeat(40),
-    type: 'pull-request',
+    provider: 'github' as const,
+    type: 'pull-request' as const,
     url: 'https://github.com/example/repo/pull/42',
   };
   const result = await readReviewAssistantReply(

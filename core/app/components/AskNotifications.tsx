@@ -1,3 +1,4 @@
+import './ReviewDialogs.css';
 import { ArrowUpRightIcon as ArrowUpRight } from '@phosphor-icons/react/ArrowUpRight';
 import { CheckCircleIcon as CheckCircle } from '@phosphor-icons/react/CheckCircle';
 import { WarningCircleIcon as WarningCircle } from '@phosphor-icons/react/WarningCircle';

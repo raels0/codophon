@@ -198,7 +198,9 @@ test('app commands register the complete command set and delegate dynamic action
       options={{
         changeSidebarMode,
         focusFileFilter,
+        getRepository: () => stateRef.current,
         getReviewCommandTarget,
+        getViewed: () => viewedRef.current,
         onOpenAskHistory: null,
         onOpenDiffSearch,
         onOpenReviewBrief,
@@ -212,8 +214,6 @@ test('app commands register the complete command set and delegate dynamic action
         onToggleWordWrap,
         preferencesRef,
         reviewCommentsRef: { current: [] },
-        stateRef,
-        viewedRef,
       }}
     />,
   );
@@ -254,20 +254,17 @@ test('app commands register the complete command set and delegate dynamic action
     }
     return match;
   };
-  const fontCommands = {
-    decreaseCodeFontSize: vi.fn(async () => {}),
-    increaseCodeFontSize: vi.fn(async () => {}),
-    resetCodeFontSize: vi.fn(async () => {}),
-  };
-  vi.stubGlobal('codophon', fontCommands);
-  for (const [id, title, handler] of [
-    ['increase-code-font-size', 'Increase Code Font Size', fontCommands.increaseCodeFontSize],
-    ['decrease-code-font-size', 'Decrease Code Font Size', fontCommands.decreaseCodeFontSize],
-    ['reset-code-font-size', 'Reset Code Font Size', fontCommands.resetCodeFontSize],
+  const updateSettings = vi.fn(async () => {});
+  vi.stubGlobal('codophon', { updateSettings });
+  for (const [commandName, action] of [
+    ['Increase', 'increase'],
+    ['Decrease', 'decrease'],
+    ['Reset', 'reset'],
   ] as const) {
-    expect(command(id).title).toBe(title);
-    command(id).execute();
-    expect(handler).toHaveBeenCalledOnce();
+    const font = command(action + '-code-font-size');
+    expect(font.title).toBe(commandName + ' Code Font Size');
+    font.execute();
+    expect(updateSettings).toHaveBeenLastCalledWith({ codeFontSize: action });
   }
   const editRequests = vi.fn();
   window.addEventListener('codophon:edit-selected-file', editRequests);

@@ -7,7 +7,6 @@ import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
-import type { RepositoryState, SetPullRequestFileViewedRequest } from '../../core/types.ts';
 import {
   readPullRequestState,
   readPullRequestViewedFiles,

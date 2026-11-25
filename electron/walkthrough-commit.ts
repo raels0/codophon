@@ -74,8 +74,8 @@ const gitStreaming = (
  */
 const createWalkthroughCommit = async (
   repoPath: string,
-  request: WalkthroughCommitRequest,
-  onOutput: (chunk: string) => void,
+  request: Omit<WalkthroughCommitRequest, 'body'> & { body?: string },
+  onOutput?: (chunk: string) => void,
 ): Promise<WalkthroughCommitResult> => {
   const subject = typeof request?.subject === 'string' ? request.subject.trim() : '';
   if (!subject) {

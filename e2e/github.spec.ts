@@ -57,6 +57,7 @@ const createPullRequest = (workspace: string, repo: Repo) => {
         draft: false,
         head: { ref: 'feature', repo: { full_name: 'acme/widget' }, sha: head },
         html_url: 'https://github.com/acme/widget/pull/12',
+        node_id: 'PR_node_12',
         number: 12,
         state: 'open',
         title: 'Add a sub helper',
@@ -130,6 +131,32 @@ test('reviewing a GitHub PR: read it, comment on a line, and request changes', a
           .find((call) => call.method === 'POST' && call.endpoint.endsWith('/reviews'))!.input,
       ),
     ).toMatchObject({ event: 'REQUEST_CHANGES' });
+  } finally {
+    await app.close();
+  }
+});
+
+test('marking a GitHub PR file viewed saves it to GitHub', async ({ home, repo, workspace }) => {
+  const pullRequest = createPullRequest(workspace, repo);
+  const app = await Codophon.launch(
+    home,
+    {
+      repositoryPath: repo.path,
+      source: { type: 'pull-request', url: 'https://github.com/acme/widget/pull/12' },
+    },
+    pullRequest.env,
+  );
+  try {
+    await expect.poll(() => app.diffText(), { timeout: 20_000 }).toContain('export const sub');
+    await app.viewedToggle('math.ts').click();
+    await expect(app.viewedToggle('math.ts')).toHaveAttribute('aria-pressed', 'true');
+    await expect
+      .poll(() => pullRequest.calls().find((call) => call.input.includes('markFileAsViewed')))
+      .toBeTruthy();
+    const mutation = JSON.parse(
+      pullRequest.calls().find((call) => call.input.includes('markFileAsViewed'))!.input,
+    );
+    expect(mutation.variables.input).toEqual({ path: 'math.ts', pullRequestId: 'PR_node_12' });
   } finally {
     await app.close();
   }

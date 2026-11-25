@@ -62,7 +62,7 @@ const createWalkthroughLaunchController = ({
   return {
     clear: (webContentsId: number) => initialWalkthroughs.delete(webContentsId),
 
-    getInitialRepositoryState: (webContentsId: number, source: ReviewSource) =>
+    getInitialRepositoryState: (webContentsId: number, source?: ReviewSource) =>
       getInitialSnapshot(webContentsId, source)?.state,
     hasPending: () => pendingChecks > 0,
 
@@ -110,7 +110,7 @@ const createWalkthroughLaunchController = ({
     },
     quitIfIdle,
 
-    takeInitialWalkthrough: (webContentsId: number, source: ReviewSource) => {
+    takeInitialWalkthrough: (webContentsId: number, source?: ReviewSource) => {
       const snapshot = getInitialSnapshot(webContentsId, source);
       initialWalkthroughs.delete(webContentsId);
       return snapshot?.walkthrough;

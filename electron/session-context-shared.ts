@@ -1,5 +1,8 @@
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { AGENT_LABELS, type AgentBackend } from '../core/config/agents.ts';
+import type { WalkthroughContext } from '../core/types.ts';
+import { cleanText, truncate } from './agent-shared.ts';
 
 const MAX_SESSION_SCAN_FILES = 20_000;
 const MAX_SESSION_MESSAGE_CHARS = 2_400;
@@ -136,9 +139,71 @@ const readSessionMessages = async (
   return selectRecentMessages(messages);
 };
 
-export {
-  MAX_SESSION_MESSAGE_CHARS,
-  SESSION_UUID_PATTERN,
-  readSessionMessages,
-  selectRecentMessages,
-};
+export function objectFields(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+export function sessionMessage(
+  role: unknown,
+  content: unknown,
+  agent: AgentBackend,
+): SessionMessage | null {
+  if (role !== 'user' && role !== 'assistant') return null;
+  const raw =
+    agent === 'claude' && typeof content === 'string'
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((part) => {
+              const { type, text } = objectFields(part);
+              const isText =
+                type === 'text' ||
+                (agent === 'codex' &&
+                  (type === undefined || type === 'input_text' || type === 'output_text'));
+              return isText && typeof text === 'string' ? text : '';
+            })
+            .filter(Boolean)
+            .join('\n')
+        : '';
+  const text = truncate(cleanText(raw), MAX_SESSION_MESSAGE_CHARS);
+  const normalized = cleanText(text).toLowerCase();
+  if (!normalized || ['show me codophon', 'open codophon'].includes(normalized)) return null;
+  if (agent !== 'claude' && normalized === '$codophon') return null;
+  if (agent !== 'codex' && ['codophon', '/codophon'].includes(normalized)) return null;
+  return { role, text };
+}
+
+export function sessionContext(
+  agent: AgentBackend,
+  threadId: string,
+  messages: SessionMessage[],
+): WalkthroughContext {
+  return {
+    messages,
+    risks: messages.length
+      ? undefined
+      : [
+          `Codophon could not find recent readable messages for the linked ${AGENT_LABELS[agent]} session.`,
+        ],
+    source: { generatedAt: new Date().toISOString(), threadId, type: `${agent}-session-excerpt` },
+    version: 1,
+  };
+}
+
+export async function readJsonlSession(
+  agent: 'claude' | 'codex',
+  threadId: string | undefined,
+  root: string,
+  matches: (path: string, id: string) => boolean,
+  extract: (record: Record<string, unknown>) => SessionMessage | null,
+) {
+  if (!threadId || !SESSION_UUID_PATTERN.test(threadId)) return null;
+  const messages = await readSessionMessages(
+    root,
+    (path) => matches(path.toLowerCase(), threadId.toLowerCase()),
+    (record) => extract(objectFields(record)),
+  );
+  return sessionContext(agent, threadId, messages);
+}
+
+export { selectRecentMessages };

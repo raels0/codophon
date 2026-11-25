@@ -7,7 +7,14 @@
  * renderer gets the same treatment so the app window never leaves the app.
  */
 const attachExternalLinkHandling = (
-  webContents: Pick<import('electron').WebContents, 'getURL' | 'on' | 'setWindowOpenHandler'>,
+  webContents: {
+    getURL(): string;
+    on(
+      event: 'will-navigate',
+      listener: (event: { preventDefault(): void }, url: string) => void,
+    ): void;
+    setWindowOpenHandler(handler: (details: { url: string }) => { action: 'deny' }): void;
+  },
   openExternal: (url: string) => Promise<void>,
 ) => {
   // shell.openExternal rejects when the operating system cannot open the url;

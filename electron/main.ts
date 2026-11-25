@@ -1,5 +1,5 @@
+import { existsSync } from 'node:fs';
 import './main/stdio.ts';
-import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
@@ -13,6 +13,7 @@ import {
   screen,
   shell,
 } from 'electron';
+import type { Invoke } from '../core/ipc.ts';
 import { MAX_AGENT_PROMPT_LENGTH, agentPrompts, normalizeAgentPrompts } from './agent-prompts.ts';
 import { buildInstallSkillMenuItem, listAgentSkills } from './agent-skills.ts';
 import {
@@ -22,16 +23,13 @@ import {
   listAgents,
   normalizeAgentBackend,
 } from './agent.ts';
-import { normalizeClaudeModel } from './claude.ts';
 import { readCodexModels } from './codex-models.ts';
-import { normalizeOpenAIModel } from './codex.ts';
 import {
   createDefaultConfig,
   getConfigPath,
   initConfig,
   importPreviousConfig,
-  normalizeCodeFontFamily,
-  normalizeCodeFontSize,
+  mergeConfig,
   readConfig,
   watchConfig,
   writeConfig,
@@ -53,16 +51,17 @@ import {
 import { readAzureDevOpsReviewBriefComments } from './git-state/azure-devops.ts';
 import { readKeyboardLayout, watchKeyboardLayout } from './keyboard-layout.ts';
 import { getInitialRepositoryPath, readLaunch } from './main/launch-request.ts';
-import { normalizeOpenCodeModel, renderOpenCodeCommand } from './opencode.ts';
+import { renderOpenCodeCommand } from './opencode.ts';
 import { createPendingCommentsClipboardController } from './pending-comments.ts';
 import { createReleaseCheck } from './release-check.ts';
 import { readReviewAssistantReply } from './review-assist.ts';
 import { parseReviewUrl, resolveReviewUrl } from './review-source.ts';
 import { readCommitMessageReply } from './walkthrough-commit-message.ts';
 import { createWalkthroughCommit } from './walkthrough-commit.ts';
-import { diagnoseWalkthroughMismatch } from './walkthrough-diagnosis.ts';
+import { loadWalkthrough } from './walkthrough-service.ts';
 import {
-  findMatchingWindowIdentity,
+  findMatchingSession,
+  type WindowIdentity,
   getWindowIdentity,
   getWindowIdentityForRepositoryState,
 } from './window-identity.ts';
@@ -95,21 +94,12 @@ import {
   watchMarkdownDocument,
   writeMarkdownDocument,
 } from './markdown-document.ts';
-import {
-  assertWalkthroughHunkIdsResolve,
-  getNarrativeWalkthroughCacheKey,
-  normalizeNarrativeWalkthrough,
-  readNarrativeWalkthrough,
-  resolveNarrativeWalkthroughModel,
-} from './narrative-walkthrough.ts';
 import { readRepositoryFile, writeRepositoryFile } from './repository-file.ts';
 import {
   createRepositoryWatcherCoordinator,
   readRepositoryWatcherSnapshot,
 } from './repository-watcher.ts';
-import { mergeWalkthroughContexts } from './walkthrough-context.ts';
 import { createWalkthroughProgressReporter } from './walkthrough-progress.ts';
-import { readStoredWalkthrough, writeStoredWalkthrough } from './walkthrough-store.ts';
 import { createWindowRevealController } from './window-reveal.ts';
 import {
   MIN_WINDOW_HEIGHT,
@@ -118,8 +108,6 @@ import {
   validateWindowStateOnScreen,
   writeWindowState,
 } from './window-state.ts';
-
-export type WindowIdentity = { key: string; repositoryRoot: string; sourceKey: string };
 
 export type GitHubRemote = { direction: string; name: string; owner: string; repo: string };
 
@@ -138,24 +126,22 @@ export type ParsedCommandLineArguments = {
 
 const root = dirname(import.meta.dirname);
 
-const windowRevealControllers: Map<
-  number,
-  ReturnType<typeof createWindowRevealController>
-> = new Map();
-
-const windowIdentities: Map<number, WindowIdentity | null> = new Map();
-
-const windowRepositories: Map<number, string> = new Map();
-
-const windowLaunchOptions: Map<number, CodophonLaunchOptions> = new Map();
-
-const windowInitialRepositoryStates: Map<number, Promise<RepositoryState>> = new Map();
-
-const walkthroughProgressGenerations: Map<number, number> = new Map();
-
-const markdownDocumentWatchers: Map<number, Map<string, () => void>> = new Map();
-
-const openWindows: Set<import('electron').BrowserWindow> = new Set();
+type WindowSession = {
+  window: BrowserWindow;
+  repositoryPath: string;
+  identity: WindowIdentity | null;
+  launch: CodophonLaunchOptions;
+  reveal: ReturnType<typeof createWindowRevealController>;
+  initialState?: Promise<RepositoryState>;
+  progressGeneration: number;
+  markdownWatchers: Map<string, () => void>;
+};
+const sessions = new Map<number, WindowSession>();
+const getSession = (id: number) => {
+  const session = sessions.get(id);
+  if (!session) throw new Error('The review window is closed.');
+  return session;
+};
 const pendingCommentsClipboardController = createPendingCommentsClipboardController({ clipboard });
 
 let config: CodophonConfig = createDefaultConfig();
@@ -174,7 +160,8 @@ const skillInstallers: Map<string, ReturnType<typeof createSkillInstaller>> = ne
       dialog,
       renderManagedFile:
         skill.id === 'opencode'
-          ? (_file, template) => renderOpenCodeCommand(template, config.settings.opencodeModel)
+          ? (_file, template) =>
+              renderOpenCodeCommand(template, config.settings.agents.opencode.model)
           : undefined,
       root,
       skill,
@@ -210,7 +197,7 @@ const readInitialRepositoryStateWithConfig = (
     : readRepositoryStateWithConfig(repositoryPath, launchOptions.source);
 
 const resolveWindowAgent = (webContentsId: number) => {
-  const override = windowLaunchOptions.get(webContentsId)?.agentBackend;
+  const override = getSession(webContentsId).launch.agentBackend;
   return getAgent(isAgentBackend(override) ? override : config.settings.agentBackend);
 };
 
@@ -231,45 +218,19 @@ const openConfigFile = async () => {
   await openFileInEditor(getConfigPath());
 };
 
-const getWindowRepositoryRoot = (webContentsId: number) =>
-  windowIdentities.get(webContentsId)?.repositoryRoot ||
-  windowRepositories.get(webContentsId) ||
-  getLaunchPath();
+const getWindowRepositoryRoot = (webContentsId: number) => getSession(webContentsId).repositoryPath;
 
 const getMarkdownDocumentContext = (webContentsId: number) => ({
   repositoryRoot: getWindowRepositoryRoot(webContentsId),
 });
 
 const storeResolvedRepositoryState = (webContentsId: number, state: RepositoryState) => {
-  windowRepositories.set(webContentsId, state.root);
-  const browserWindow = BrowserWindow.getAllWindows().find(
-    (window) => window.webContents.id === webContentsId,
-  );
-  if (browserWindow && !browserWindow.isDestroyed()) {
-    browserWindow.setTitle(getRepositoryWindowTitle(state));
-  }
-  const launchOptions = windowLaunchOptions.get(webContentsId);
-  if (launchOptions) {
-    windowLaunchOptions.set(webContentsId, {
-      ...launchOptions,
-      source: state.source,
-    });
-  }
-  const identity = getWindowIdentityForRepositoryState(state);
-  if (identity) {
-    windowIdentities.set(webContentsId, identity);
-  }
-};
-
-const clearMarkdownDocumentWatchers = (webContentsId: number) => {
-  const watchers = markdownDocumentWatchers.get(webContentsId);
-  if (!watchers) {
-    return;
-  }
-  for (const close of watchers.values()) {
-    close();
-  }
-  markdownDocumentWatchers.delete(webContentsId);
+  const session = sessions.get(webContentsId);
+  if (!session) return;
+  session.repositoryPath = state.root;
+  session.launch = { ...session.launch, source: state.source };
+  session.identity = getWindowIdentityForRepositoryState(state);
+  session.window.setTitle(getRepositoryWindowTitle(state));
 };
 
 const ensureMarkdownDocumentWatcher = (
@@ -278,7 +239,7 @@ const ensureMarkdownDocumentWatcher = (
 ) => {
   const webContentsId = webContents.id;
   const resolved = resolveMarkdownPath(request, getMarkdownDocumentContext(webContentsId));
-  const watchers = markdownDocumentWatchers.get(webContentsId) ?? new Map();
+  const watchers = getSession(webContentsId).markdownWatchers;
   if (watchers.has(resolved.id)) {
     return;
   }
@@ -303,7 +264,6 @@ const ensureMarkdownDocumentWatcher = (
       resolved,
     }),
   );
-  markdownDocumentWatchers.set(webContentsId, watchers);
 };
 
 const sendConfigChanged = () => {
@@ -315,31 +275,7 @@ const sendConfigChanged = () => {
 };
 
 const updateConfig = (nextConfig: Partial<CodophonConfig>) => {
-  const updatedConfig = {
-    keymap: { ...config.keymap, ...nextConfig.keymap },
-    settings: {
-      ...config.settings,
-      ...nextConfig.settings,
-      agentBackend: normalizeAgentBackend(
-        nextConfig.settings?.agentBackend ?? config.settings.agentBackend,
-      ),
-      claudeModel: normalizeClaudeModel(
-        nextConfig.settings?.claudeModel ?? config.settings.claudeModel,
-      ),
-      codeFontFamily: normalizeCodeFontFamily(
-        nextConfig.settings?.codeFontFamily ?? config.settings.codeFontFamily,
-      ),
-      codeFontSize: normalizeCodeFontSize(
-        nextConfig.settings?.codeFontSize ?? config.settings.codeFontSize,
-      ),
-      openAIModel: normalizeOpenAIModel(
-        nextConfig.settings?.openAIModel ?? config.settings.openAIModel,
-      ),
-      opencodeModel: normalizeOpenCodeModel(
-        nextConfig.settings?.opencodeModel ?? config.settings.opencodeModel,
-      ),
-    },
-  };
+  const updatedConfig = mergeConfig({ ...config, ...nextConfig });
   writeConfig(updatedConfig);
   config = updatedConfig;
   nativeTheme.themeSource = config.settings.theme;
@@ -360,34 +296,40 @@ const selectAgentBackend = (backend: AgentBackend) => {
 
 const selectAgentModel = (agent: import('./agent.ts').Agent, model: string) => {
   const normalized = agent.normalizeModel(model);
-  if (config.settings[agent.modelSettingKey] === normalized) {
+  if (config.settings.agents[agent.id].model === normalized) {
     return;
   }
 
   const modelInfo =
     agent.id === 'codex' ? codexModels?.find((item) => item.id === normalized) : undefined;
-  const effort = config.settings.openAIReasoningEffort;
+  const effort = config.settings.agents.codex.reasoningEffort;
   updateConfig({
     settings: {
       ...config.settings,
-      [agent.modelSettingKey]: normalized,
-      ...(modelInfo && effort && !modelInfo.reasoningEfforts.includes(effort)
-        ? { openAIReasoningEffort: '' }
-        : {}),
+      agents: {
+        ...config.settings.agents,
+        [agent.id]: {
+          ...config.settings.agents[agent.id],
+          model: normalized,
+          ...(modelInfo && effort && !modelInfo.reasoningEfforts.includes(effort)
+            ? { reasoningEffort: '' }
+            : {}),
+        },
+      },
     },
   });
 };
 
 const getAgentOptions = (agent: import('./agent.ts').Agent) => ({
   fallbackModel: agent.fallbackModel,
-  model: config.settings[agent.modelSettingKey],
+  model: config.settings.agents[agent.id].model,
   ...(agent.id === 'codex'
-    ? { reasoningEffort: config.settings.openAIReasoningEffort || undefined }
+    ? { reasoningEffort: config.settings.agents.codex.reasoningEffort || undefined }
     : {}),
 
   onModelFallback: async (fallbackModel: string, originalModel: string) => {
-    if (config.settings[agent.modelSettingKey] === originalModel) {
-      updateConfig({ settings: { ...config.settings, [agent.modelSettingKey]: fallbackModel } });
+    if (config.settings.agents[agent.id].model === originalModel) {
+      selectAgentModel(agent, fallbackModel);
     }
   },
 });
@@ -397,7 +339,7 @@ const updateTheme = (theme: CodophonTheme) => {
 };
 
 const setCodeFontSize = (size: number) => {
-  const codeFontSize = normalizeCodeFontSize(size);
+  const codeFontSize = size;
   if (config.settings.codeFontSize === codeFontSize) {
     return;
   }
@@ -542,7 +484,7 @@ const getAgentModelCatalog = async (
       note = error instanceof Error ? error.message : 'Could not sync Copilot CLI models.';
     }
   }
-  const selected = config.settings[agent.modelSettingKey];
+  const selected = config.settings.agents[agent.id].model;
   return {
     models: selected.startsWith('github-copilot/')
       ? models
@@ -552,13 +494,22 @@ const getAgentModelCatalog = async (
 };
 
 const buildReasoningEffortSubmenu = (): Array<import('electron').MenuItemConstructorOptions> => {
-  const selected = config.settings.openAIReasoningEffort;
-  const model = codexModels?.find((item) => item.id === config.settings.openAIModel);
+  const selected = config.settings.agents.codex.reasoningEffort;
+  const model = codexModels?.find((item) => item.id === config.settings.agents.codex.model);
   const advertised = model ? model.reasoningEfforts : ['low', 'medium', 'high'];
   const efforts = [...new Set(['', ...advertised, ...(selected ? [selected] : [])])];
   return efforts.map((effort) => ({
     checked: selected === effort,
-    click: () => updateConfig({ settings: { ...config.settings, openAIReasoningEffort: effort } }),
+    click: () =>
+      updateConfig({
+        settings: {
+          ...config.settings,
+          agents: {
+            ...config.settings.agents,
+            codex: { ...config.settings.agents.codex, reasoningEffort: effort },
+          },
+        },
+      }),
     label: !effort ? 'Default' : advertised.includes(effort) ? effort : `Custom: ${effort}`,
     type: 'radio',
   }));
@@ -921,28 +872,26 @@ const createWindow = (
   attachExternalLinkHandling(window.webContents, (url) => shell.openExternal(url));
 
   const webContentsId = window.webContents.id;
-  windowRevealControllers.set(
-    webContentsId,
-    createWindowRevealController(window, useStartupOpacity),
-  );
-  openWindows.add(window);
-  if (identity) {
-    windowIdentities.set(webContentsId, identity);
-  }
-  windowRepositories.set(webContentsId, identity?.repositoryRoot || repositoryPath);
-  windowLaunchOptions.set(webContentsId, launchOptions);
+  const session: WindowSession = {
+    window,
+    identity,
+    launch: launchOptions,
+    repositoryPath: identity?.repositoryRoot || repositoryPath,
+    reveal: createWindowRevealController(window, useStartupOpacity),
+    markdownWatchers: new Map(),
+    progressGeneration: 0,
+  };
+  sessions.set(webContentsId, session);
   const initialRepositoryStatePromise =
     preloadedRepositoryState || readInitialRepositoryStateWithConfig(repositoryPath, launchOptions);
-  const initialRepositoryState = initialRepositoryStatePromise?.then((state) => {
+  const initialRepositoryState = initialRepositoryStatePromise.then((state) => {
     if (!window.isDestroyed()) {
       storeResolvedRepositoryState(webContentsId, state);
     }
     return state;
   });
-  initialRepositoryState?.catch(() => {});
-  if (initialRepositoryState) {
-    windowInitialRepositoryStates.set(webContentsId, initialRepositoryState);
-  }
+  initialRepositoryState.catch(() => {});
+  session.initialState = initialRepositoryState;
   if (
     !launchOptions.source ||
     launchOptions.source.type === 'branch' ||
@@ -1018,17 +967,11 @@ const createWindow = (
     });
   });
   window.on('closed', () => {
-    openWindows.delete(window);
+    sessions.delete(webContentsId);
     definitionSearchCoordinator.cancel(webContentsId);
     repositoryWatcherCoordinator.detach(webContentsId);
-    clearMarkdownDocumentWatchers(webContentsId);
-    windowIdentities.delete(webContentsId);
-    windowRevealControllers.delete(webContentsId);
-    windowInitialRepositoryStates.delete(webContentsId);
+    for (const close of session.markdownWatchers.values()) close();
     walkthroughLaunchController.clear(webContentsId);
-    walkthroughProgressGenerations.delete(webContentsId);
-    windowRepositories.delete(webContentsId);
-    windowLaunchOptions.delete(webContentsId);
   });
   window.webContents.on('render-process-gone', () => {
     definitionSearchCoordinator.cancel(webContentsId);
@@ -1049,7 +992,7 @@ const createWindow = (
 };
 
 const focusWindow = (window: import('electron').BrowserWindow) => {
-  if (windowRevealControllers.get(window.webContents.id)?.isPending()) {
+  if (sessions.get(window.webContents.id)?.reveal.isPending()) {
     return;
   }
   if (window.isMinimized()) {
@@ -1072,31 +1015,21 @@ const focusOrCreateWindow = (
   preloadedRepositoryState?: Promise<RepositoryState>,
 ) => {
   const identity = getWindowIdentity(repositoryPath, launchOptions);
-  const matchingWebContentsId = findMatchingWindowIdentity(identity, windowIdentities);
-  const matchingWindow =
-    matchingWebContentsId == null
-      ? null
-      : BrowserWindow.getAllWindows().find(
-          (window) => window.webContents.id === matchingWebContentsId,
-        );
-
-  if (matchingWindow && matchingWebContentsId != null) {
+  const matching = findMatchingSession(identity, sessions.values());
+  if (matching) {
     if (launchOptions.walkthrough || launchOptions.walkthroughFile) {
-      walkthroughLaunchController.clear(matchingWebContentsId);
-      windowRepositories.set(matchingWebContentsId, identity?.repositoryRoot || repositoryPath);
-      windowLaunchOptions.set(matchingWebContentsId, launchOptions);
-      windowInitialRepositoryStates.set(
-        matchingWebContentsId,
+      walkthroughLaunchController.clear(matching.window.webContents.id);
+      matching.progressGeneration++;
+      matching.repositoryPath = identity?.repositoryRoot || repositoryPath;
+      matching.launch = launchOptions;
+      matching.initialState =
         preloadedRepositoryState ||
-          readInitialRepositoryStateWithConfig(repositoryPath, launchOptions),
-      );
-      if (identity) {
-        windowIdentities.set(matchingWebContentsId, identity);
-      }
-      matchingWindow.reload();
+        readInitialRepositoryStateWithConfig(repositoryPath, launchOptions);
+      matching.initialState.catch(() => {});
+      matching.window.reload();
     }
-    focusWindow(matchingWindow);
-    return matchingWindow;
+    focusWindow(matching.window);
+    return matching.window;
   }
 
   return createWindow(repositoryPath, launchOptions, identity, preloadedRepositoryState);
@@ -1157,12 +1090,7 @@ if (!lock) {
     importPreviousConfig();
     const shouldDetectInitialAgent = !existsSync(getConfigPath());
     config = readConfig();
-    config.settings.openAIModel = normalizeOpenAIModel(config.settings.openAIModel);
-    config.settings.opencodeModel = normalizeOpenCodeModel(config.settings.opencodeModel);
-    config.settings.claudeModel = normalizeClaudeModel(config.settings.claudeModel);
-    config.settings.agentBackend = shouldDetectInitialAgent
-      ? detectInitialAgentBackend()
-      : normalizeAgentBackend(config.settings.agentBackend);
+    if (shouldDetectInitialAgent) config.settings.agentBackend = detectInitialAgentBackend();
     if (shouldDetectInitialAgent) {
       writeConfig(config);
     }
@@ -1202,18 +1130,7 @@ if (!lock) {
 
     watchConfig((nextConfig) => {
       const previousAgent = config.settings.agentBackend;
-      config = {
-        ...nextConfig,
-        settings: {
-          ...nextConfig.settings,
-          agentBackend: normalizeAgentBackend(nextConfig.settings.agentBackend),
-          claudeModel: normalizeClaudeModel(nextConfig.settings.claudeModel),
-          codeFontFamily: normalizeCodeFontFamily(nextConfig.settings.codeFontFamily),
-          codeFontSize: normalizeCodeFontSize(nextConfig.settings.codeFontSize),
-          openAIModel: normalizeOpenAIModel(nextConfig.settings.openAIModel),
-          opencodeModel: normalizeOpenCodeModel(nextConfig.settings.opencodeModel),
-        },
-      };
+      config = nextConfig;
       releaseCheck?.setEnabled(config.settings.checkForUpdates && app.isPackaged);
       refreshInstalledAgentFiles();
       nativeTheme.themeSource = config.settings.theme;
@@ -1269,25 +1186,29 @@ if (!lock) {
   });
 }
 
-ipcMain.handle(
-  'codophon:getUpdateStatus',
-  () => releaseCheck?.getStatus() ?? { currentVersion: app.getVersion() },
-);
+function handle<K extends keyof Invoke>(
+  method: K,
+  listener: (
+    event: Electron.IpcMainInvokeEvent,
+    ...args: Parameters<Invoke[K]>
+  ) => Awaited<ReturnType<Invoke[K]>> | ReturnType<Invoke[K]>,
+) {
+  ipcMain.handle('codophon:' + method, listener);
+}
 
-ipcMain.handle(
-  'codophon:dismissUpdate',
-  () => releaseCheck?.dismiss() ?? { currentVersion: app.getVersion() },
-);
+handle('getUpdateStatus', () => releaseCheck?.getStatus() ?? { currentVersion: app.getVersion() });
 
-ipcMain.handle('codophon:openReleasePage', () => {
+handle('dismissUpdate', () => releaseCheck?.dismiss() ?? { currentVersion: app.getVersion() });
+
+handle('openReleasePage', () => {
   if (releaseCheck) {
     return shell.openExternal(releaseCheck.releaseUrl());
   }
 });
 
-ipcMain.handle('codophon:getRepositoryState', async (event, source) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
-  const launchOptions = windowLaunchOptions.get(event.sender.id);
+handle('getRepositoryState', async (event, source) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
+  const launchOptions = getSession(event.sender.id).launch;
   const walkthroughState = walkthroughLaunchController.getInitialRepositoryState(
     event.sender.id,
     source,
@@ -1295,10 +1216,10 @@ ipcMain.handle('codophon:getRepositoryState', async (event, source) => {
   const initialState = walkthroughState
     ? Promise.resolve(walkthroughState)
     : !source
-      ? windowInitialRepositoryStates.get(event.sender.id)
+      ? getSession(event.sender.id).initialState
       : undefined;
   if (initialState) {
-    windowInitialRepositoryStates.delete(event.sender.id);
+    getSession(event.sender.id).initialState = undefined;
   }
   const state = initialState
     ? await initialState
@@ -1309,7 +1230,7 @@ ipcMain.handle('codophon:getRepositoryState', async (event, source) => {
   return state;
 });
 
-ipcMain.handle('codophon:resolvePullRequestUrl', (event, value) => {
+handle('resolvePullRequestUrl', (event, value) => {
   const input = typeof value === 'string' ? value.trim() : '';
   const parsedUrl = parseReviewUrl(input);
   if (parsedUrl) {
@@ -1322,21 +1243,21 @@ ipcMain.handle('codophon:resolvePullRequestUrl', (event, value) => {
   }
 
   // Reuse the CLI resolver so a bare number follows the repository's preferred remote.
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return resolveReviewUrl(repositoryPath, Number(number[1]));
 });
 
-ipcMain.handle('codophon:getMarkdownDocument', async (event, request) => {
+handle('getMarkdownDocument', async (event, request) => {
   const document = await readMarkdownDocument(request, getMarkdownDocumentContext(event.sender.id));
   ensureMarkdownDocumentWatcher(event.sender, request);
   return document;
 });
 
-ipcMain.handle('codophon:getRepositoryFile', (event, path) =>
+handle('getRepositoryFile', (event, path) =>
   readRepositoryFile(getWindowRepositoryRoot(event.sender.id), path),
 );
 
-ipcMain.handle('codophon:saveRepositoryFile', async (event, request) => {
+handle('saveRepositoryFile', async (event, request) => {
   const root = getWindowRepositoryRoot(event.sender.id);
   const current = await readRepositoryFile(root, request.path);
   const selfWrite = beginRepositorySelfWrite(event.sender.id, current.path);
@@ -1353,7 +1274,7 @@ ipcMain.handle('codophon:saveRepositoryFile', async (event, request) => {
   }
 });
 
-ipcMain.handle('codophon:saveMarkdownDocument', async (event, request) => {
+handle('saveMarkdownDocument', async (event, request) => {
   const context = getMarkdownDocumentContext(event.sender.id);
   let selfWrite = null;
   try {
@@ -1375,21 +1296,14 @@ ipcMain.handle('codophon:saveMarkdownDocument', async (event, request) => {
   }
 });
 
-ipcMain.handle(
-  'codophon:getLaunchOptions',
-  (event) =>
-    windowLaunchOptions.get(event.sender.id) || {
-      repositoryPathProvided: false,
-      walkthrough: false,
-    },
-);
+handle('getLaunchOptions', (event) => getSession(event.sender.id).launch);
 
-ipcMain.handle('codophon:getAgentSkillStatus', (event) => {
+handle('getAgentSkillStatus', (event) => {
   const installer = skillInstallerFor(resolveWindowAgent(event.sender.id).id);
   return installer ? installer.getStatus() : { installed: false, path: '' };
 });
 
-ipcMain.handle('codophon:installAgentSkill', async (event) => {
+handle('installAgentSkill', async (event) => {
   const installer = skillInstallerFor(resolveWindowAgent(event.sender.id).id);
   if (!installer) {
     return { installed: false, path: '' };
@@ -1399,191 +1313,39 @@ ipcMain.handle('codophon:installAgentSkill', async (event) => {
   return installer.getStatus();
 });
 
-ipcMain.handle('codophon:getTerminalHelperStatus', () => getTerminalHelperStatus());
+handle('getTerminalHelperStatus', () => getTerminalHelperStatus());
 
-ipcMain.handle('codophon:installTerminalHelper', async (event) => {
+handle('installTerminalHelper', async (event) => {
   await installTerminalHelper(BrowserWindow.fromWebContents(event.sender));
   return getTerminalHelperStatus();
 });
 
-ipcMain.handle('codophon:getNarrativeWalkthrough', async (event, source, options) => {
-  const launchOptions = windowLaunchOptions.get(event.sender.id);
-  const progressGeneration = (walkthroughProgressGenerations.get(event.sender.id) || 0) + 1;
-  walkthroughProgressGenerations.set(event.sender.id, progressGeneration);
-  const reportProgress = createWalkthroughProgressReporter(
-    event.sender,
-    () => walkthroughProgressGenerations.get(event.sender.id) === progressGeneration,
-  );
-
-  try {
-    const agent = resolveWindowAgent(event.sender.id);
-    const initialWalkthrough = walkthroughLaunchController.takeInitialWalkthrough(
-      event.sender.id,
-      source,
-    );
-    if (initialWalkthrough) {
-      const sessionContext = await Promise.resolve(
-        agent.readSessionContext(launchOptions?.[agent.sessionLaunchOptionKey]),
-      ).catch(() => null);
-      return {
-        status: 'ready',
-        walkthrough: {
-          ...initialWalkthrough,
-          agent: agent.id,
-          ...(sessionContext ? { context: sessionContext } : {}),
-        },
-      };
-    }
-    const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
-    const state = await readRepositoryStateWithConfig(
-      repositoryPath,
-      source || launchOptions?.source,
-    );
-    const walkthroughFile = launchOptions?.walkthroughFile;
-    if (walkthroughFile) {
-      let contents;
-      let input;
-      try {
-        contents = readFileSync(walkthroughFile, 'utf8');
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        return {
-          reason: `Could not read walkthrough file: ${detail}`,
-          status: 'unavailable',
-        };
-      }
-
-      const sessionContext = await Promise.resolve(
-        agent.readSessionContext(launchOptions?.[agent.sessionLaunchOptionKey]),
-      ).catch(() => null);
-      try {
-        input = JSON.parse(contents);
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        return {
-          reason: `Could not read walkthrough file: ${detail}`,
-          status: 'unavailable',
-        };
-      }
-
-      try {
-        assertWalkthroughHunkIdsResolve(input, state.files);
-        return {
-          status: 'ready',
-          walkthrough: normalizeNarrativeWalkthrough(input, state.files, {
-            agent: agent.id,
-            branch: state.branch,
-            context: sessionContext ?? undefined,
-            generatedAt: state.generatedAt,
-            root: state.root,
-            source: state.source,
-          }),
-        };
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        // The usual cause of an unanchored working-tree walkthrough is that the
-        // changes were committed (or reverted) after it was authored. Surface a
-        // specific explanation when we can determine one.
-        const diagnosis = await diagnoseWalkthroughMismatch({
-          hasFiles: state.files.length > 0,
-          input,
-          repositoryRoot: state.root,
-        }).catch(() => null);
-        return {
-          reason: diagnosis || `Walkthrough file could not be applied to this diff: ${detail}`,
-          status: 'unavailable',
-        };
-      }
-    }
-
-    const walkthroughContext = mergeWalkthroughContexts(
-      launchOptions?.walkthroughContext,
-      await agent.readSessionContext(launchOptions?.[agent.sessionLaunchOptionKey]),
-    );
-    const agentOptions = getAgentOptions(agent);
-    const walkthroughModel = resolveNarrativeWalkthroughModel(
-      state,
-      agent,
-      agentOptions.model,
-      agentOptions.reasoningEffort,
-    );
-    const { walkthroughPrompt, agentPrompts: prompts } = config.settings;
-    const cacheKey = getNarrativeWalkthroughCacheKey(
-      state,
-      agent,
-      walkthroughModel,
-      walkthroughContext,
-      walkthroughPrompt,
-      agentOptions.reasoningEffort,
-      prompts,
-    );
-    if (!options?.force) {
-      const cachedWalkthrough = readStoredWalkthrough(cacheKey);
-      if (cachedWalkthrough) {
-        return {
-          status: 'ready',
-          walkthrough: {
-            ...cachedWalkthrough,
-            ...(walkthroughContext ? { context: walkthroughContext } : {}),
-            agent: agent.id,
-            repo: {
-              branch: state.branch,
-              root: state.root,
-            },
-            source: state.source,
-          },
-        };
-      }
-    }
-
-    let generatedModel = walkthroughModel;
-    const onModelFallback = agentOptions.onModelFallback;
-    const result = await readNarrativeWalkthrough(
-      state,
-      agent,
-      {
-        ...agentOptions,
-        model: walkthroughModel,
-        onModelFallback: async (fallbackModel: string, originalModel: string) => {
-          generatedModel = fallbackModel;
-          await onModelFallback(fallbackModel, originalModel);
-        },
-        onProgress: reportProgress,
-      },
-      walkthroughContext,
-      walkthroughPrompt,
-      options?.previousWalkthrough,
-      prompts,
-    );
-    if (result.status === 'ready') {
-      const generatedCacheKey = getNarrativeWalkthroughCacheKey(
-        state,
-        agent,
-        generatedModel,
-        walkthroughContext,
-        walkthroughPrompt,
-        agentOptions.reasoningEffort,
-        prompts,
-      );
-      try {
-        const { context: _context, ...cacheableWalkthrough } = result.walkthrough!;
-        writeStoredWalkthrough(generatedCacheKey, cacheableWalkthrough);
-      } catch {
-        // Caching is optional; a filesystem failure must not hide a generated result.
-      }
-    }
-    return result;
-  } catch (error) {
-    return {
-      reason: error instanceof Error ? error.message : String(error),
-      status: 'unavailable',
-    };
-  }
+handle('getNarrativeWalkthrough', async (event, source, options) => {
+  const session = getSession(event.sender.id);
+  const generation = ++session.progressGeneration;
+  const agent = resolveWindowAgent(event.sender.id);
+  return loadWalkthrough({
+    agent,
+    agentOptions: {
+      ...getAgentOptions(agent),
+      onProgress: createWalkthroughProgressReporter(
+        event.sender,
+        () => session.progressGeneration === generation,
+      ),
+    },
+    launch: session.launch,
+    initial: walkthroughLaunchController.takeInitialWalkthrough(event.sender.id, source),
+    options,
+    prompts: config.settings.agentPrompts,
+    customPrompt: config.settings.agentPrompts.walkthrough,
+    readState: () =>
+      readRepositoryStateWithConfig(session.repositoryPath, source || session.launch.source),
+  });
 });
 
-ipcMain.handle('codophon:askReviewAssistant', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
-  const launchOptions = windowLaunchOptions.get(event.sender.id);
+handle('askReviewAssistant', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
+  const launchOptions = getSession(event.sender.id).launch;
   const state = await readRepositoryStateWithConfig(
     repositoryPath,
     request?.source || launchOptions?.source,
@@ -1598,8 +1360,8 @@ ipcMain.handle('codophon:askReviewAssistant', async (event, request) => {
   );
 });
 
-ipcMain.handle('codophon:createWalkthroughCommit', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('createWalkthroughCommit', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   const result = await createWalkthroughCommit(repositoryPath, request, (chunk) => {
     if (!event.sender.isDestroyed()) {
       event.sender.send('codophon:walkthroughCommitOutput', chunk);
@@ -1611,9 +1373,9 @@ ipcMain.handle('codophon:createWalkthroughCommit', async (event, request) => {
   return result;
 });
 
-ipcMain.handle('codophon:updateWalkthroughCommitMessage', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
-  const launchOptions = windowLaunchOptions.get(event.sender.id);
+handle('updateWalkthroughCommitMessage', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
+  const launchOptions = getSession(event.sender.id).launch;
   const state = await readRepositoryStateWithConfig(
     repositoryPath,
     request?.source || launchOptions?.source,
@@ -1628,57 +1390,57 @@ ipcMain.handle('codophon:updateWalkthroughCommitMessage', async (event, request)
   );
 });
 
-ipcMain.handle('codophon:submitPullRequestComment', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('submitPullRequestComment', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return submitPullRequestComment(repositoryPath, request);
 });
 
-ipcMain.handle('codophon:getReviewBriefComments', async (event, source) => {
+handle('getReviewBriefComments', async (event, source) => {
   if (source?.type !== 'pull-request' || source.provider !== 'azure-devops') {
     throw new Error('Posted-comment export requires an Azure DevOps pull request.');
   }
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return readAzureDevOpsReviewBriefComments(repositoryPath, source);
 });
 
-ipcMain.handle('codophon:submitPullRequestReview', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('submitPullRequestReview', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return submitPullRequestReview(repositoryPath, request);
 });
 
-ipcMain.handle('codophon:setPullRequestFileViewed', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('setPullRequestFileViewed', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return setPullRequestFileViewed(repositoryPath, request);
 });
 
-ipcMain.handle('codophon:getDiffSectionContent', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('getDiffSectionContent', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return readDiffSectionContent(repositoryPath, {
     ...request,
     showWhitespace: request?.showWhitespace ?? config.settings.showWhitespace,
   });
 });
 
-ipcMain.handle('codophon:getDiffImageContent', async (event, request) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('getDiffImageContent', async (event, request) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return readDiffImageContent(repositoryPath, request);
 });
 
-ipcMain.handle('codophon:getRepositoryHistory', async (event, limit, source) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('getRepositoryHistory', async (event, limit, source) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return listRepositoryHistory(repositoryPath, limit, source);
 });
 
-ipcMain.handle('codophon:getGitIdentity', async (event) => {
-  const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
+handle('getGitIdentity', async (event) => {
+  const repositoryPath = getSession(event.sender.id).repositoryPath;
   return readGitIdentity(repositoryPath);
 });
 
-ipcMain.handle('codophon:getConfig', () => config);
-ipcMain.handle('codophon:getAgentModelCatalog', (event, refresh) =>
+handle('getConfig', () => config);
+handle('getAgentModelCatalog', (event, refresh) =>
   getAgentModelCatalog(event.sender.id, refresh === true),
 );
-ipcMain.handle('codophon:selectAgentModel', (event, agentId, model) => {
+handle('selectAgentModel', (event, agentId, model) => {
   const agent = resolveWindowAgent(event.sender.id);
   if (agent.id !== agentId) throw new Error('The active agent changed. Refresh the model list.');
   if (typeof model !== 'string' || !model || agent.normalizeModel(model) !== model) {
@@ -1686,8 +1448,8 @@ ipcMain.handle('codophon:selectAgentModel', (event, agentId, model) => {
   }
   selectAgentModel(agent, model);
 });
-ipcMain.handle('codophon:getAgentPrompts', () => agentPrompts);
-ipcMain.handle('codophon:setAgentPrompt', (_event, id, text) => {
+handle('getAgentPrompts', () => agentPrompts);
+handle('setAgentPrompt', (_event, id, text) => {
   const module = agentPrompts.find((prompt) => prompt.id === id);
   if (
     !module ||
@@ -1701,60 +1463,45 @@ ipcMain.handle('codophon:setAgentPrompt', (_event, id, text) => {
   return overrides;
 });
 
-ipcMain.handle('codophon:getKeyboardLayout', () => readKeyboardLayout());
+handle('getKeyboardLayout', () => readKeyboardLayout());
 
-ipcMain.handle('codophon:isWindowFullScreen', (event) => {
+handle('isWindowFullScreen', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   return window?.isFullScreen() ?? false;
 });
 
 ipcMain.on('codophon:windowReady', (event) => {
-  windowRevealControllers.get(event.sender.id)?.markContentReady();
+  sessions.get(event.sender.id)?.reveal.markContentReady();
 });
 
-ipcMain.handle('codophon:setDiffStyle', (_event, value) => {
+handle('updateSettings', (_event, patch) => {
+  const { diffStyle, reviewTheme, showOutdated, wordWrap, codeFontSize } = patch;
+  if (reviewTheme !== undefined && reviewTheme !== 'neutral' && reviewTheme !== 'blue-amber') {
+    throw new TypeError('Unknown review theme.');
+  }
   updateConfig({
     settings: {
       ...config.settings,
-      diffStyle: value === 'unified' ? 'unified' : 'split',
+      ...(diffStyle !== undefined && { diffStyle }),
+      ...(reviewTheme !== undefined && { reviewTheme }),
+      ...(typeof showOutdated === 'boolean' && { showOutdated }),
+      ...(typeof wordWrap === 'boolean' && { wordWrap }),
+      ...(codeFontSize === 'increase' && { codeFontSize: config.settings.codeFontSize + 1 }),
+      ...(codeFontSize === 'decrease' && { codeFontSize: config.settings.codeFontSize - 1 }),
+      ...(codeFontSize === 'reset' && {
+        codeFontSize: createDefaultConfig().settings.codeFontSize,
+      }),
     },
   });
 });
 
-ipcMain.handle('codophon:setReviewTheme', (_event, value) => {
-  if (value !== 'neutral' && value !== 'blue-amber') {
-    throw new TypeError('Unknown review theme.');
-  }
-  updateConfig({ settings: { ...config.settings, reviewTheme: value } });
-});
+handle('openConfigFile', () => openConfigFile());
 
-ipcMain.handle('codophon:setShowOutdated', (_event, value) => {
-  updateConfig({ settings: { ...config.settings, showOutdated: Boolean(value) } });
-});
-
-ipcMain.handle('codophon:setWordWrap', (_event, value) => {
-  updateConfig({ settings: { ...config.settings, wordWrap: Boolean(value) } });
-});
-
-ipcMain.handle('codophon:increaseCodeFontSize', () => {
-  increaseCodeFontSize();
-});
-
-ipcMain.handle('codophon:decreaseCodeFontSize', () => {
-  decreaseCodeFontSize();
-});
-
-ipcMain.handle('codophon:resetCodeFontSize', () => {
-  resetCodeFontSize();
-});
-
-ipcMain.handle('codophon:openConfigFile', () => openConfigFile());
-
-ipcMain.handle('codophon:openRepositoryFolder', (event) =>
+handle('openRepositoryFolder', (event) =>
   openRepositoryFolder(BrowserWindow.fromWebContents(event.sender) ?? undefined),
 );
 
-ipcMain.handle('codophon:findDefinitions', (event, request) =>
+handle('findDefinitions', (event, request) =>
   definitionSearchCoordinator.find(
     event.sender.id,
     getWindowRepositoryRoot(event.sender.id),
@@ -1762,14 +1509,17 @@ ipcMain.handle('codophon:findDefinitions', (event, request) =>
   ),
 );
 
-ipcMain.handle('codophon:openFile', async (event, filePath, lineNumber) => {
+handle('openFile', async (event, filePath, lineNumber) => {
   const repositoryRoot = getWindowRepositoryRoot(event.sender.id);
   const repositoryFilePath = validateRepositoryPath(filePath);
   const absolutePath = resolve(repositoryRoot, repositoryFilePath);
 
   if (existsSync(absolutePath)) {
     await openFileInEditor(absolutePath, {
-      lineNumber: Number.isSafeInteger(lineNumber) && lineNumber > 0 ? lineNumber : undefined,
+      lineNumber:
+        lineNumber !== undefined && Number.isSafeInteger(lineNumber) && lineNumber > 0
+          ? lineNumber
+          : undefined,
       repoPath: repositoryRoot,
     });
   } else {

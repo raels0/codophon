@@ -60,9 +60,8 @@ function AppReviewCommentsHarness({
     stateRef.current = state;
   }, [state]);
   const comments = useAppReviewComments({
-    isReviewActionDisabled: () => false,
+    getRepository: () => stateRef.current,
     onCommentFileChange,
-    stateRef,
   });
   onState(comments);
   return (

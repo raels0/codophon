@@ -36,7 +36,7 @@ export type GitHubRepositoryReference = { owner: string; repo: string };
 export type LocalGitRemote = { name: string; url: string };
 
 export type GitHubRepositoryMetadata = {
-  full_name: string;
+  full_name?: string;
   name?: string;
   owner?: { login?: string };
 };
@@ -52,13 +52,13 @@ export type GitHubRemote = {
 
 export type GitHubPullRequestFile = {
   filename: string;
-  patch: string;
+  patch?: string;
   previous_filename?: string;
   status: string;
 };
 
 export type GitHubPullRequestMetadata = {
-  base: { ref?: string; repo?: GitHubRepositoryMetadata | null; sha?: string };
+  base?: { ref?: string; repo?: GitHubRepositoryMetadata | null; sha?: string };
   body?: string | null;
   head?: { ref?: string; repo?: GitHubRepositoryMetadata | null; sha?: string };
   node_id?: string;
@@ -76,7 +76,7 @@ export type GitHubCommit = {
 export type GitHubReviewComment = { [key: string]: any };
 
 export type GitHubReviewThread = {
-  comments: { nodes?: ReadonlyArray<{ databaseId?: number | null }> } | null;
+  comments?: { nodes?: ReadonlyArray<{ databaseId?: number | null }> } | null;
   isResolved?: boolean;
 };
 

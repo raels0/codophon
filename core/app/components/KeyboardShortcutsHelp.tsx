@@ -1,3 +1,4 @@
+import './ReviewDialogs.css';
 import { useEffect, useRef } from 'react';
 import { getShortcutLabel } from '../../config/keymap.ts';
 import type { CodophonKeymap } from '../../config/types.ts';

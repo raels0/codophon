@@ -1,3 +1,4 @@
+import './Panels.css';
 import type { MarkdownEditorHandle } from '@nkzw/mdx-editor';
 import { CaretDownIcon as CaretDown } from '@phosphor-icons/react/CaretDown';
 import { CaretUpIcon as CaretUp } from '@phosphor-icons/react/CaretUp';
@@ -18,6 +19,10 @@ import {
 import { matchesShortcut } from '../../config/keymap.ts';
 import type { CodophonKeymap } from '../../config/types.ts';
 import type { RepositoryLoadError, ReviewComment } from '../../lib/app-types.ts';
+import {
+  getPullRequestReviewActionStatus,
+  isPullRequestReviewActionDisabled,
+} from '../../lib/pull-request-actions.ts';
 import { buildReviewCommentsMarkdown } from '../../lib/review-comments.ts';
 import type {
   ChangedFile,
@@ -408,21 +413,6 @@ export function CopyCommentsButton({
     </button>
   );
 }
-
-const getPullRequestReviewActionStatus = (
-  reviewStatus: PullRequestReviewStatus | undefined,
-  event: PullRequestReviewEvent,
-) =>
-  event === 'APPROVE'
-    ? reviewStatus?.approve
-    : event === 'COMMENT'
-      ? reviewStatus?.comment
-      : reviewStatus?.requestChanges;
-
-export const isPullRequestReviewActionDisabled = (
-  reviewStatus: PullRequestReviewStatus | undefined,
-  event: PullRequestReviewEvent,
-) => getPullRequestReviewActionStatus(reviewStatus, event)?.disabled === true;
 
 const getPullRequestReviewActionTitle = (
   reviewStatus: PullRequestReviewStatus | undefined,

@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { OpenReviewSourceKind } from '../../types.ts';
+import { Button } from './Button.tsx';
 
 const menuActions: ReadonlyArray<{
   icon: ReactNode;
@@ -140,7 +141,7 @@ export function OpenReviewSourceMenu({
 
   return (
     <div className="open-review-source-menu">
-      <button
+      <Button
         aria-controls={open ? 'open-review-source-menu' : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -150,11 +151,13 @@ export function OpenReviewSourceMenu({
         onClick={open ? close : openMenu}
         onKeyDown={handleTriggerKeyDown}
         ref={triggerRef}
+        size="icon"
         title="Open a PR, branch, commit, or folder"
         type="button"
+        variant="ghost"
       >
         <Plus aria-hidden size={16} weight="bold" />
-      </button>
+      </Button>
       {menuPosition
         ? createPortal(
             <div

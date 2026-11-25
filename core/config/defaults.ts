@@ -1,21 +1,63 @@
-import defaults from '../../config/defaults.json' with { type: 'json' };
-import type { CodophonConfig, CodophonKeymap, CodophonSettings } from './types.ts';
+import schema from './codophon-config.schema.json' with { type: 'json' };
+import type { CodophonConfig } from './types.ts';
 
-// TypeScript widens values imported from JSON, so it cannot know that
-// "split" is a valid CodophonDiffStyle or "system" is a valid CodophonTheme.
-// We keep defaults in JSON so Electron and the renderer share one source.
-// If config gets deeper or more complex, replace this cast with runtime
-// validation or a typed source that generates the CJS shape.
-const defaultConfigTemplate = defaults as CodophonConfig;
+export const asRecord = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 
-export const createDefaultConfig = (): CodophonConfig => ({
-  keymap: { ...defaultConfigTemplate.keymap },
-  settings: { ...defaultConfigTemplate.settings },
-});
+type Descriptor = {
+  default?: unknown;
+  enum?: ReadonlyArray<string>;
+  maximum?: number;
+  minimum?: number;
+  properties?: Record<string, Descriptor>;
+  type?: string;
+};
 
-export const defaultKeymap: Readonly<CodophonKeymap> = Object.freeze({
-  ...defaultConfigTemplate.keymap,
-});
-export const defaultSettings: Readonly<CodophonSettings> = Object.freeze({
-  ...defaultConfigTemplate.settings,
-});
+// Each schema default determines the accepted primitive type. Nested objects use
+// their declared properties and shortcut arrays also accept a single binding.
+function readProperty(property: Descriptor, value: unknown): unknown {
+  const fallback = property.default;
+  if (property.properties && fallback === undefined) {
+    const record = asRecord(value);
+    return Object.fromEntries(
+      Object.entries(property.properties).map(([key, child]) => [
+        key,
+        readProperty(child, record[key]),
+      ]),
+    );
+  }
+  if (Array.isArray(fallback)) {
+    return typeof value === 'string' ||
+      (Array.isArray(value) && value.length && value.every((item) => typeof item === 'string'))
+      ? value
+      : [...fallback];
+  }
+  if (property.enum) {
+    return typeof value === 'string' && property.enum.includes(value) ? value : fallback;
+  }
+  if (typeof fallback === 'number' && typeof value === 'number' && Number.isFinite(value)) {
+    return Math.min(
+      property.maximum ?? Infinity,
+      Math.max(property.minimum ?? -Infinity, Math.round(value)),
+    );
+  }
+  if (typeof fallback === 'object') {
+    return {};
+  }
+  return typeof value === typeof fallback && typeof value !== 'number' ? value : fallback;
+}
+
+export function readConfigProperties(raw?: unknown): CodophonConfig {
+  const { keymap, settings } = asRecord(raw);
+  return {
+    keymap: readProperty(schema.properties.keymap, keymap) as CodophonConfig['keymap'],
+    settings: readProperty(schema.properties.settings, settings) as CodophonConfig['settings'],
+  };
+}
+
+export const createDefaultConfig = () => readConfigProperties();
+const defaults = createDefaultConfig();
+export const defaultSettings = Object.freeze(defaults.settings);
+export const defaultKeymap = Object.freeze(defaults.keymap);

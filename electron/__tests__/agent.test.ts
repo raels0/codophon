@@ -37,8 +37,6 @@ test('falls back to Codex when no agent backend is installed', () => {
 test('resolves the Codex agent with its session wiring', () => {
   const agent = getAgent('codex');
   expect(agent.id).toBe('codex');
-  expect(agent.modelSettingKey).toBe('openAIModel');
-  expect(agent.sessionLaunchOptionKey).toBe('codexSessionId');
   expect(agent.notFoundCode).toBe('CODEX_NOT_FOUND');
   expect(typeof agent.isAvailable).toBe('function');
   expect(typeof agent.run).toBe('function');
@@ -49,8 +47,6 @@ test('resolves the Claude Code agent with its session wiring', () => {
   const agent = getAgent('claude');
   expect(agent.id).toBe('claude');
   expect(agent.label).toBe('Claude Code');
-  expect(agent.modelSettingKey).toBe('claudeModel');
-  expect(agent.sessionLaunchOptionKey).toBe('claudeSessionId');
   expect(agent.notFoundCode).toBe('CLAUDE_NOT_FOUND');
 });
 
@@ -58,8 +54,6 @@ test('resolves the OpenCode agent with its runtime wiring', () => {
   const agent = getAgent('opencode');
   expect(agent.id).toBe('opencode');
   expect(agent.label).toBe('OpenCode');
-  expect(agent.modelSettingKey).toBe('opencodeModel');
-  expect(agent.sessionLaunchOptionKey).toBe('opencodeSessionId');
   expect(agent.notFoundCode).toBe('OPENCODE_NOT_FOUND');
   expect(typeof agent.run).toBe('function');
   expect(typeof agent.readSessionContext).toBe('function');

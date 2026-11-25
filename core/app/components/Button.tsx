@@ -1,7 +1,8 @@
+import './Button.css';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import {
-  type ButtonHTMLAttributes,
+  type ComponentPropsWithRef,
   type MouseEvent,
   type ReactNode,
   useOptimistic,
@@ -32,7 +33,7 @@ export const buttonVariants = cva('codophon-button', {
   },
 });
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
+export type ButtonProps = ComponentPropsWithRef<'button'> &
   VariantProps<typeof buttonVariants> & {
     action?: () => Promise<unknown> | unknown;
     asChild?: boolean;

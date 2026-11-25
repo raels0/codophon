@@ -12,7 +12,7 @@ const createEditorOpener = ({
 }: {
   getEditorCommand?: () => string;
   platform?: NodeJS.Platform;
-  shell: import('electron').Shell;
+  shell: Pick<import('electron').Shell, 'openPath'>;
 }) => {
   // Handles simple editor commands with quoted arguments. Keep this small unless
   // we need full shell-style escaping semantics.

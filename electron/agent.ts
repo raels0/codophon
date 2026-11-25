@@ -1,11 +1,13 @@
 import {
   AGENT_BACKENDS,
+  AGENT_LABELS,
   DEFAULT_AGENT_BACKEND,
   normalizeAgentBackend,
   type AgentBackend,
   type AgentNotFoundCode,
 } from '../core/config/agents.ts';
 import type { WalkthroughContext } from '../core/types.ts';
+import { parseJSONMessage } from './agent-shared.ts';
 import { readClaudeSessionContext } from './claude-session-context.ts';
 import * as claude from './claude.ts';
 import { readCodexSessionContext } from './codex-session-context.ts';
@@ -16,18 +18,7 @@ import * as opencode from './opencode.ts';
 export type AgentOptions = {
   fallbackModel?: string;
   model?: string;
-  onMetrics?: (metrics: {
-    transport: 'app-server' | 'exec';
-    usage?: {
-      cachedInputTokens: number;
-      inputTokens: number;
-      outputTokens: number;
-      reasoningOutputTokens: number;
-      totalTokens: number;
-    };
-  }) => void;
   onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
-  onPartialText?: (delta: string) => void;
   onProgress?: (phase: import('../core/types.ts').WalkthroughProgressPhase) => void;
   reasoningEffort?: string;
   timeoutMs?: number;
@@ -42,13 +33,10 @@ export type AgentRunner = Pick<
 export type Agent = {
   id: AgentBackend;
   label: string;
-  cliName: string;
-  cliPathEnvVar: string;
   defaultTimeoutMs: number;
   models: ReadonlyArray<{ id: string; label: string }>;
   defaultModel: string;
   fallbackModel: string;
-  modelSettingKey: 'openAIModel' | 'claudeModel' | 'opencodeModel';
   normalizeModel: (value: unknown) => string;
   notFoundCode: AgentNotFoundCode;
   isAvailable: () => boolean;
@@ -60,11 +48,10 @@ export type Agent = {
     outputName?: string,
     timeoutMessage?: string,
     options?: AgentOptions,
-  ) => Promise<string>;
+  ) => Promise<unknown>;
   readSessionContext: (
     sessionId: string | undefined,
   ) => Promise<WalkthroughContext | null> | WalkthroughContext | null;
-  sessionLaunchOptionKey: 'codexSessionId' | 'claudeSessionId' | 'opencodeSessionId';
 };
 
 const canResolveCommand = (
@@ -83,73 +70,69 @@ const canResolveCommand = (
   }
 };
 
-const createCodexAgent = (): Agent => ({
-  id: 'codex',
-  label: 'Codex',
-  cliName: 'codex',
-  cliPathEnvVar: 'CODOPHON_CODEX_PATH',
-  defaultTimeoutMs: codex.CODEX_TIMEOUT_MS,
-  models: codex.OPENAI_MODELS,
-  defaultModel: codex.DEFAULT_OPENAI_MODEL,
-  fallbackModel: codex.FALLBACK_OPENAI_MODEL,
-  modelSettingKey: 'openAIModel',
-  normalizeModel: codex.normalizeOpenAIModel,
-  notFoundCode: codex.CODEX_NOT_FOUND_CODE,
-  isAvailable: () => canResolveCommand(codex.getCodexCommand, codex.isCodexNotFoundError),
-  isNotFoundError: codex.isCodexNotFoundError,
-  run: codex.runCodex,
-  readSessionContext: readCodexSessionContext,
-  sessionLaunchOptionKey: 'codexSessionId',
-});
-
-const createClaudeAgent = (): Agent => ({
-  id: 'claude',
-  label: 'Claude Code',
-  cliName: 'claude',
-  cliPathEnvVar: 'CODOPHON_CLAUDE_PATH',
-  defaultTimeoutMs: claude.CLAUDE_TIMEOUT_MS,
-  models: claude.CLAUDE_MODELS,
-  defaultModel: claude.DEFAULT_CLAUDE_MODEL,
-  fallbackModel: claude.FALLBACK_CLAUDE_MODEL,
-  modelSettingKey: 'claudeModel',
-  normalizeModel: claude.normalizeClaudeModel,
-  notFoundCode: claude.CLAUDE_NOT_FOUND_CODE,
-  isAvailable: () => canResolveCommand(claude.getClaudeCommand, claude.isClaudeNotFoundError),
-  isNotFoundError: claude.isClaudeNotFoundError,
-  run: claude.runClaude,
-  readSessionContext: readClaudeSessionContext,
-  sessionLaunchOptionKey: 'claudeSessionId',
-});
-
-const createOpenCodeAgent = (): Agent => ({
-  id: 'opencode',
-  label: 'OpenCode',
-  cliName: 'opencode',
-  cliPathEnvVar: 'CODOPHON_OPENCODE_PATH',
-  defaultTimeoutMs: opencode.OPENCODE_TIMEOUT_MS,
-  models: opencode.OPENCODE_MODELS,
-  defaultModel: opencode.DEFAULT_OPENCODE_MODEL,
-  fallbackModel: opencode.FALLBACK_OPENCODE_MODEL,
-  modelSettingKey: 'opencodeModel',
-  normalizeModel: opencode.normalizeOpenCodeModel,
-  notFoundCode: opencode.OPENCODE_NOT_FOUND_CODE,
-  isAvailable: () =>
-    canResolveCommand(opencode.getOpenCodeCommand, opencode.isOpenCodeNotFoundError),
-  isNotFoundError: opencode.isOpenCodeNotFoundError,
-  run: opencode.runOpenCode,
-  readSessionContext: readOpenCodeSessionContext,
-  sessionLaunchOptionKey: 'opencodeSessionId',
-});
-
-const AGENT_FACTORIES: Record<AgentBackend, () => Agent> = {
-  claude: createClaudeAgent,
-  codex: createCodexAgent,
-  opencode: createOpenCodeAgent,
+type AgentImplementation = Pick<
+  Agent,
+  | 'models'
+  | 'defaultModel'
+  | 'fallbackModel'
+  | 'normalizeModel'
+  | 'readSessionContext'
+  | 'defaultTimeoutMs'
+  | 'isNotFoundError'
+> & {
+  command: () => string;
+  invoke: (...args: Parameters<Agent['run']>) => Promise<string>;
 };
 
-const getAgent = (backendId: unknown): Agent => AGENT_FACTORIES[normalizeAgentBackend(backendId)]();
+const defineAgent = (
+  id: AgentBackend,
+  { command, invoke, ...implementation }: AgentImplementation,
+): Agent => ({
+  ...implementation,
+  id,
+  label: AGENT_LABELS[id],
+  notFoundCode: `${id.toUpperCase()}_NOT_FOUND` as AgentNotFoundCode,
+  isAvailable: () => canResolveCommand(command, implementation.isNotFoundError),
+  run: async (...args) => parseJSONMessage(await invoke(...args)),
+});
 
-const listAgents = (): ReadonlyArray<Agent> => AGENT_BACKENDS.map((id) => AGENT_FACTORIES[id]());
+const agents: Record<AgentBackend, Agent> = {
+  codex: defineAgent('codex', {
+    command: codex.getCodexCommand,
+    defaultTimeoutMs: codex.CODEX_TIMEOUT_MS,
+    models: codex.OPENAI_MODELS,
+    defaultModel: codex.DEFAULT_OPENAI_MODEL,
+    fallbackModel: codex.FALLBACK_OPENAI_MODEL,
+    normalizeModel: codex.normalizeOpenAIModel,
+    isNotFoundError: codex.isCodexNotFoundError,
+    invoke: codex.runCodex,
+    readSessionContext: readCodexSessionContext,
+  }),
+  claude: defineAgent('claude', {
+    command: claude.getClaudeCommand,
+    defaultTimeoutMs: claude.CLAUDE_TIMEOUT_MS,
+    models: claude.CLAUDE_MODELS,
+    defaultModel: claude.DEFAULT_CLAUDE_MODEL,
+    fallbackModel: claude.FALLBACK_CLAUDE_MODEL,
+    normalizeModel: claude.normalizeClaudeModel,
+    isNotFoundError: claude.isClaudeNotFoundError,
+    invoke: claude.runClaude,
+    readSessionContext: readClaudeSessionContext,
+  }),
+  opencode: defineAgent('opencode', {
+    command: opencode.getOpenCodeCommand,
+    defaultTimeoutMs: opencode.OPENCODE_TIMEOUT_MS,
+    models: opencode.OPENCODE_MODELS,
+    defaultModel: opencode.DEFAULT_OPENCODE_MODEL,
+    fallbackModel: opencode.FALLBACK_OPENCODE_MODEL,
+    normalizeModel: opencode.normalizeOpenCodeModel,
+    isNotFoundError: opencode.isOpenCodeNotFoundError,
+    invoke: opencode.runOpenCode,
+    readSessionContext: readOpenCodeSessionContext,
+  }),
+};
+const getAgent = (backend: unknown) => agents[normalizeAgentBackend(backend)];
+const listAgents = () => AGENT_BACKENDS.map((id) => agents[id]);
 
 const getAgentMenuModels = (
   agent: Agent,

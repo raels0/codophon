@@ -38,8 +38,8 @@ const createSkillInstaller = ({
   root,
   skill,
 }: {
-  app: import('electron').App;
-  dialog: import('electron').Dialog;
+  app: Pick<import('electron').App, 'getPath' | 'isPackaged'>;
+  dialog: Pick<import('electron').Dialog, 'showMessageBox'>;
   renderManagedFile?: (file: AgentSkillFile, template: string) => string;
   root: string;
   skill: AgentSkill;
@@ -168,7 +168,7 @@ const createSkillInstaller = ({
     }
   };
 
-  const install = async (browserWindow: import('electron').BaseWindow | undefined | null) => {
+  const install = async (browserWindow?: import('electron').BaseWindow | null) => {
     try {
       for (const target of skill.targets) {
         const sourcePath = getSourcePath(target);

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
@@ -9,7 +9,7 @@ import {
   createTemporaryEnvironment,
 } from '../../core/__tests__/helpers/resources.ts';
 import {
-  findMatchingWindowIdentity,
+  findMatchingSession,
   getWindowIdentity,
   getWindowIdentityForRepositoryState,
 } from '../window-identity.ts';
@@ -174,22 +174,13 @@ test('window identities normalize pull request URLs copied from a review tab', a
 });
 
 test('window identity matching requires exact identity matches', () => {
+  const sessions = [
+    { identity: { key: 'repo-a\0commit:abc' } },
+    { identity: { key: 'repo-a\0working-tree' } },
+  ];
+  expect(findMatchingSession({ key: 'repo-a\0working-tree' }, sessions)).toBe(sessions[1]);
   expect(
-    findMatchingWindowIdentity(
-      { key: 'repo-a\0working-tree' },
-      new Map([
-        [1, { key: 'repo-a\0commit:abc' }],
-        [2, { key: 'repo-a\0working-tree' }],
-      ]),
-    ),
-  ).toBe(2);
-  expect(
-    findMatchingWindowIdentity(
-      { key: 'repo-a\0pull-request:raels0/codophon#9' },
-      new Map([[1, { key: 'repo-a\0pull-request:raels0/codophon#8' }]]),
-    ),
-  ).toBeNull();
-  expect(findMatchingWindowIdentity(null, new Map([[1, { key: 'repo-a\0working-tree' }]]))).toBe(
-    null,
-  );
+    findMatchingSession({ key: 'repo-a\0pull-request:elsewhere#9' }, sessions),
+  ).toBeUndefined();
+  expect(findMatchingSession(null, sessions)).toBeNull();
 });

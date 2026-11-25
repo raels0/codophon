@@ -40,13 +40,9 @@ test('an author edits a changed file in place and the edit lands on disk', async
   try {
     const edit = app.page.getByRole('button', { name: 'Edit math.ts' });
     await expect(edit).toHaveAttribute('title', /Edit this file in place \(.+E\)/);
-    await edit.click();
+    await app.editFile('math.ts');
     await expect(app.file('math.ts').getByRole('status')).toHaveText('Editing');
 
-    const lastLine = app.page.locator(
-      'diffs-container [data-line="2"][data-line-type="change-addition"]',
-    );
-    await lastLine.click();
     await app.page.keyboard.press('End');
     await app.page.keyboard.type(' // subtraction');
     await app.page.getByRole('button', { name: 'Done editing math.ts' }).click();

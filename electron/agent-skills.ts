@@ -56,10 +56,11 @@ const listAgentSkills = (): ReadonlyArray<AgentSkill> => AGENT_SKILLS;
 
 const buildInstallSkillMenuItem = (
   install: (skill: AgentSkill, browserWindow: import('electron').BaseWindow | undefined) => void,
-): import('electron').MenuItemConstructorOptions => ({
+) => ({
   label: 'Install Skill',
   submenu: AGENT_SKILLS.map((skill) => ({
-    click: (_menuItem, browserWindow) => install(skill, browserWindow),
+    click: (_menuItem: unknown, browserWindow?: import('electron').BaseWindow) =>
+      install(skill, browserWindow),
     label: skill.agentLabel,
   })),
 });

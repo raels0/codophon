@@ -163,17 +163,16 @@ test('shares one watcher per repository and adapts polling to window state', asy
   let current = baseline;
   let reads = 0;
   const coordinator = createRepositoryWatcherCoordinator({
-    clearTimeoutImpl: (timer) => {
-      (timer as (typeof timers)[number]).cleared = true;
-    },
     readSnapshot: async (root) => {
       reads += 1;
       return { ...current, root };
     },
-    setTimeoutImpl: (callback, delay) => {
+    scheduleTimeout: (callback, delay) => {
       const timer = { callback, cleared: false, delay };
       timers.push(timer);
-      return timer;
+      return () => {
+        timer.cleared = true;
+      };
     },
   });
 
@@ -274,7 +273,7 @@ test('uses exact hashes while suppressing Codophon-authored writes only for thei
         ...current,
         pathVersions: paths.includes('docs/plan.md')
           ? { 'docs/plan.md': planVersion.slice(0, 16) }
-          : {},
+          : undefined,
       };
     },
   });

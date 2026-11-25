@@ -22,7 +22,7 @@ import {
   resolvePullRequestTargetUrl,
   resolvePullRequestUrl,
 } from '../../bin/arguments.js';
-import * as launchRequest from '../../electron/main/launch-request.ts';
+import { decodeLaunchRequest } from '../../electron/main/launch-request.ts';
 import { createFakeCommandLogger } from './helpers/cli.ts';
 import { removeGitTestDirectory } from './helpers/git.ts';
 import { getGitTestEnvironment } from './helpers/git.ts';
@@ -33,7 +33,6 @@ import {
 } from './helpers/resources.ts';
 
 const execFileAsync = promisify(execFile);
-const { decodeLaunchRequest } = launchRequest;
 const forgeConfig = createRequire(import.meta.url)('../../forge.config.cjs') as {
   hooks: { packageAfterCopy: (config: unknown, buildPath: string) => Promise<void> };
 };
@@ -263,7 +262,7 @@ test('parseArguments recognizes Codex walkthrough seed options', () => {
       'seed.json',
     ]),
   ).toEqual({
-    codexSessionId: '019e5e57-e7d6-7392-9ad1-ad959319d2fb',
+    agentSessions: [{ agent: 'codex', id: '019e5e57-e7d6-7392-9ad1-ad959319d2fb' }],
     commitRef: null,
     help: false,
     pullRequestNumber: null,
@@ -298,7 +297,7 @@ test('parseArguments recognizes Claude walkthrough seed options and the agent ov
     ]),
   ).toMatchObject({
     agentBackend: 'claude',
-    claudeSessionId: '019e5e57-e7d6-7392-9ad1-ad959319d2fb',
+    agentSessions: [{ agent: 'claude', id: '019e5e57-e7d6-7392-9ad1-ad959319d2fb' }],
     walkthrough: true,
   });
 });
@@ -314,7 +313,7 @@ test('parseArguments recognizes the OpenCode agent override', () => {
     ]),
   ).toMatchObject({
     agentBackend: 'opencode',
-    opencodeSessionId: 'ses_121b4816bffebMr9YE52O4870p',
+    agentSessions: [{ agent: 'opencode', id: 'ses_121b4816bffebMr9YE52O4870p' }],
     walkthrough: true,
   });
 });

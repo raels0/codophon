@@ -25,7 +25,6 @@ type WalkthroughReviewProps = Omit<
 const ignorePathScroll = () => {};
 
 export function WalkthroughDiffSurface({
-  allowViewedToggle,
   blocks,
   forceExpandedPaths = emptyPaths,
   onActiveBlockChange,
@@ -34,7 +33,6 @@ export function WalkthroughDiffSurface({
   sourceDescriptionActions,
   sourceDescriptionFooter,
 }: {
-  allowViewedToggle?: boolean;
   blocks: ReadonlyArray<ReviewDiffBlock>;
   forceExpandedPaths?: ReadonlySet<string>;
   onActiveBlockChange: (blockId: string) => void;
@@ -47,7 +45,6 @@ export function WalkthroughDiffSurface({
     <div className="wt-stop wt-diff-surface">
       <ReviewCodeView
         {...reviewProps}
-        allowViewedToggle={allowViewedToggle}
         blocks={blocks}
         bottomInset={96}
         commitMetadata={null}

@@ -72,6 +72,10 @@ if (endpoint === 'graphql') {
       },
     });
   }
+  const mutation = /\b((?:un)?markFileAsViewed)\(/.exec(query)?.[1];
+  if (mutation) {
+    reply({ data: { [mutation]: { clientMutationId: null } } });
+  }
   reply({ data: {} });
 }
 if (method === 'POST' && path.endsWith('/reviews')) {

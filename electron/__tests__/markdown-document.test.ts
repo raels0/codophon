@@ -1,4 +1,4 @@
-import { chmod, lstat, readFile, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import { createTemporaryDirectory } from '../../core/__tests__/helpers/resources.ts';

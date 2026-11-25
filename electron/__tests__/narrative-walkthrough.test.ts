@@ -1,6 +1,8 @@
 import { expect, test } from 'vite-plus/test';
 import { changedFiles, repositoryState } from '../../core/__tests__/helpers/fixtures.ts';
+import type { WalkthroughContext } from '../../core/types.ts';
 import narrativeSchemaJson from '../../core/walkthrough/narrative-walkthrough.schema.json' with { type: 'json' };
+import { getAgent, type AgentRunner } from '../agent.ts';
 import {
   assertWalkthroughHunkIdsResolve,
   buildNarrativeWalkthroughPrompt,
@@ -69,22 +71,12 @@ test('reports only the long-running walkthrough generation phases', async () => 
     root: '/repo',
     source: { type: 'working-tree' },
   });
-  const agent = {
-    defaultTimeoutMs: 90_000,
-    id: 'codex',
-    isNotFoundError: () => false,
-    label: 'Codex',
-    run: async (
-      _root: string,
-      _prompt: string,
-      schema: unknown,
-      _outputName: string,
-      _timeoutMessage: string,
-      options: unknown,
-    ) => {
+  const agent: AgentRunner = {
+    ...getAgent('codex'),
+    run: async (_root, _prompt, schema, _outputName, _timeoutMessage, options) => {
       runOptions = options;
       runSchema = schema;
-      return JSON.stringify({
+      return {
         ...baseInput(),
         chapters: [
           {
@@ -96,7 +88,7 @@ test('reports only the long-running walkthrough generation phases', async () => 
           },
         ],
         support: [{ hunkIds: ['h3'], id: 'lock', reason: 'Lockfile' }],
-      });
+      };
     },
   };
 
@@ -152,19 +144,19 @@ test('reports only the long-running walkthrough generation phases', async () => 
   expect(chapters.maxItems).toBe(6);
   expect(chapters.items.properties.title.maxLength).toBe(16);
   expect(chapters.items.properties.stops.maxItems).toBe(14);
-  expect(stopProperties.added).toBeUndefined();
-  expect(stopProperties.deleted).toBeUndefined();
-  expect(stopProperties.path).toBeUndefined();
-  expect(stopProperties.status).toBeUndefined();
-  expect(stopProperties.changeType).toBeUndefined();
-  expect(stopProperties.commitNote).toBeUndefined();
-  expect(stopProperties.notes).toBeUndefined();
-  expect(stopProperties.summary).toBeUndefined();
+  expect(stopProperties).not.toHaveProperty('added');
+  expect(stopProperties).not.toHaveProperty('deleted');
+  expect(stopProperties).not.toHaveProperty('path');
+  expect(stopProperties).not.toHaveProperty('status');
+  expect(stopProperties).not.toHaveProperty('changeType');
+  expect(stopProperties).not.toHaveProperty('commitNote');
+  expect(stopProperties).not.toHaveProperty('notes');
+  expect(stopProperties).not.toHaveProperty('summary');
   expect(stopProperties.title.maxLength).toBe(80);
   expect(chapters.items.properties.stops.items.required).toContain('title');
   expect(stopProperties.hunkIds.minItems).toBe(1);
   expect(stopProperties.hunkIds.maxItems).toBe(14);
-  expect(stopProperties.comments).toBeUndefined();
+  expect(stopProperties).not.toHaveProperty('comments');
 });
 
 const baseInput = () => ({
@@ -179,7 +171,7 @@ const baseInput = () => ({
           id: 's1',
           importance: 'critical',
           prose: 'The root cause line.',
-          title: 'Collapsed file ordering',
+          title: 'Collapsed file ordering' as string | undefined,
         },
         {
           hunkIds: ['src/__tests__/hunkNavigation.test.ts:staged:h1'],
@@ -205,12 +197,12 @@ test('exposes a schema requiring the hunk-based narrative fields', () => {
   expect(narrativeWalkthroughSchema.required).not.toContain('segments');
   expect(narrativeWalkthroughSchema.required).not.toContain('orders');
   expect(narrativeWalkthroughSchema.required).not.toContain('defaultOrder');
-  expect(narrativeWalkthroughSchema.properties.agent).toBeUndefined();
-  expect(narrativeWalkthroughSchema.properties.repo).toBeUndefined();
+  expect(narrativeWalkthroughSchema.properties).not.toHaveProperty('agent');
+  expect(narrativeWalkthroughSchema.properties).not.toHaveProperty('repo');
   const stopProperties =
     narrativeWalkthroughSchema.properties.chapters.items.properties.stops.items.properties;
-  expect(stopProperties.added).toBeUndefined();
-  expect(stopProperties.anchor).toBeUndefined();
+  expect(stopProperties).not.toHaveProperty('added');
+  expect(stopProperties).not.toHaveProperty('anchor');
 });
 
 test('keeps the renderer JSON schema in sync with the live narrative schema', () => {
@@ -235,6 +227,8 @@ test('generates an overview with snapshot evidence and resolves only real hunk l
       description: 'Keep navigation working for collapsed files.',
       headSha: 'new-head',
       type: 'pull-request',
+      provider: 'github',
+      url: 'https://github.com/example/repo/pull/1',
     },
   });
   const diagram = {
@@ -249,11 +243,12 @@ test('generates an overview with snapshot evidence and resolves only real hunk l
   const result = await readNarrativeWalkthrough(
     state,
     {
-      defaultTimeoutMs: 90_000,
-      id: 'codex',
+      ...getAgent('codex'),
+      id: 'codex' as const,
       isNotFoundError: () => false,
       label: 'Codex',
-      run: async (_root: string, prompt: string, schema: typeof narrativeWalkthroughSchema) => {
+      run: async (_root, prompt, rawSchema) => {
+        const schema = rawSchema as typeof narrativeWalkthroughSchema;
         expect(prompt).toContain('Some patch text was omitted');
         expect(prompt).toContain('"baseSha":"old-base"');
         expect(schema.properties.designOverview.type).toContain('null');
@@ -263,7 +258,7 @@ test('generates an overview with snapshot evidence and resolves only real hunk l
         );
         expect(schema.properties.designOverview.properties).not.toHaveProperty('gap');
         expect(schema.properties.designOverview.properties).not.toHaveProperty('decisions');
-        return JSON.stringify({
+        return {
           ...baseInput(),
           designOverview: {
             after: 'Traversal considers visible files only.',
@@ -278,7 +273,7 @@ test('generates an overview with snapshot evidence and resolves only real hunk l
             ],
             partialEvidence: false,
           },
-        });
+        };
       },
     },
     {},
@@ -323,58 +318,59 @@ test('keeps old overview summaries without attributing unstated goals or display
       },
     },
     files,
-    { source: { type: 'pull-request' } },
+    {
+      source: {
+        type: 'pull-request',
+        provider: 'github',
+        url: 'https://github.com/example/repo/pull/1',
+      },
+    },
   );
-  expect(result.designOverview.goalSource).toBe('inferred');
-  expect(result.designOverview.implementation).toEqual([]);
+  expect(result.designOverview?.goalSource).toBe('inferred');
+  expect(result.designOverview?.implementation).toEqual([]);
   expect(result.designOverview).not.toHaveProperty('decisions');
   expect(result.designOverview).not.toHaveProperty('gap');
   expect(result.designOverview).not.toHaveProperty('diagram');
 });
 
 test('scales walkthrough timeouts passed to the agent', async () => {
-  const createState = (count: number) => ({
-    branch: 'main',
-    files: Array.from({ length: count }, (_, index) => ({
-      path: `file-${index}.ts`,
-      sections: [
-        {
-          id: `file-${index}.ts:staged`,
-          kind: 'staged',
-          patch: `@@ -1 +1 @@\n-old ${index}\n+new ${index}\n`,
-        },
-      ],
-      status: 'modified',
-    })),
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const createState = (count: number) =>
+    repositoryState({
+      branch: 'main',
+      files: Array.from({ length: count }, (_, index) => ({
+        path: `file-${index}.ts`,
+        sections: [
+          {
+            id: `file-${index}.ts:staged`,
+            kind: 'staged',
+            patch: `@@ -1 +1 @@\n-old ${index}\n+new ${index}\n`,
+          },
+        ],
+        status: 'modified',
+      })),
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    });
   const readTimeout = async (count: number, defaultTimeoutMs: number) => {
     let timeoutMs = 0;
     await readNarrativeWalkthrough(
       createState(count),
       {
+        ...getAgent('codex'),
         defaultTimeoutMs,
-        id: 'codex',
+        id: 'codex' as const,
         isNotFoundError: () => false,
         label: 'Codex',
-        run: async (
-          _root: string,
-          _prompt: string,
-          _schema: unknown,
-          _outputName: string,
-          _timeoutMessage: string,
-          options: { timeoutMs: number },
-        ) => {
-          timeoutMs = options.timeoutMs;
-          return JSON.stringify({
+        run: async (_root, _prompt, _schema, _outputName, _timeoutMessage, options) => {
+          timeoutMs = options?.timeoutMs ?? 0;
+          return {
             chapters: [],
             focus: 'Review the change.',
             kind: 'narrative',
             title: 'Review',
             version: 4,
-          });
+          };
         },
       },
       {},
@@ -394,23 +390,25 @@ test('scales walkthrough timeouts passed to the agent', async () => {
 });
 
 test('prompts generated walkthroughs to use deterministic hunk groups', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: Array.from({ length: 28 }, (_, index) => ({
-      path: `file-${index}.ts`,
-      sections: [
-        {
-          id: `file-${index}.ts:staged`,
-          kind: 'staged',
-          patch: `@@ -1 +1 @@\n-old ${index}\n+new ${index}\n`,
-        },
-      ],
-      status: 'modified',
-    })),
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: Array.from({ length: 28 }, (_, index) => ({
+        path: `file-${index}.ts`,
+        sections: [
+          {
+            id: `file-${index}.ts:staged`,
+            kind: 'staged',
+            patch: `@@ -1 +1 @@\n-old ${index}\n+new ${index}\n`,
+          },
+        ],
+        status: 'modified',
+      })),
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
 
   expect(prompt).toContain('digest has 28 files');
   expect(prompt).toContain('Aim for 6-9 main-path stops');
@@ -433,36 +431,38 @@ test('prompts generated walkthroughs to use deterministic hunk groups', () => {
 });
 
 test('prompts small walkthroughs to group similar hunks into compact chapters', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        path: 'src/App.tsx',
-        sections: [
-          {
-            id: 'src/App.tsx:staged',
-            kind: 'staged',
-            patch: '@@ -1 +1 @@\n-old title\n+new title\n@@ -10 +10 @@\n-old label\n+new label\n',
-          },
-        ],
-        status: 'modified',
-      },
-      {
-        path: 'src/App.test.tsx',
-        sections: [
-          {
-            id: 'src/App.test.tsx:staged',
-            kind: 'staged',
-            patch: '@@ -4 +4 @@\n-old assertion\n+new assertion\n',
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          path: 'src/App.tsx',
+          sections: [
+            {
+              id: 'src/App.tsx:staged',
+              kind: 'staged',
+              patch: '@@ -1 +1 @@\n-old title\n+new title\n@@ -10 +10 @@\n-old label\n+new label\n',
+            },
+          ],
+          status: 'modified',
+        },
+        {
+          path: 'src/App.test.tsx',
+          sections: [
+            {
+              id: 'src/App.test.tsx:staged',
+              kind: 'staged',
+              patch: '@@ -4 +4 @@\n-old assertion\n+new assertion\n',
+            },
+          ],
+          status: 'modified',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
 
   expect(prompt).toContain('digest has 2 files and 3 reviewable hunks');
   expect(prompt).toContain('Use at most 2 main-path stops');
@@ -483,31 +483,33 @@ test.each([
   'keeps $files-file/$hunks-hunk walkthrough guidance compact',
   ({ chapters, files: fileCount, hunks: hunkCount, stops }) => {
     let remainingHunks = hunkCount;
-    const prompt = buildNarrativeWalkthroughPrompt({
-      branch: 'main',
-      files: Array.from({ length: fileCount }, (_, fileIndex) => {
-        const fileHunks = Math.ceil(remainingHunks / (fileCount - fileIndex));
-        remainingHunks -= fileHunks;
-        return {
-          path: `file-${fileIndex}.ts`,
-          sections: [
-            {
-              id: `file-${fileIndex}.ts:staged`,
-              kind: 'staged',
-              patch: Array.from(
-                { length: fileHunks },
-                (_, hunkIndex) =>
-                  `@@ -${hunkIndex * 10 + 1} +${hunkIndex * 10 + 1} @@\n-old\n+new\n`,
-              ).join(''),
-            },
-          ],
-          status: 'modified',
-        };
+    const prompt = buildNarrativeWalkthroughPrompt(
+      repositoryState({
+        branch: 'main',
+        files: Array.from({ length: fileCount }, (_, fileIndex) => {
+          const fileHunks = Math.ceil(remainingHunks / (fileCount - fileIndex));
+          remainingHunks -= fileHunks;
+          return {
+            path: `file-${fileIndex}.ts`,
+            sections: [
+              {
+                id: `file-${fileIndex}.ts:staged`,
+                kind: 'staged',
+                patch: Array.from(
+                  { length: fileHunks },
+                  (_, hunkIndex) =>
+                    `@@ -${hunkIndex * 10 + 1} +${hunkIndex * 10 + 1} @@\n-old\n+new\n`,
+                ).join(''),
+              },
+            ],
+            status: 'modified',
+          };
+        }),
+        generatedAt: 1,
+        root: '/repo',
+        source: { type: 'working-tree' },
       }),
-      generatedAt: 1,
-      root: '/repo',
-      source: { type: 'working-tree' },
-    });
+    );
 
     expect(prompt).toContain(`digest has ${fileCount} files and ${hunkCount} reviewable hunks`);
     expect(prompt).toContain(`Use ${stops} main-path stops`);
@@ -516,32 +518,33 @@ test.each([
 );
 
 test('uses GPT-5.5 for large walkthroughs only with automatic effort on the default model', () => {
-  const createState = (hunkCount: number) => ({
-    branch: 'main',
-    files: [
-      {
-        path: 'large.ts',
-        sections: [
-          {
-            id: 'large.ts:staged',
-            kind: 'staged',
-            patch: Array.from(
-              { length: hunkCount },
-              (_, index) => `@@ -${index + 1} +${index + 1} @@\n-old ${index}\n+new ${index}\n`,
-            ).join(''),
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const createState = (hunkCount: number) =>
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          path: 'large.ts',
+          sections: [
+            {
+              id: 'large.ts:staged',
+              kind: 'staged',
+              patch: Array.from(
+                { length: hunkCount },
+                (_, index) => `@@ -${index + 1} +${index + 1} @@\n-old ${index}\n+new ${index}\n`,
+              ).join(''),
+            },
+          ],
+          status: 'modified',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    });
   const codexAgent = {
     defaultModel: 'gpt-5.6-terra',
     fallbackModel: 'gpt-5.5',
-    id: 'codex',
+    id: 'codex' as const,
     normalizeModel: (model: unknown) => String(model),
   };
 
@@ -568,13 +571,13 @@ test('uses GPT-5.5 for large walkthroughs only with automatic effort on the defa
 
 test('prompts generated walkthroughs with custom user guidance without replacing core constraints', () => {
   const prompt = buildNarrativeWalkthroughPrompt(
-    {
+    repositoryState({
       branch: 'main',
       files: files.slice(0, 1),
       generatedAt: 1,
       root: '/repo',
       source: { type: 'working-tree' },
-    },
+    }),
     null,
     'Claude Code',
     'Answer in Japanese and use concise reviewer-facing explanations.',
@@ -587,23 +590,27 @@ test('prompts generated walkthroughs with custom user guidance without replacing
 });
 
 test('walkthrough titles must stand alone, even when the previous prose is already clear', () => {
+  const previous = normalizeNarrativeWalkthrough(baseInput(), files);
   const prompt = buildNarrativeWalkthroughPrompt(
-    {
+    repositoryState({
       branch: 'main',
       files: files.slice(0, 1),
       generatedAt: 1,
       root: '/repo',
       source: { type: 'working-tree' },
-    },
+    }),
     null,
     'Claude Code',
     undefined,
     {
+      ...previous,
       chapters: [
         {
+          ...previous.chapters[0],
           blurb: 'Entry point',
           stops: [
             {
+              ...previous.chapters[0].stops[0],
               hunkIds: ['stale-hunk'],
               prose: 'The retry settings cap the number of attempts and the total wait time.',
               title: 'Bound follow-up work',
@@ -645,7 +652,7 @@ test('replaces the walkthrough summary guidance and invalidates the generation c
     root: '/repo',
     source: { type: 'working-tree' },
   });
-  const agent = { id: 'claude', label: 'Claude Code', normalizeModel: String };
+  const agent = { id: 'claude' as const, label: 'Claude Code', normalizeModel: String };
   const overrides = { walkthroughSummary: 'Start by naming the main tradeoff.' };
   const prompt = buildNarrativeWalkthroughPrompt(
     state,
@@ -676,18 +683,20 @@ test('shares the commit guidance between the working tree walkthrough and rewrit
   let prompt = '';
   await readCommitMessageReply(
     state,
-    { paths: [] },
+    { paths: [files[0].path], subject: '', body: '' },
     {
       label: 'Codex',
       run: async (_root, input) => {
         prompt = input;
-        return '{"subject":"Update sample","body":""}';
+        return { subject: 'Update sample', body: '' };
       },
     },
     {},
     overrides,
   );
   expect(prompt).toContain(overrides.commitMessage);
+  expect(prompt).toContain('+new order');
+  expect(prompt).not.toContain('git diff --');
   expect(prompt).toContain('Do not mention or describe any file under "droppedFiles"');
   expect(
     buildNarrativeWalkthroughPrompt(state, null, 'Codex', undefined, undefined, overrides),
@@ -703,28 +712,27 @@ test('builds cache keys from semantic generation inputs', () => {
     source: {
       description: 'Explain the change.',
       headSha: 'head-1',
-      mergeState: { status: 'checking' },
       number: 42,
-      provider: 'github',
-      reviewStatus: { approved: false },
+      reviewStatus: { approve: { disabled: false } },
       type: 'pull-request',
+      provider: 'github',
       url: 'https://github.com/raels0/codophon/pull/42',
     },
   });
   const agent = {
-    id: 'claude',
+    id: 'claude' as const,
     label: 'Claude Code',
     normalizeModel: (model: unknown) => String(model || 'default'),
   };
   const key = getNarrativeWalkthroughCacheKey(state, agent, 'claude-sonnet', null);
+  if (state.source.type !== 'pull-request') throw new Error('Expected PR source');
   const metadataChangedKey = getNarrativeWalkthroughCacheKey(
     {
       ...state,
       generatedAt: 2,
       source: {
         ...state.source,
-        mergeState: { status: 'ready' },
-        reviewStatus: { approved: true },
+        reviewStatus: { approve: { disabled: true } },
       },
     },
     agent,
@@ -784,10 +792,12 @@ test('builds cache keys from semantic generation inputs', () => {
   ).not.toBe(key);
   expect(
     getNarrativeWalkthroughCacheKey(state, agent, 'claude-sonnet', {
-      summary: 'Prior discussion',
+      version: 1,
+      source: { generatedAt: '2026-06-19', type: 'claude-session' },
+      implementationSummary: 'Prior discussion',
     }),
   ).not.toBe(key);
-  const codex = { ...agent, id: 'codex', label: 'Codex' };
+  const codex = { ...agent, id: 'codex' as const, label: 'Codex' };
   const automatic = getNarrativeWalkthroughCacheKey(state, codex, 'gpt-6.1-sol', null);
   const low = getNarrativeWalkthroughCacheKey(state, codex, 'gpt-6.1-sol', null, undefined, 'low');
   const high = getNarrativeWalkthroughCacheKey(
@@ -810,13 +820,13 @@ test('builds cache keys from semantic generation inputs', () => {
 
 test('omits blank custom walkthrough prompt guidance', () => {
   const prompt = buildNarrativeWalkthroughPrompt(
-    {
+    repositoryState({
       branch: 'main',
       files: files.slice(0, 1),
       generatedAt: 1,
       root: '/repo',
       source: { type: 'working-tree' },
-    },
+    }),
     null,
     'Codex',
     '   ',
@@ -826,19 +836,21 @@ test('omits blank custom walkthrough prompt guidance', () => {
 });
 
 test('prompts generated walkthroughs with PR descriptions as orientation only', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: files.slice(0, 1),
-    generatedAt: 1,
-    root: '/repo',
-    source: {
-      description: '## Intent\n\nKeep reviewers oriented.',
-      number: 42,
-      provider: 'github',
-      type: 'pull-request',
-      url: 'https://github.com/raels0/codophon/pull/42',
-    },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: files.slice(0, 1),
+      generatedAt: 1,
+      root: '/repo',
+      source: {
+        description: '## Intent\n\nKeep reviewers oriented.',
+        number: 42,
+        provider: 'github',
+        type: 'pull-request',
+        url: 'https://github.com/raels0/codophon/pull/42',
+      },
+    }),
+  );
 
   expect(prompt).toContain('"description":"## Intent\\n\\nKeep reviewers oriented."');
   expect(prompt).toContain('author-written PR/MR intent and orientation');
@@ -849,32 +861,36 @@ test('prompts generated walkthroughs with PR descriptions as orientation only', 
 });
 
 test('truncates long PR descriptions in generated walkthrough prompts', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: files.slice(0, 1),
-    generatedAt: 1,
-    root: '/repo',
-    source: {
-      description: `${'A'.repeat(4100)}UNTRUNCATED_TAIL`,
-      number: 42,
-      provider: 'github',
-      type: 'pull-request',
-      url: 'https://github.com/raels0/codophon/pull/42',
-    },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: files.slice(0, 1),
+      generatedAt: 1,
+      root: '/repo',
+      source: {
+        description: `${'A'.repeat(4100)}UNTRUNCATED_TAIL`,
+        number: 42,
+        provider: 'github',
+        type: 'pull-request',
+        url: 'https://github.com/raels0/codophon/pull/42',
+      },
+    }),
+  );
 
   expect(prompt).toContain('...[truncated]');
   expect(prompt).not.toContain('UNTRUNCATED_TAIL');
 });
 
 test('repository digest exposes compact hunk aliases and counts', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: files.slice(0, 1),
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: files.slice(0, 1),
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
 
   expect(prompt).toContain('"id":"h1"');
   expect(prompt).not.toContain('"id":"src/App.tsx:staged:h1"');
@@ -884,36 +900,38 @@ test('repository digest exposes compact hunk aliases and counts', () => {
 });
 
 test('repository digest associates every hunk alias with its own patch excerpt', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        path: 'src/callback.ts',
-        sections: [
-          {
-            id: 'src/callback.ts:staged',
-            kind: 'staged',
-            patch: [
-              '@@ -40,3 +40,5 @@',
-              ' context',
-              '+  return () => {',
-              '+    onCommit?.();',
-              '   broadcast();',
-              '@@ -60,3 +62,4 @@',
-              '   finish();',
-              '+  };',
-              ' }',
-              '',
-            ].join('\n'),
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          path: 'src/callback.ts',
+          sections: [
+            {
+              id: 'src/callback.ts:staged',
+              kind: 'staged',
+              patch: [
+                '@@ -40,3 +40,5 @@',
+                ' context',
+                '+  return () => {',
+                '+    onCommit?.();',
+                '   broadcast();',
+                '@@ -60,3 +62,4 @@',
+                '   finish();',
+                '+  };',
+                ' }',
+                '',
+              ].join('\n'),
+            },
+          ],
+          status: 'modified',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
   const digest = JSON.parse(prompt.split('Repository change digest:\n')[1] ?? '{}') as {
     files: ReadonlyArray<{
       sections: ReadonlyArray<{ hunks: ReadonlyArray<{ id: string; patch: string }> }>;
@@ -931,23 +949,25 @@ test('repository digest associates every hunk alias with its own patch excerpt',
 });
 
 test('repository digest strictly enforces section and total patch budgets', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: Array.from({ length: 100 }, (_, index) => ({
-      path: `src/file-${index}.ts`,
-      sections: [
-        {
-          id: `src/file-${index}.ts:staged`,
-          kind: 'staged',
-          patch: `@@ -1 +1 @@\n-${'x'.repeat(3_500)}\n+${'y'.repeat(3_500)}\n`,
-        },
-      ],
-      status: 'modified',
-    })),
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: Array.from({ length: 100 }, (_, index) => ({
+        path: `src/file-${index}.ts`,
+        sections: [
+          {
+            id: `src/file-${index}.ts:staged`,
+            kind: 'staged',
+            patch: `@@ -1 +1 @@\n-${'x'.repeat(3_500)}\n+${'y'.repeat(3_500)}\n`,
+          },
+        ],
+        status: 'modified',
+      })),
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
   const digest = JSON.parse(prompt.split('Repository change digest:\n')[1] ?? '{}') as {
     files: ReadonlyArray<{
       sections: ReadonlyArray<{ hunks: ReadonlyArray<{ patch?: string }> }>;
@@ -963,32 +983,37 @@ test('repository digest strictly enforces section and total patch budgets', () =
 });
 
 test('repository digest retains short config changes at both ends of a long hunk', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        path: 'settings.json',
-        sections: [
-          {
-            id: 'settings.json:staged',
-            kind: 'staged',
-            patch: [
-              '@@ -0,0 +1,303 @@',
-              '+  "template": "invoice",',
-              ...Array.from({ length: 300 }, (_, index) => `+  "p${index}": "${'x'.repeat(40)}",`),
-              '+  "UseNewSender": true',
-              '+}',
-              '',
-            ].join('\n'),
-          },
-        ],
-        status: 'added',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          path: 'settings.json',
+          sections: [
+            {
+              id: 'settings.json:staged',
+              kind: 'staged',
+              patch: [
+                '@@ -0,0 +1,303 @@',
+                '+  "template": "invoice",',
+                ...Array.from(
+                  { length: 300 },
+                  (_, index) => `+  "p${index}": "${'x'.repeat(40)}",`,
+                ),
+                '+  "UseNewSender": true',
+                '+}',
+                '',
+              ].join('\n'),
+            },
+          ],
+          status: 'added',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
   const digest = JSON.parse(prompt.split('Repository change digest:\n')[1] ?? '{}') as {
     files: ReadonlyArray<{
       sections: ReadonlyArray<{ hunks: ReadonlyArray<{ patch: string }> }>;
@@ -1002,26 +1027,28 @@ test('repository digest retains short config changes at both ends of a long hunk
 });
 
 test('repository digest keeps summaries separate from bounded hunk patches', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        path: 'src/summary.ts',
-        sections: [
-          {
-            id: 'src/summary.ts:staged',
-            kind: 'staged',
-            patch: `@@ -1 +1 @@\n-${'x'.repeat(5_000)}\n+${'y'.repeat(5_000)}\n`,
-            summary: { reason: 'R'.repeat(1_000) },
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          path: 'src/summary.ts',
+          sections: [
+            {
+              id: 'src/summary.ts:staged',
+              kind: 'staged',
+              patch: `@@ -1 +1 @@\n-${'x'.repeat(5_000)}\n+${'y'.repeat(5_000)}\n`,
+              summary: { reason: 'R'.repeat(1_000) },
+            },
+          ],
+          status: 'modified',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
   const digest = JSON.parse(prompt.split('Repository change digest:\n')[1] ?? '{}') as {
     files: ReadonlyArray<{
       sections: ReadonlyArray<{
@@ -1037,25 +1064,27 @@ test('repository digest keeps summaries separate from bounded hunk patches', () 
 });
 
 test('repository digest collapses generated files to one synthetic hunk', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        path: 'pnpm-lock.yaml',
-        sections: [
-          {
-            id: 'pnpm-lock.yaml:staged',
-            kind: 'staged',
-            patch: manyHunkPatch,
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          path: 'pnpm-lock.yaml',
+          sections: [
+            {
+              id: 'pnpm-lock.yaml:staged',
+              kind: 'staged',
+              patch: manyHunkPatch,
+            },
+          ],
+          status: 'modified',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
 
   expect(prompt).toContain('"generated":true');
   expect(prompt).toContain('"id":"h1"');
@@ -1066,26 +1095,28 @@ test('repository digest collapses generated files to one synthetic hunk', () => 
 });
 
 test('repository digest honors generated metadata that disables path heuristics', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        generated: false,
-        path: 'pnpm-lock.yaml',
-        sections: [
-          {
-            id: 'pnpm-lock.yaml:staged',
-            kind: 'staged',
-            patch: manyHunkPatch,
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          generated: false,
+          path: 'pnpm-lock.yaml',
+          sections: [
+            {
+              id: 'pnpm-lock.yaml:staged',
+              kind: 'staged',
+              patch: manyHunkPatch,
+            },
+          ],
+          status: 'modified',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
 
   expect(prompt).not.toContain('"generated":true');
   expect(prompt).toContain('"kind":"patch"');
@@ -1093,28 +1124,30 @@ test('repository digest honors generated metadata that disables path heuristics'
 });
 
 test('repository digest exposes synthetic hunk ids for non-text sections', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        path: 'public/logo.png',
-        sections: [
-          {
-            binary: true,
-            id: 'public/logo.png:staged',
-            kind: 'staged',
-            loadState: 'binary',
-            patch: '',
-            summary: { reason: 'Binary file changed.' },
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          path: 'public/logo.png',
+          sections: [
+            {
+              binary: true,
+              id: 'public/logo.png:staged',
+              kind: 'staged',
+              loadState: 'binary',
+              patch: '',
+              summary: { reason: 'Binary file changed.' },
+            },
+          ],
+          status: 'modified',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
 
   expect(prompt).toContain('"id":"h1"');
   expect(prompt).toContain('"kind":"synthetic"');
@@ -1122,28 +1155,30 @@ test('repository digest exposes synthetic hunk ids for non-text sections', () =>
 });
 
 test('repository digest exposes synthetic hunk ids for metadata-only renames', () => {
-  const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
-    files: [
-      {
-        oldPath: 'old.txt',
-        path: 'new.txt',
-        sections: [
-          {
-            binary: false,
-            id: 'new.txt:staged',
-            kind: 'staged',
-            loadState: 'ready',
-            patch: '',
-          },
-        ],
-        status: 'renamed',
-      },
-    ],
-    generatedAt: 1,
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
+  const prompt = buildNarrativeWalkthroughPrompt(
+    repositoryState({
+      branch: 'main',
+      files: [
+        {
+          oldPath: 'old.txt',
+          path: 'new.txt',
+          sections: [
+            {
+              binary: false,
+              id: 'new.txt:staged',
+              kind: 'staged',
+              loadState: 'ready',
+              patch: '',
+            },
+          ],
+          status: 'renamed',
+        },
+      ],
+      generatedAt: 1,
+      root: '/repo',
+      source: { type: 'working-tree' },
+    }),
+  );
 
   expect(prompt).toContain('"id":"h1"');
   expect(prompt).toContain('"kind":"synthetic"');
@@ -1172,7 +1207,7 @@ test('normalizes a well-formed narrative walkthrough', () => {
     added: 1,
     deleted: 1,
     hunkIds: ['src/App.tsx:staged:h1'],
-    title: 'Collapsed file ordering',
+    title: 'Collapsed file ordering' as string | undefined,
   });
   expect(result.chapters[0].stops[0].hunks[0]).toMatchObject({
     added: 1,
@@ -1194,7 +1229,7 @@ test('normalizes a well-formed narrative walkthrough', () => {
 });
 
 test('preserves OpenCode as the narrative walkthrough agent', () => {
-  const context = {
+  const context: WalkthroughContext = {
     messages: [{ role: 'user', text: 'Keep the OpenCode session linked.' }],
     source: {
       generatedAt: '2026-06-19T00:00:00.000Z',
@@ -1215,9 +1250,11 @@ test('preserves OpenCode as the narrative walkthrough agent', () => {
 
 test('generates ids for otherwise valid chapters that omit them', () => {
   const input = baseInput();
-  delete input.chapters[0].id;
+  const { id: _id, ...withoutId } = input.chapters[0];
 
-  const result = normalizeNarrativeWalkthrough(input, files, { agent: 'opencode' });
+  const result = normalizeNarrativeWalkthrough({ ...input, chapters: [withoutId] }, files, {
+    agent: 'opencode',
+  });
 
   expect(result.chapters[0].id).toBe('chapter-1');
   expect(result.chapters[0].stops).toHaveLength(2);
@@ -1337,6 +1374,7 @@ test('normalizes hunk header notes only for selected hunks', () => {
 test('drops stops and support items with unresolvable hunk ids', () => {
   const input = baseInput();
   input.chapters[0].stops.push({
+    title: undefined,
     hunkIds: ['src/removed.ts:staged:h1'],
     id: 'stale',
     importance: 'normal',
@@ -1353,6 +1391,7 @@ test('drops stops and support items with unresolvable hunk ids', () => {
 test('drops hunk groups that overlap already-covered hunks', () => {
   const input = baseInput();
   input.chapters[0].stops.push({
+    title: undefined,
     hunkIds: ['src/App.tsx:staged:h1', 'wide.py:staged:h1'],
     id: 'overlap',
     importance: 'normal',
@@ -1389,11 +1428,13 @@ test('adds unreferenced live hunks to support so changed code remains visible', 
 test('adds unreferenced generated files to support as one review unit', () => {
   const input = baseInput();
   input.support = [];
-  const generatedFile = {
-    path: 'src/__generated__/api.ts',
-    sections: [{ id: 'src/__generated__/api.ts:staged', kind: 'staged', patch: manyHunkPatch }],
-    status: 'modified',
-  };
+  const [generatedFile] = changedFiles([
+    {
+      path: 'src/__generated__/api.ts',
+      sections: [{ id: 'src/__generated__/api.ts:staged', kind: 'staged', patch: manyHunkPatch }],
+      status: 'modified',
+    },
+  ]);
 
   const result = normalizeNarrativeWalkthrough(input, [...files, generatedFile]);
   const generatedSupport = result.support.find(
@@ -1412,12 +1453,14 @@ test('adds unreferenced generated files to support as one review unit', () => {
 test('uses generated metadata for files without generated-looking paths', () => {
   const input = baseInput();
   input.support = [];
-  const generatedFile = {
-    generated: true,
-    path: 'api/client.ts',
-    sections: [{ id: 'api/client.ts:staged', kind: 'staged', patch: manyHunkPatch }],
-    status: 'modified',
-  };
+  const [generatedFile] = changedFiles([
+    {
+      generated: true,
+      path: 'api/client.ts',
+      sections: [{ id: 'api/client.ts:staged', kind: 'staged', patch: manyHunkPatch }],
+      status: 'modified',
+    },
+  ]);
 
   const result = normalizeNarrativeWalkthrough(input, [...files, generatedFile]);
   const generatedSupport = result.support.find(
@@ -1451,6 +1494,7 @@ test('groups authored generated support under the generated-files reason', () =>
 test('keeps explicitly selected generated files in the main walkthrough path', () => {
   const input = baseInput();
   input.chapters[0].stops.push({
+    title: undefined,
     hunkIds: ['pnpm-lock.yaml:staged:h1'],
     id: 'lockfile-stop',
     importance: 'normal',
@@ -1470,6 +1514,7 @@ test('normalizes ordered cross-file hunk groups under one stop', () => {
   const input = baseInput();
   input.chapters[0].stops = [
     {
+      title: undefined,
       hunkIds: ['src/__tests__/hunkNavigation.test.ts:staged:h1', 'src/App.tsx:staged:h1'],
       id: 'combo',
       importance: 'critical',
@@ -1497,12 +1542,15 @@ test('drops hunk groups that exceed the hunk group size limit', () => {
     { length: 15 },
     (_, index) => `@@ -${index + 1} +${index + 1} @@\n-old ${index + 1}\n+new ${index + 1}\n`,
   ).join('');
-  const overLimitFile = {
-    path: 'too-wide.py',
-    sections: [{ id: 'too-wide.py:staged', kind: 'staged', patch: overLimitPatch }],
-    status: 'modified',
-  };
+  const [overLimitFile] = changedFiles([
+    {
+      path: 'too-wide.py',
+      sections: [{ id: 'too-wide.py:staged', kind: 'staged', patch: overLimitPatch }],
+      status: 'modified',
+    },
+  ]);
   input.chapters[0].stops.push({
+    title: undefined,
     hunkIds: Array.from({ length: 15 }, (_, index) => `too-wide.py:staged:h${index + 1}`),
     id: 'wide',
     importance: 'normal',

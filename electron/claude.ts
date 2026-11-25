@@ -2,10 +2,14 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   collectAgentOutput,
+  missingAgentError,
+  withModelFallback,
+  createJsonLineReader,
   findAgentCommand,
   resolveAgentCommandTransport,
 } from './agent-command.ts';
 import { normalizeEnum, oneLine } from './agent-shared.ts';
+import type { AgentOptions } from './agent.ts';
 import { getCommandEnvironment } from './login-shell-environment.ts';
 
 // Claude Code can be slower to first token than Codex, so allow a longer budget.
@@ -18,13 +22,8 @@ const CLAUDE_NOT_FOUND_MESSAGE =
 const CLAUDE_NOT_LOGGED_IN_MESSAGE =
   'Claude Code is not logged in. Run `claude` in Terminal and complete `/login`, then try again.';
 
-export type ClaudeOptions = {
-  fallbackModel?: string;
+export type ClaudeOptions = AgentOptions & {
   commandTransport?: import('./agent-command.ts').AgentCommandTransport;
-  model?: string;
-  onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
-  onProgress?: (phase: import('../core/types.ts').WalkthroughProgressPhase) => void;
-  timeoutMs?: number;
 };
 export type ClaudeModel = {
   id: string;
@@ -47,13 +46,10 @@ const CLAUDE_MODELS: ReadonlyArray<ClaudeModel> = Object.freeze([
 ]);
 const CLAUDE_MODEL_IDS = new Set(CLAUDE_MODELS.map((model) => model.id));
 
-const createClaudeNotFoundError = (detail?: string) =>
-  Object.assign(
-    new Error(detail ? `${CLAUDE_NOT_FOUND_MESSAGE} ${detail}` : CLAUDE_NOT_FOUND_MESSAGE),
-    {
-      code: CLAUDE_NOT_FOUND_CODE,
-    },
-  );
+const { create: createClaudeNotFoundError, matches: isClaudeNotFoundError } = missingAgentError(
+  CLAUDE_NOT_FOUND_CODE,
+  CLAUDE_NOT_FOUND_MESSAGE,
+);
 
 const getClaudeCommand = () =>
   findAgentCommand(
@@ -61,14 +57,6 @@ const getClaudeCommand = () =>
     'CODOPHON_CLAUDE_PATH',
     [join(homedir(), '.local/bin/claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'],
     createClaudeNotFoundError,
-  );
-
-const isClaudeNotFoundError = (error: unknown) =>
-  Boolean(
-    error &&
-    typeof error === 'object' &&
-    'code' in error &&
-    (error.code === CLAUDE_NOT_FOUND_CODE || error.code === 'ENOENT'),
   );
 
 const isClaudeNotLoggedInError = (value: string) =>
@@ -104,7 +92,6 @@ const getClaudeLaunchError = (error: unknown) => {
  */
 const createClaudeStreamParser = (onProgress: ClaudeOptions['onProgress']) => {
   let resultEnvelope: any = null;
-  let lineBuffer = '';
 
   const handleEvent = (input: unknown) => {
     const event = input as any;
@@ -140,35 +127,13 @@ const createClaudeStreamParser = (onProgress: ClaudeOptions['onProgress']) => {
     }
   };
 
-  const push = (text: string) => {
-    lineBuffer += text;
-    let newlineIndex = lineBuffer.indexOf('\n');
-    while (newlineIndex !== -1) {
-      const line = lineBuffer.slice(0, newlineIndex).trim();
-      lineBuffer = lineBuffer.slice(newlineIndex + 1);
-      if (line) {
-        try {
-          handleEvent(JSON.parse(line));
-        } catch {
-          // Non-JSON diagnostics remain available to the caller on failure.
-        }
-      }
-      newlineIndex = lineBuffer.indexOf('\n');
-    }
-  };
-
+  const reader = createJsonLineReader(handleEvent);
   const flush = () => {
-    const rest = lineBuffer.trim();
-    lineBuffer = '';
-    if (rest) {
-      try {
-        handleEvent(JSON.parse(rest));
-      } catch {}
-    }
+    reader.flush();
     return resultEnvelope;
   };
 
-  return { flush, push };
+  return { flush, push: reader.push };
 };
 
 /**
@@ -250,18 +215,13 @@ const runClaude = async (
       : resultText;
   };
 
-  try {
-    return await invokeClaude(model);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (model === fallbackModel || !isClaudeModelAvailabilityError(message)) {
-      throw error;
-    }
-
-    const response = await invokeClaude(fallbackModel);
-    await options.onModelFallback?.(fallbackModel, model);
-    return response;
-  }
+  return withModelFallback(
+    model,
+    [fallbackModel],
+    invokeClaude,
+    isClaudeModelAvailabilityError,
+    options,
+  );
 };
 
 export {

@@ -1,3 +1,4 @@
+import './Walkthrough.css';
 import { ArrowsClockwiseIcon as ArrowsClockwise } from '@phosphor-icons/react/ArrowsClockwise';
 import { CheckIcon as Check } from '@phosphor-icons/react/Check';
 import { GitBranchIcon as GitBranch } from '@phosphor-icons/react/GitBranch';
@@ -19,12 +20,13 @@ import type {
 import { Button } from '../Button.tsx';
 import { ChapterIcon, WalkthroughLineCount } from './parts.tsx';
 
-export type CommitHandler = (request: WalkthroughCommitRequest) => Promise<WalkthroughCommitResult>;
-export type CommitMessageHandler = (
-  request: WalkthroughCommitMessageRequest,
-) => Promise<WalkthroughCommitMessageResult>;
-/** Subscribe to live commit output (pre-commit hook logs); returns unsubscribe. */
-export type CommitOutputSubscriber = (callback: (chunk: string) => void) => () => void;
+export type CommitSession = {
+  commit: (request: WalkthroughCommitRequest) => Promise<WalkthroughCommitResult>;
+  onOutput: (callback: (chunk: string) => void) => () => void;
+  updateMessage: (
+    request: WalkthroughCommitMessageRequest,
+  ) => Promise<WalkthroughCommitMessageResult>;
+};
 
 export type CommitDraftState = {
   commitBody: string;
@@ -341,16 +343,12 @@ export function CommitView({
   branch,
   draft,
   model,
-  onCommit,
-  onCommitOutput,
-  onUpdateMessage,
+  session,
 }: {
   branch: string | null;
   draft: CommitDraftState;
   model: CommitModel;
-  onCommit: CommitHandler;
-  onCommitOutput?: CommitOutputSubscriber;
-  onUpdateMessage: CommitMessageHandler;
+  session: CommitSession;
 }) {
   const selected = draft.commitSelected;
   const selectedFiles = model.files.filter((file) => selected.has(file.path));
@@ -385,7 +383,7 @@ export function CommitView({
     }
     setUpdating(true);
     setUpdateError(null);
-    const next = await onUpdateMessage({
+    const next = await session.updateMessage({
       body: draft.commitBody,
       paths: selectedFiles.map((file) => file.path),
       subject: subject.trim(),
@@ -411,9 +409,9 @@ export function CommitView({
     setResult(null);
     setOutput('');
     setAttempt((current) => current + 1);
-    const unsubscribe = onCommitOutput?.((chunk) => setOutput((current) => current + chunk));
+    const unsubscribe = session.onOutput((chunk) => setOutput((current) => current + chunk));
     try {
-      const next = await onCommit({
+      const next = await session.commit({
         body: draft.commitBody.trim(),
         paths: selectedFiles.map((file) => file.path),
         subject: subject.trim(),

@@ -1,6 +1,7 @@
 import type { AgentPromptId, AgentPromptOverrides } from '../core/config/types.ts';
 
 const agentPrompts: Array<import('../core/config/types.ts').AgentPromptModule> = [
+  { id: 'walkthrough', label: 'Additional walkthrough guidance', text: '' },
   {
     id: 'walkthroughSummary',
     label: 'Walkthrough summary',

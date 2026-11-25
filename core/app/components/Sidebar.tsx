@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import './Sidebar.css';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { matchesShortcut } from '../../config/keymap.ts';
 import type { CodophonKeymap } from '../../config/types.ts';
-import type { PullRequestSource, SidebarMode, WalkthroughError } from '../../lib/app-types.ts';
+import type { SidebarMode, WalkthroughError } from '../../lib/app-types.ts';
 import { isNativeInputTarget } from '../../lib/keyboard.ts';
 import { getShortRef, getSourceKey } from '../../lib/source.ts';
-import type { ChangedFile, HistoryEntry, NarrativeWalkthrough, ReviewSource } from '../../types.ts';
+import type { ChangedFile, NarrativeWalkthrough, ReviewSource } from '../../types.ts';
+import type { HistoryStore } from '../hooks/history-store.ts';
 import { Avatar } from './Avatar.tsx';
 import { Button } from './Button.tsx';
 import { DiffSummaryFooter } from './DiffSummaryFooter.tsx';
@@ -14,24 +16,19 @@ import type { NarrativeNavigation } from './walkthrough/useNarrativeNavigation.t
 import { WalkthroughProgress } from './walkthrough/WalkthroughProgress.tsx';
 
 export function Sidebar({
-  branchSource,
   commitFiles,
   commitViewOpen,
   currentSource,
   files,
-  historyEntries,
-  historyHasMore,
-  historyLoading,
+  history,
   keymap,
   mode,
   narrativeNavigation,
   narrativeWalkthrough,
   onActivatePath,
-  onLoadMoreHistory,
   onSearchQueryChange,
   onSelectSource,
   onToggleCommitView,
-  pullRequestSource,
   reloadDeltaPaths,
   searchQuery,
   selectedPath,
@@ -42,24 +39,19 @@ export function Sidebar({
   walkthroughLoading,
   walkthroughProgress,
 }: {
-  branchSource: Extract<ReviewSource, { type: 'branch-diff' }> | null;
   commitFiles: ReadonlyArray<ChangedFile>;
   commitViewOpen: boolean;
   currentSource: ReviewSource;
   files: ReadonlyArray<ChangedFile>;
-  historyEntries: ReadonlyArray<HistoryEntry>;
-  historyHasMore: boolean;
-  historyLoading: boolean;
+  history: HistoryStore;
   keymap: CodophonKeymap;
   mode: SidebarMode;
   narrativeNavigation: NarrativeNavigation;
   narrativeWalkthrough: NarrativeWalkthrough | null;
   onActivatePath: (path: string) => void;
-  onLoadMoreHistory: () => void;
   onSearchQueryChange: (query: string) => void;
   onSelectSource: (source: ReviewSource) => void;
   onToggleCommitView: () => void;
-  pullRequestSource: PullRequestSource | null;
   reloadDeltaPaths: ReadonlySet<string>;
   searchQuery: string;
   selectedPath: string | null;
@@ -110,14 +102,9 @@ export function Sidebar({
       </div>
       {mode === 'history' ? (
         <HistorySidebar
-          branchSource={branchSource}
           currentSource={currentSource}
-          entries={historyEntries}
-          hasMore={historyHasMore}
-          loading={historyLoading}
-          onLoadMore={onLoadMoreHistory}
+          history={history}
           onSelectSource={onSelectSource}
-          pullRequestSource={pullRequestSource}
           searchQuery={searchQuery}
         />
       ) : mode === 'walkthrough' && narrativeWalkthrough ? (
@@ -202,26 +189,36 @@ const shortDate = (timestamp: number) => {
 };
 
 function HistorySidebar({
-  branchSource,
   currentSource,
-  entries,
-  hasMore,
-  loading,
-  onLoadMore,
+  history,
   onSelectSource,
-  pullRequestSource,
   searchQuery,
 }: {
-  branchSource: Extract<ReviewSource, { type: 'branch-diff' }> | null;
   currentSource: ReviewSource;
-  entries: ReadonlyArray<HistoryEntry>;
-  hasMore: boolean;
-  loading: boolean;
-  onLoadMore: () => void;
+  history: HistoryStore;
   onSelectSource: (source: ReviewSource) => void;
-  pullRequestSource: PullRequestSource | null;
   searchQuery: string;
 }) {
+  const { entries, hasMore, loading, source } = useSyncExternalStore(
+    history.subscribe,
+    history.getSnapshot,
+  );
+  const onLoadMore = history.loadMore;
+  const branchSource = useMemo(
+    () =>
+      source?.type === 'branch-diff'
+        ? source
+        : source?.type === 'branch-working-tree' && source.baseRef && source.headRef
+          ? {
+              baseRef: source.baseRef,
+              headRef: source.headRef,
+              ref: source.ref,
+              type: 'branch-diff' as const,
+            }
+          : null,
+    [source],
+  );
+  const pullRequestSource = source?.type === 'pull-request' ? source : null;
   const currentSourceKey = getSourceKey(currentSource);
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const listRef = useRef<HTMLDivElement>(null);

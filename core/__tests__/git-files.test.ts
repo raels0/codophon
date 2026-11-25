@@ -7,21 +7,6 @@ import { afterAll, beforeAll, expect, test } from 'vite-plus/test';
 import { removeGitTestDirectory } from './helpers/git.ts';
 import { createTemporaryEnvironment } from './helpers/resources.ts';
 
-type FileContentResult = {
-  binary: boolean;
-  file?: {
-    cacheKey: string;
-    contents: string;
-    name: string;
-  };
-  fingerprint?: string;
-  loadState?: string;
-  summary?: {
-    canLoad?: boolean;
-    size?: number;
-  };
-};
-
 const execFileAsync = promisify(execFile);
 import { readGitFiles } from '../../electron/git-state/git-files.ts';
 const batchCases = [

@@ -7,7 +7,7 @@ import { findExecutableOnPath, isExecutableFile } from '../agent-shared.ts';
 import { getCommandEnvironment } from '../login-shell-environment.ts';
 
 export type AzureIdentity = {
-  id: string;
+  id?: string;
   displayName?: string;
   uniqueName?: string;
   imageUrl?: string;
@@ -18,7 +18,7 @@ export type AzureIdentity = {
 export type AzureCommitReference = { commitId: string };
 
 export type AzurePullRequest = {
-  createdBy: AzureIdentity;
+  createdBy?: AzureIdentity;
   description?: string;
   forkSource?: { repository?: { remoteUrl?: string } };
   isDraft?: boolean;

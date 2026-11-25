@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RepositoryState, ReviewAssistantRequest } from '../core/types.ts';
 import { getAgentPrompt } from './agent-prompts.ts';
-import { parseJSONMessage } from './agent-shared.ts';
 import type { AgentOptions, AgentRunner } from './agent.ts';
 import type { ContextRead } from './review-assist-context.ts';
 import { createReviewAssistantContext } from './review-assist-context.ts';
@@ -159,15 +158,13 @@ const readReviewAssistantReply = async (
         (_placeholder, key) => values[key as keyof typeof values],
       );
       const response = readResponse(
-        parseJSONMessage(
-          await agent.run(
-            state.root,
-            prompt,
-            reviewAssistantSchema,
-            'review-assistant.json',
-            `${agent.label} review reply timed out.`,
-            { ...agentOptions, timeoutMs },
-          ),
+        await agent.run(
+          state.root,
+          prompt,
+          reviewAssistantSchema,
+          'review-assistant.json',
+          `${agent.label} review reply timed out.`,
+          { ...agentOptions, timeoutMs },
         ),
       );
       if (response.requests.length === 0) {

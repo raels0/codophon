@@ -1,4 +1,5 @@
-import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useCallback, useRef } from 'react';
+import { sortFiles } from '../../lib/files.ts';
 import { getWalkthroughReviewKeyPrefix } from '../../lib/review-identity.ts';
 import { getSourceKey } from '../../lib/source.ts';
 import type { ChangedFile, RepositoryState, ReviewSource } from '../../types.ts';
@@ -24,13 +25,13 @@ const replaceFileViewed = (current: Viewed, file: ChangedFile, replacement: View
 };
 
 export function usePullRequestViewedSync({
+  getRepository,
+  getViewed,
   setViewed,
-  stateRef,
-  viewedRef,
 }: {
-  setViewed: Dispatch<SetStateAction<Viewed>>;
-  stateRef: RefObject<RepositoryState | null>;
-  viewedRef: RefObject<Viewed>;
+  getRepository: () => RepositoryState | null;
+  getViewed: () => Viewed;
+  setViewed: (viewed: Viewed) => void;
 }) {
   const updatesRef = useRef(new Map<string, ViewedUpdate>());
   const queuesRef = useRef(new Map<string, Promise<void>>());
@@ -39,7 +40,7 @@ export function usePullRequestViewedSync({
 
   const syncViewed = useCallback(
     (focusedFile: ChangedFile, previous: Viewed, next: Viewed) => {
-      const state = stateRef.current;
+      const state = getRepository();
       if (state?.source.type !== 'pull-request' || state.source.provider === 'azure-devops') {
         return;
       }
@@ -76,7 +77,7 @@ export function usePullRequestViewedSync({
         })
         .catch((error: unknown) => {
           update.failed = true;
-          const currentState = stateRef.current;
+          const currentState = getRepository();
           if (
             updatesRef.current.get(key) !== update ||
             currentState?.root !== state.root ||
@@ -89,11 +90,10 @@ export function usePullRequestViewedSync({
             return;
           }
           const restored = replaceFileViewed(
-            viewedRef.current,
+            getViewed(),
             file,
             confirmedRef.current.get(key) ?? previous,
           );
-          viewedRef.current = restored;
           setViewed(restored);
           window.alert(
             `Could not sync Viewed for ${file.path} with GitHub: ${
@@ -109,7 +109,7 @@ export function usePullRequestViewedSync({
         });
       queuesRef.current.set(key, queue);
     },
-    [setViewed, stateRef, viewedRef],
+    [setViewed, getRepository, getViewed],
   );
 
   const getRepositoryState = useCallback(
@@ -118,7 +118,8 @@ export function usePullRequestViewedSync({
       // A refresh after a click must observe the saved state. Keep newer clicks
       // optimistic if they happen while the GitHub lookup is in flight.
       await Promise.all(queuesRef.current.values());
-      const state = await window.codophon.getRepositoryState(source);
+      const snapshot = await window.codophon.getRepositoryState(source);
+      const state = { ...snapshot, files: sortFiles(snapshot.files) };
       if (state.viewedFiles) {
         const viewedFiles = { ...state.viewedFiles };
         for (const update of updatesRef.current.values()) {

@@ -36,7 +36,7 @@ const createHarness = () => {
   const viewedRef = { current: {} as Record<string, string> };
   const setViewed = vi.fn(
     (value: Parameters<Parameters<typeof usePullRequestViewedSync>[0]['setViewed']>[0]) => {
-      viewedRef.current = typeof value === 'function' ? value(viewedRef.current) : value;
+      viewedRef.current = value;
     },
   );
   const syncRef: { current: ReturnType<typeof usePullRequestViewedSync> | null } = {
@@ -46,7 +46,11 @@ const createHarness = () => {
     syncRef.current = sync;
   };
   function Harness() {
-    const sync = usePullRequestViewedSync({ setViewed, stateRef, viewedRef });
+    const sync = usePullRequestViewedSync({
+      getRepository: () => stateRef.current,
+      getViewed: () => viewedRef.current,
+      setViewed,
+    });
     onSync(sync);
     return null;
   }

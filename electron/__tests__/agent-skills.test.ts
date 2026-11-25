@@ -48,7 +48,7 @@ test('lists every bundled skill with its installation target', () => {
 test('builds an Install Skill submenu that routes each agent action', () => {
   const install = vi.fn();
   const menuItem = buildInstallSkillMenuItem(install);
-  const browserWindow = {};
+  const browserWindow = undefined;
 
   expect(menuItem.label).toBe('Install Skill');
   expect(menuItem.submenu.map((item) => item.label)).toEqual(['Codex', 'Claude Code', 'OpenCode']);
@@ -81,7 +81,7 @@ test('installs the OpenCode skill into its global skills directory', async () =>
       isPackaged: false,
     },
     dialog: {
-      showMessageBox: async () => {},
+      showMessageBox: async () => ({ response: 0, checkboxChecked: false }),
     },
     renderManagedFile: (_file, template) => template.replace('{{MODEL}}', `model: ${model}`),
     root,
@@ -126,7 +126,7 @@ test('does not replace a user-authored OpenCode command', async () => {
       isPackaged: false,
     },
     dialog: {
-      showMessageBox: async () => {},
+      showMessageBox: async () => ({ response: 0, checkboxChecked: false }),
     },
     root,
     skill: skill!,
@@ -157,7 +157,7 @@ test('replaces a dangling skill symlink on reinstall', async () => {
       isPackaged: false,
     },
     dialog: {
-      showMessageBox: async () => {},
+      showMessageBox: async () => ({ response: 0, checkboxChecked: false }),
     },
     root,
     skill: skill!,

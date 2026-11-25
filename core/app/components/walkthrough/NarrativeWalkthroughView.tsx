@@ -1,3 +1,4 @@
+import './Walkthrough.css';
 import { ArrowLeftIcon as ArrowLeft } from '@phosphor-icons/react/ArrowLeft';
 import { ArrowRightIcon as ArrowRight } from '@phosphor-icons/react/ArrowRight';
 import { CaretLeftIcon as CaretLeft } from '@phosphor-icons/react/CaretLeft';
@@ -33,12 +34,7 @@ import type {
   WalkthroughHunkGroup,
 } from '../../../types.ts';
 import type { ReviewDiffBlock } from '../ReviewCodeView.tsx';
-import {
-  CommitView,
-  type CommitHandler,
-  type CommitMessageHandler,
-  type CommitOutputSubscriber,
-} from './CommitView.tsx';
+import { CommitView, type CommitSession } from './CommitView.tsx';
 import { DesignOverview } from './DesignOverview.tsx';
 import { ChapterIcon, ImportancePill, Narration } from './parts.tsx';
 import {
@@ -511,24 +507,20 @@ function Arc({
 
 export function NarrativeWalkthroughView({
   allowCommit = true,
+  commitSession,
   files,
   navigation,
   onActiveReviewTargetChange,
-  onCommit,
-  onCommitOutput,
-  onUpdateCommitMessage,
   renderDiffBlocks,
   showWhitespace,
   status,
   walkthrough,
 }: {
   allowCommit?: boolean;
+  commitSession: CommitSession;
   files: ReadonlyArray<ChangedFile>;
   navigation: NarrativeNavigation;
   onActiveReviewTargetChange: (target: WalkthroughReviewTarget | null) => void;
-  onCommit: CommitHandler;
-  onCommitOutput?: CommitOutputSubscriber;
-  onUpdateCommitMessage: CommitMessageHandler;
   renderDiffBlocks: RenderWalkthroughDiffBlocks;
   showWhitespace: boolean;
   status?: { content: ReactNode; key: string } | null;
@@ -778,9 +770,7 @@ export function NarrativeWalkthroughView({
           branch={walkthrough.repo.branch}
           draft={navigation}
           model={buildCommitModel(walkthroughView, files)}
-          onCommit={onCommit}
-          onCommitOutput={onCommitOutput}
-          onUpdateMessage={onUpdateCommitMessage}
+          session={commitSession}
         />
       ) : (
         renderDiffBlocks(displayBlocks, reviewBlockScrollTarget, handleActiveBlockChange)

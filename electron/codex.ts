@@ -3,10 +3,14 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   collectAgentOutput,
+  missingAgentError,
+  withModelFallback,
+  createJsonLineReader,
   findAgentCommand,
   resolveAgentCommandTransport,
 } from './agent-command.ts';
 import { cleanText, oneLine, truncate } from './agent-shared.ts';
+import type { AgentOptions } from './agent.ts';
 import { getCommandEnvironment } from './login-shell-environment.ts';
 
 const CODEX_TIMEOUT_MS = 90_000;
@@ -19,10 +23,8 @@ const CODEX_NOT_FOUND_CODE = 'CODEX_NOT_FOUND';
 const CODEX_APP_SERVER_UNAVAILABLE_CODE = 'CODEX_APP_SERVER_UNAVAILABLE';
 const CODEX_NOT_FOUND_MESSAGE =
   'Codex CLI was not found. Install Codex and verify `codex --version` works in Terminal. On macOS, Codophon also checks for the CLI bundled with Codex.app or ChatGPT.app. If Codex is installed somewhere else, launch Codophon with `CODOPHON_CODEX_PATH=/absolute/path/to/codex codophon -w`.';
-export type CodexOptions = {
-  fallbackModel?: string;
+export type CodexOptions = AgentOptions & {
   commandTransport?: import('./agent-command.ts').AgentCommandTransport;
-  model?: string;
   onMetrics?: (metrics: {
     transport: 'app-server' | 'exec';
     usage?: {
@@ -33,10 +35,6 @@ export type CodexOptions = {
       totalTokens: number;
     };
   }) => void;
-  onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
-  onProgress?: (phase: import('../core/types.ts').WalkthroughProgressPhase) => void;
-  reasoningEffort?: string;
-  timeoutMs?: number;
 };
 export type OpenAIModel = {
   id: string;
@@ -71,13 +69,10 @@ const OPENAI_MODEL_REASONING_EFFORTS = new Map([
   ['gpt-6-luna', CODEX_REASONING_EFFORT],
 ]);
 
-const createCodexNotFoundError = (detail?: string) =>
-  Object.assign(
-    new Error(detail ? `${CODEX_NOT_FOUND_MESSAGE} ${detail}` : CODEX_NOT_FOUND_MESSAGE),
-    {
-      code: CODEX_NOT_FOUND_CODE,
-    },
-  );
+const { create: createCodexNotFoundError, matches: isCodexNotFoundError } = missingAgentError(
+  CODEX_NOT_FOUND_CODE,
+  CODEX_NOT_FOUND_MESSAGE,
+);
 
 const getCodexInstallPaths = (
   platform: NodeJS.Platform = process.platform,
@@ -99,14 +94,6 @@ const getCodexInstallPaths = (
 
 const getCodexCommand = (installPaths: ReadonlyArray<string> = getCodexInstallPaths()) =>
   findAgentCommand('codex', 'CODOPHON_CODEX_PATH', installPaths, createCodexNotFoundError);
-
-const isCodexNotFoundError = (error: unknown) =>
-  Boolean(
-    error &&
-    typeof error === 'object' &&
-    'code' in error &&
-    (error.code === CODEX_NOT_FOUND_CODE || error.code === 'ENOENT'),
-  );
 
 const getCodexLaunchErrorMessage = (
   error: unknown,
@@ -236,7 +223,6 @@ const normalizeCodexUsage = (usage: any) => {
  * compatibility parser for older CLIs without app-server support.
  */
 const createCodexEventParser = (onProgress: CodexOptions['onProgress']) => {
-  let lineBuffer = '';
   let lastMessage = '';
   let usage:
     | {
@@ -284,35 +270,13 @@ const createCodexEventParser = (onProgress: CodexOptions['onProgress']) => {
     }
   };
 
-  const push = (text: string) => {
-    lineBuffer += text;
-    let newlineIndex = lineBuffer.indexOf('\n');
-    while (newlineIndex !== -1) {
-      const line = lineBuffer.slice(0, newlineIndex).trim();
-      lineBuffer = lineBuffer.slice(newlineIndex + 1);
-      if (line) {
-        try {
-          handleEvent(JSON.parse(line));
-        } catch {
-          // Codex diagnostics are retained by the caller for error reporting.
-        }
-      }
-      newlineIndex = lineBuffer.indexOf('\n');
-    }
-  };
-
+  const reader = createJsonLineReader(handleEvent);
   const flush = () => {
-    const rest = lineBuffer.trim();
-    lineBuffer = '';
-    if (rest) {
-      try {
-        handleEvent(JSON.parse(rest));
-      } catch {}
-    }
+    reader.flush();
     return { lastMessage, usage };
   };
 
-  return { flush, push };
+  return { flush, push: reader.push };
 };
 
 const isCodexAppServerUnavailableError = (error: unknown) =>
@@ -708,32 +672,14 @@ const runCodex = async (
     }
   };
 
-  const candidates = [model, ...fallbackModels];
-  let availabilityError;
-  for (const [index, candidate] of candidates.entries()) {
-    try {
-      const response = await invokeCodex(candidate);
-      if (candidate !== model) {
-        await options.onModelFallback?.(candidate, model);
-      }
-      return response;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const unavailable = isOpenAIModelAvailabilityError(message);
-      if (index === candidates.length - 1 || !unavailable) {
-        if (availabilityError && options.reasoningEffort?.trim() && !unavailable) {
-          throw new Error(
-            `Codex model ${model} was unavailable: ${availabilityError} Fallback model ${candidate} failed: ${message}`,
-            { cause: error },
-          );
-        }
-        throw error;
-      }
-      availabilityError ??= message;
-    }
-  }
-
-  throw new Error('Codex did not attempt a model.');
+  return withModelFallback(
+    model,
+    fallbackModels,
+    invokeCodex,
+    isOpenAIModelAvailabilityError,
+    options,
+    Boolean(options.reasoningEffort?.trim()),
+  );
 };
 
 export {

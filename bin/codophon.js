@@ -158,10 +158,8 @@ const run = async () => {
   const {
     agentBackend,
     branchRef,
-    claudeSessionId,
-    codexSessionId,
+    agentSessions,
     commitRef,
-    opencodeSessionId,
     pullRequestBranch,
     pullRequestNumber,
     pullRequestProvider,
@@ -196,9 +194,7 @@ const run = async () => {
     : null;
   const launchArgument = encodeLaunchRequest({
     agentBackend,
-    claudeSessionId,
-    codexSessionId,
-    opencodeSessionId,
+    agentSessions,
     repositoryPath: requestedPath,
     source: range
       ? { ...range, type: 'range' }

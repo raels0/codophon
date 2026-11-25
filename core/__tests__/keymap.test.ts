@@ -13,52 +13,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test('matches an Alt shortcut on macOS where Option composes the letter away', () => {
-  // Arrange
-  const { keydown, keymap } = createTestContext({ platform: 'MacIntel' });
-
-  // Act: macOS turns Option+Z into "Ω" but still reports the physical key.
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'KeyZ', key: 'Ω' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(true);
-});
-
-test('matches an Alt shortcut bound to a digit', () => {
-  // Arrange
-  const { keydown, keymap } = createTestContext({ toggleWordWrap: 'Alt+1' });
-
-  // Act: Option+1 composes to "¡" on a US layout.
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'Digit1', key: '¡' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(true);
-});
-
-test('matches an Alt shortcut when Option produces an ASCII character', () => {
-  // Arrange: Option+L produces "@" on a German macOS layout.
-  const { keydown, keymap } = createTestContext({ toggleWordWrap: 'Alt+l' });
-  applyKeyboardLayout(germanLayout);
-
-  // Act
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'KeyL', key: '@' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(true);
-});
-
 test('lets an ASCII Option character binding suppress the position fallback', () => {
   // Arrange: an explicit Alt+@ binding owns Option+L even though that press
   // sits on the physical key for Alt+l.
@@ -77,21 +31,6 @@ test('lets an ASCII Option character binding suppress the position fallback', ()
 
   // Assert
   expect(matched).toEqual({ closeSearch: true, toggleWordWrap: false });
-});
-
-test('does not match an Alt shortcut when a different physical key is pressed', () => {
-  // Arrange
-  const { keydown, keymap } = createTestContext();
-
-  // Act: Option+X, which composes to "≈" and must not trigger Alt+z.
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'KeyX', key: '≈' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(false);
 });
 
 test('does not match an Alt shortcut bound to a named key against a press with no code', () => {
@@ -144,36 +83,6 @@ test('lets a layout character win over the US key position it sits on', () => {
 
   // Assert
   expect(matched).toEqual({ commandBar: false, toggleSidebar: true });
-});
-
-test('does not fall back to the US key position on platforms that never compose', () => {
-  // Arrange
-  const { keydown, keymap } = createTestContext({ platform: 'Win32' });
-
-  // Act
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'KeyZ', key: 'Ω' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(false);
-});
-
-test('fails closed when the event reports no usable key', () => {
-  // Arrange
-  const { keydown, keymap } = createTestContext();
-
-  // Act
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'KeyZ', key: 'Unidentified' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(false);
 });
 
 test('matches an Alt shortcut bound to shifted punctuation', () => {
@@ -584,66 +493,6 @@ test('resolves a swallowed character to the US key position when nothing else cl
 
   // Assert
   expect(matched).toBe(true);
-});
-
-test('matches an Alt shortcut on the typed character when the physical key differs', () => {
-  // Arrange: a layout where the character "z" sits on the US "y" position.
-  const { keydown, keymap } = createTestContext({ platform: 'Win32' });
-
-  // Act
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'KeyY', key: 'z' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(true);
-});
-
-test('matches an Alt shortcut bound to punctuation that Option composes away', () => {
-  // Arrange
-  const { keydown, keymap } = createTestContext({ toggleWordWrap: 'Alt+/' });
-
-  // Act: Option+/ composes to "÷" on a US layout.
-  const matched = matchesShortcut(
-    keydown({ altKey: true, code: 'Slash', key: '÷' }),
-    keymap,
-    'toggleWordWrap',
-  );
-
-  // Assert
-  expect(matched).toBe(true);
-});
-
-test('matches a non-Alt shortcut on the character the layout produces', () => {
-  // Arrange
-  const { keydown, keymap } = createTestContext();
-
-  // Act
-  const matched = matchesShortcut(
-    keydown({ code: 'KeyF', key: 'f', metaKey: true }),
-    keymap,
-    'diffSearch',
-  );
-
-  // Assert
-  expect(matched).toBe(true);
-});
-
-test('does not fall back to the physical key for shortcuts without Alt', () => {
-  // Arrange: on a remapped layout the character, not the key position, wins.
-  const { keydown, keymap } = createTestContext();
-
-  // Act
-  const matched = matchesShortcut(
-    keydown({ code: 'KeyF', key: 'ç', metaKey: true }),
-    keymap,
-    'diffSearch',
-  );
-
-  // Assert
-  expect(matched).toBe(false);
 });
 
 test('resolves an Alt shortcut to the key that produces its character on this layout', () => {
@@ -1185,3 +1034,102 @@ function keydown({
 }) {
   return new KeyboardEvent('keydown', { altKey, code, ctrlKey, key, metaKey, shiftKey });
 }
+
+// Layout-dependent matches that differ only in their inputs.
+test.each<
+  [
+    string,
+    Parameters<typeof createTestContext>[0],
+    NativeKeyboardLayout | undefined,
+    Parameters<ReturnType<typeof createTestContext>['keydown']>[0],
+    keyof CodophonKeymap,
+    boolean,
+  ]
+>([
+  [
+    'matches an Alt shortcut on macOS where Option composes the letter away',
+    { platform: 'MacIntel' },
+    undefined,
+    { altKey: true, code: 'KeyZ', key: 'Ω' },
+    'toggleWordWrap',
+    true,
+  ],
+  [
+    'matches an Alt shortcut bound to a digit',
+    { toggleWordWrap: 'Alt+1' },
+    undefined,
+    { altKey: true, code: 'Digit1', key: '¡' },
+    'toggleWordWrap',
+    true,
+  ],
+  [
+    'matches an Alt shortcut when Option produces an ASCII character',
+    { toggleWordWrap: 'Alt+l' },
+    germanLayout,
+    { altKey: true, code: 'KeyL', key: '@' },
+    'toggleWordWrap',
+    true,
+  ],
+  [
+    'does not match an Alt shortcut when a different physical key is pressed',
+    {},
+    undefined,
+    { altKey: true, code: 'KeyX', key: '≈' },
+    'toggleWordWrap',
+    false,
+  ],
+  [
+    'does not fall back to the US key position on platforms that never compose',
+    { platform: 'Win32' },
+    undefined,
+    { altKey: true, code: 'KeyZ', key: 'Ω' },
+    'toggleWordWrap',
+    false,
+  ],
+  [
+    'fails closed when the event reports no usable key',
+    {},
+    undefined,
+    { altKey: true, code: 'KeyZ', key: 'Unidentified' },
+    'toggleWordWrap',
+    false,
+  ],
+  [
+    'matches an Alt shortcut on the typed character when the physical key differs',
+    { platform: 'Win32' },
+    undefined,
+    { altKey: true, code: 'KeyY', key: 'z' },
+    'toggleWordWrap',
+    true,
+  ],
+  [
+    'matches an Alt shortcut bound to punctuation that Option composes away',
+    { toggleWordWrap: 'Alt+/' },
+    undefined,
+    { altKey: true, code: 'Slash', key: '÷' },
+    'toggleWordWrap',
+    true,
+  ],
+  [
+    'matches a non-Alt shortcut on the character the layout produces',
+    {},
+    undefined,
+    { code: 'KeyF', key: 'f', metaKey: true },
+    'diffSearch',
+    true,
+  ],
+  [
+    'does not fall back to the physical key for shortcuts without Alt',
+    {},
+    undefined,
+    { code: 'KeyF', key: 'ç', metaKey: true },
+    'diffSearch',
+    false,
+  ],
+])('%s', (_title, context, layout, event, action, expected) => {
+  const { keydown, keymap } = createTestContext(context);
+  if (layout) {
+    applyKeyboardLayout(layout);
+  }
+  expect(matchesShortcut(keydown(event), keymap, action)).toBe(expected);
+});

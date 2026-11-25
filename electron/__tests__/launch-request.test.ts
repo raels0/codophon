@@ -11,7 +11,7 @@ import {
 test('a CLI launch request reaches the app intact, wherever Electron puts it in argv', () => {
   const argument = encodeLaunchRequest({
     agentBackend: 'claude',
-    claudeSessionId: 'session',
+    agentSessions: [{ agent: 'claude', id: 'session' }],
     repositoryPath: '/repos/widget',
     source: {
       type: 'pull-request',
@@ -23,7 +23,7 @@ test('a CLI launch request reaches the app intact, wherever Electron puts it in 
   expect(readLaunch(['/Applications/Codophon', '--inspect', argument], '/elsewhere')).toEqual({
     launchOptions: {
       agentBackend: 'claude',
-      claudeSessionId: 'session',
+      agentSessions: [{ agent: 'claude', id: 'session' }],
       repositoryPathProvided: true,
       source: {
         provider: 'azure-devops',

@@ -3,10 +3,13 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   collectAgentOutput,
+  missingAgentError,
+  withModelFallback,
   findAgentCommand,
   resolveAgentCommandTransport,
 } from './agent-command.ts';
 import { buildSchemaReminder, normalizeStructuredOutput, oneLine } from './agent-shared.ts';
+import type { AgentOptions } from './agent.ts';
 import { getCommandEnvironment } from './login-shell-environment.ts';
 
 const OPENCODE_TIMEOUT_MS = 300_000;
@@ -25,11 +28,10 @@ const OPENCODE_MODELS: ReadonlyArray<{ id: string; label: string }> = Object.fre
 ]);
 const OPENCODE_MODEL_PATTERN = /^[a-z0-9][a-z0-9._:-]*(?:\/[@a-z0-9][@a-z0-9._:-]*)+$/i;
 
-const createOpenCodeNotFoundError = (detail?: string) =>
-  Object.assign(
-    new Error(detail ? `${OPENCODE_NOT_FOUND_MESSAGE} ${detail}` : OPENCODE_NOT_FOUND_MESSAGE),
-    { code: OPENCODE_NOT_FOUND_CODE },
-  );
+const { create: createOpenCodeNotFoundError, matches: isOpenCodeNotFoundError } = missingAgentError(
+  OPENCODE_NOT_FOUND_CODE,
+  OPENCODE_NOT_FOUND_MESSAGE,
+);
 
 const getOpenCodeCommand = () =>
   findAgentCommand(
@@ -41,14 +43,6 @@ const getOpenCodeCommand = () =>
       '/usr/local/bin/opencode',
     ],
     createOpenCodeNotFoundError,
-  );
-
-const isOpenCodeNotFoundError = (error: unknown) =>
-  Boolean(
-    error &&
-    typeof error === 'object' &&
-    'code' in error &&
-    (error.code === OPENCODE_NOT_FOUND_CODE || error.code === 'ENOENT'),
   );
 
 const getOpenCodeLaunchError = (error: unknown) => {
@@ -281,14 +275,8 @@ const runOpenCode = async (
   schema: unknown,
   _outputName: string = 'opencode-output.json',
   timeoutMessage: string = 'OpenCode timed out.',
-  options: {
+  options: AgentOptions & {
     commandTransport?: import('./agent-command.ts').AgentCommandTransport;
-    fallbackModel?: string;
-    model?: string;
-    onModelFallback?: (fallbackModel: string, originalModel: string) => Promise<void> | void;
-    onPartialText?: (delta: string) => void;
-    onProgress?: (phase: import('../core/types.ts').WalkthroughProgressPhase) => void;
-    timeoutMs?: number;
   } = {},
 ) => {
   const model = normalizeOpenCodeModel(options.model);
@@ -546,18 +534,13 @@ const runOpenCode = async (
     }
   };
 
-  try {
-    return await invokeOpenCode(model);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (model === fallbackModel || !isOpenCodeModelAvailabilityError(message)) {
-      throw error;
-    }
-
-    const response = await invokeOpenCode(fallbackModel);
-    await options.onModelFallback?.(fallbackModel, model);
-    return response;
-  }
+  return withModelFallback(
+    model,
+    [fallbackModel],
+    invokeOpenCode,
+    isOpenCodeModelAvailabilityError,
+    options,
+  );
 };
 
 export {

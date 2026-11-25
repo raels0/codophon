@@ -12,7 +12,12 @@ const iconPath = existsSync(join(__dirname, 'electron/icons/icon.icns'))
   : undefined;
 // The renderer source in core/ is bundled into dist/ and left out of the package, except for
 // these modules that the main process and CLI also load at runtime.
-const sharedRuntimeModules = ['core/config/agents.ts', 'core/lib/narrative-walkthrough-diff.ts'];
+const sharedRuntimeModules = [
+  'core/config/agents.ts',
+  'core/config/defaults.ts',
+  'core/config/codophon-config.schema.json',
+  'core/lib/narrative-walkthrough-diff.ts',
+];
 const osxNotarize =
   process.env.APPLE_ID && process.env.APPLE_PASSWORD && process.env.APPLE_TEAM_ID
     ? {

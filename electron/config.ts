@@ -1,24 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import defaultConfigTemplate from '../config/defaults.json' with { type: 'json' };
-import { normalizeAgentBackend } from '../core/config/agents.ts';
-import type { CodophonConfig, CodophonDiffStyle, CodophonTheme } from '../core/config/types.ts';
+import { asRecord, createDefaultConfig, readConfigProperties } from '../core/config/defaults.ts';
+import type { CodophonConfig } from '../core/config/types.ts';
 import { normalizeAgentPrompts } from './agent-prompts.ts';
+import { normalizeClaudeModel } from './claude.ts';
+import { normalizeOpenAIModel } from './codex.ts';
+import { normalizeOpenCodeModel } from './opencode.ts';
 
 const SCHEMA_URL =
   'https://raw.githubusercontent.com/raels0/codophon/main/core/config/codophon-config.schema.json';
-const CODE_FONT_SIZE_DEFAULT = 13;
-const CODE_FONT_SIZE_MAX = 32;
-const CODE_FONT_SIZE_MIN = 10;
-
-// JSON imports widen string unions, so the shipped defaults are asserted to match the schema.
-const defaultConfig = defaultConfigTemplate as CodophonConfig;
-
-const createDefaultConfig = (): CodophonConfig => ({
-  keymap: { ...defaultConfig.keymap },
-  settings: { ...defaultConfig.settings },
-});
 
 const getConfigDir = () => join(homedir(), '.codophon');
 
@@ -126,191 +117,35 @@ const stripTrailingCommas = (text: string): string => {
 const parseJsonc = (text: string): unknown =>
   JSON.parse(stripTrailingCommas(stripJsoncComments(text)));
 
-const normalizeTheme = (theme: unknown): CodophonTheme =>
-  theme === 'system' || theme === 'light' || theme === 'dark' ? theme : 'system';
-
-const normalizeDiffStyle = (diffStyle: unknown): CodophonDiffStyle =>
-  diffStyle === 'split' || diffStyle === 'unified' ? diffStyle : 'split';
-
-const normalizeSidebarPosition = (position: unknown): 'left' | 'right' =>
-  position === 'right' ? 'right' : 'left';
-
-const normalizeCodeFontFamily = (family: unknown): string =>
-  typeof family === 'string' ? family.trim() : '';
-
-const normalizeCodeFontSize = (size: unknown): number => {
-  if (typeof size !== 'number' || !Number.isFinite(size)) {
-    return CODE_FONT_SIZE_DEFAULT;
-  }
-
-  return Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, Math.round(size)));
-};
-
-const normalizeLastRepositoryPath = (path: unknown) =>
-  typeof path === 'string' && path.length > 0 ? path : '';
-
-/**
- * Accept a single combo string or a non-empty list of combo strings.
- */
-const normalizeKeyComboBinding = (
-  binding: unknown,
-  fallback: import('../core/config/types.ts').KeyComboBinding,
-): import('../core/config/types.ts').KeyComboBinding => {
-  if (typeof binding === 'string') {
-    return binding;
-  }
-  if (
-    Array.isArray(binding) &&
-    binding.length > 0 &&
-    binding.every((combo) => typeof combo === 'string')
-  ) {
-    return binding;
-  }
-  return fallback;
-};
-
-/**
- * Merge a partial config object on top of defaults.
- */
-const mergeConfig = (raw: unknown): CodophonConfig => {
-  const defaults = createDefaultConfig();
-
-  if (typeof raw !== 'object' || raw === null) {
-    return defaults;
-  }
-
-  const obj = raw as Record<string, unknown>;
-  const rawSettings =
-    typeof obj.settings === 'object' && obj.settings !== null
-      ? (obj.settings as Record<string, unknown>)
-      : {};
-  const rawKeymap =
-    typeof obj.keymap === 'object' && obj.keymap !== null
-      ? (obj.keymap as Record<string, unknown>)
-      : {};
-
-  return {
-    keymap: {
-      askAgent:
-        typeof rawKeymap.askAgent === 'string' ? rawKeymap.askAgent : defaults.keymap.askAgent,
-      closeSearch:
-        typeof rawKeymap.closeSearch === 'string'
-          ? rawKeymap.closeSearch
-          : defaults.keymap.closeSearch,
-      commandBar: normalizeKeyComboBinding(rawKeymap.commandBar, defaults.keymap.commandBar),
-      diffSearch:
-        typeof rawKeymap.diffSearch === 'string'
-          ? rawKeymap.diffSearch
-          : defaults.keymap.diffSearch,
-      discardComment:
-        typeof rawKeymap.discardComment === 'string'
-          ? rawKeymap.discardComment
-          : defaults.keymap.discardComment,
-      doneEditing:
-        typeof rawKeymap.doneEditing === 'string'
-          ? rawKeymap.doneEditing
-          : defaults.keymap.doneEditing,
-      editFile:
-        typeof rawKeymap.editFile === 'string' ? rawKeymap.editFile : defaults.keymap.editFile,
-      fileFilter:
-        typeof rawKeymap.fileFilter === 'string'
-          ? rawKeymap.fileFilter
-          : defaults.keymap.fileFilter,
-      nextHunk: normalizeKeyComboBinding(rawKeymap.nextHunk, defaults.keymap.nextHunk),
-      nextSearchMatch:
-        typeof rawKeymap.nextSearchMatch === 'string'
-          ? rawKeymap.nextSearchMatch
-          : defaults.keymap.nextSearchMatch,
-      openFile:
-        typeof rawKeymap.openFile === 'string' ? rawKeymap.openFile : defaults.keymap.openFile,
-      prevHunk: normalizeKeyComboBinding(rawKeymap.prevHunk, defaults.keymap.prevHunk),
-      prevSearchMatch:
-        typeof rawKeymap.prevSearchMatch === 'string'
-          ? rawKeymap.prevSearchMatch
-          : defaults.keymap.prevSearchMatch,
-      shortcutsHelp:
-        typeof rawKeymap.shortcutsHelp === 'string'
-          ? rawKeymap.shortcutsHelp
-          : defaults.keymap.shortcutsHelp,
-      submitComment:
-        typeof rawKeymap.submitComment === 'string'
-          ? rawKeymap.submitComment
-          : defaults.keymap.submitComment,
-      toggleSidebar:
-        typeof rawKeymap.toggleSidebar === 'string'
-          ? rawKeymap.toggleSidebar
-          : defaults.keymap.toggleSidebar,
-      toggleWordWrap:
-        typeof rawKeymap.toggleWordWrap === 'string'
-          ? rawKeymap.toggleWordWrap
-          : defaults.keymap.toggleWordWrap,
+// Older config files stored each model and the extra walkthrough guidance at the top level.
+function mergeConfig(raw: unknown): CodophonConfig {
+  const obj = asRecord(raw);
+  const saved = asRecord(obj.settings);
+  const agents = asRecord(saved.agents);
+  const value = readConfigProperties(raw);
+  value.settings.codeFontFamily = value.settings.codeFontFamily.trim();
+  value.settings.agents = {
+    claude: { model: normalizeClaudeModel(asRecord(agents.claude).model ?? saved.claudeModel) },
+    codex: {
+      model: normalizeOpenAIModel(asRecord(agents.codex).model ?? saved.openAIModel),
+      reasoningEffort: value.settings.agents.codex.reasoningEffort.trim(),
     },
-    settings: {
-      agentPrompts: normalizeAgentPrompts(rawSettings.agentPrompts),
-      agentBackend: normalizeAgentBackend(rawSettings.agentBackend),
-      checkForUpdates:
-        typeof rawSettings.checkForUpdates === 'boolean'
-          ? rawSettings.checkForUpdates
-          : defaults.settings.checkForUpdates,
-      claudeModel:
-        typeof rawSettings.claudeModel === 'string'
-          ? rawSettings.claudeModel
-          : defaults.settings.claudeModel,
-      codeFontFamily: normalizeCodeFontFamily(rawSettings.codeFontFamily),
-      codeFontSize: normalizeCodeFontSize(rawSettings.codeFontSize),
-      copyCommentsOnClose:
-        typeof rawSettings.copyCommentsOnClose === 'boolean'
-          ? rawSettings.copyCommentsOnClose
-          : defaults.settings.copyCommentsOnClose,
-      diffStyle: normalizeDiffStyle(rawSettings.diffStyle),
-      editorCommand:
-        typeof rawSettings.editorCommand === 'string'
-          ? rawSettings.editorCommand
-          : defaults.settings.editorCommand,
-      expandUnchanged:
-        typeof rawSettings.expandUnchanged === 'boolean'
-          ? rawSettings.expandUnchanged
-          : defaults.settings.expandUnchanged,
-      lastRepositoryPath: normalizeLastRepositoryPath(rawSettings.lastRepositoryPath),
-      openAIModel:
-        typeof rawSettings.openAIModel === 'string'
-          ? rawSettings.openAIModel
-          : defaults.settings.openAIModel,
-      openAIReasoningEffort:
-        typeof rawSettings.openAIReasoningEffort === 'string'
-          ? rawSettings.openAIReasoningEffort.trim()
-          : defaults.settings.openAIReasoningEffort,
-      opencodeModel:
-        typeof rawSettings.opencodeModel === 'string'
-          ? rawSettings.opencodeModel
-          : defaults.settings.opencodeModel,
-      renderMarkdownAs: rawSettings.renderMarkdownAs === 'source' ? 'source' : 'preview',
-      reviewCommentsPrefix:
-        typeof rawSettings.reviewCommentsPrefix === 'string'
-          ? rawSettings.reviewCommentsPrefix
-          : defaults.settings.reviewCommentsPrefix,
-      reviewTheme: rawSettings.reviewTheme === 'blue-amber' ? 'blue-amber' : 'neutral',
-      sidebarPosition: normalizeSidebarPosition(rawSettings.sidebarPosition),
-      showOutdated:
-        typeof rawSettings.showOutdated === 'boolean'
-          ? rawSettings.showOutdated
-          : defaults.settings.showOutdated,
-      showWhitespace:
-        typeof rawSettings.showWhitespace === 'boolean'
-          ? rawSettings.showWhitespace
-          : defaults.settings.showWhitespace,
-      theme: normalizeTheme(rawSettings.theme),
-      walkthroughPrompt:
-        typeof rawSettings.walkthroughPrompt === 'string'
-          ? rawSettings.walkthroughPrompt
-          : defaults.settings.walkthroughPrompt,
-      wordWrap:
-        typeof rawSettings.wordWrap === 'boolean'
-          ? rawSettings.wordWrap
-          : defaults.settings.wordWrap,
+    opencode: {
+      model: normalizeOpenCodeModel(asRecord(agents.opencode).model ?? saved.opencodeModel),
     },
   };
-};
+  if (
+    asRecord(agents.codex).reasoningEffort === undefined &&
+    typeof saved.openAIReasoningEffort === 'string'
+  ) {
+    value.settings.agents.codex.reasoningEffort = saved.openAIReasoningEffort.trim();
+  }
+  value.settings.agentPrompts = normalizeAgentPrompts({
+    walkthrough: saved.walkthroughPrompt,
+    ...asRecord(saved.agentPrompts),
+  });
+  return value;
+}
 
 /**
  * Read and parse the config file. Returns defaults if the file does not exist or is invalid.
@@ -415,8 +250,7 @@ export {
   getConfigPath,
   initConfig,
   importPreviousConfig,
-  normalizeCodeFontFamily,
-  normalizeCodeFontSize,
+  mergeConfig,
   readConfig,
   watchConfig,
   writeConfig,

@@ -3,9 +3,13 @@ import { closeSync, mkdtempSync, openSync, rmSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cleanText, truncate } from './agent-shared.ts';
 import { getOpenCodeCommand } from './opencode.ts';
-import { MAX_SESSION_MESSAGE_CHARS, selectRecentMessages } from './session-context-shared.ts';
+import {
+  objectFields,
+  sessionMessage,
+  sessionContext,
+  selectRecentMessages,
+} from './session-context-shared.ts';
 
 const OPENCODE_EXPORT_TIMEOUT_MS = 15_000;
 const MAX_OPENCODE_EXPORT_BYTES = 16 * 1024 * 1024;
@@ -16,72 +20,16 @@ import type { WalkthroughContext } from '../core/types.ts';
 const normalizeOpenCodeSessionId = (value: unknown) =>
   typeof value === 'string' && SESSION_ID_PATTERN.test(value) ? value : '';
 
-const isNoiseMessage = (text: string) => {
-  const normalized = cleanText(text).toLowerCase();
-  return (
-    normalized === '/codophon' ||
-    normalized === '$codophon' ||
-    normalized === 'codophon' ||
-    normalized === 'show me codophon' ||
-    normalized === 'open codophon'
-  );
-};
-
-const extractMessage = (
-  value: unknown,
-): import('./session-context-shared.ts').SessionMessage | null => {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const info = 'info' in value ? value.info : null;
-  if (!info || typeof info !== 'object') {
-    return null;
-  }
-
-  const role = 'role' in info ? info.role : undefined;
-  if (role !== 'assistant' && role !== 'user') {
-    return null;
-  }
-
-  const parts = 'parts' in value && Array.isArray(value.parts) ? value.parts : [];
-  const text = truncate(
-    cleanText(
-      parts
-        .map((part) =>
-          part &&
-          typeof part === 'object' &&
-          'type' in part &&
-          part.type === 'text' &&
-          'text' in part &&
-          typeof part.text === 'string'
-            ? part.text
-            : '',
-        )
-        .filter(Boolean)
-        .join('\n'),
-    ),
-    MAX_SESSION_MESSAGE_CHARS,
-  );
-  if (!text || isNoiseMessage(text)) {
-    return null;
-  }
-
-  return { role, text };
-};
-
-const extractSessionMessages = (input: unknown) => {
-  if (
-    !input ||
-    typeof input !== 'object' ||
-    !('messages' in input) ||
-    !Array.isArray(input.messages)
-  ) {
-    return [];
-  }
-
+const extractSessionMessages = (value: unknown) => {
+  const { messages } = objectFields(value);
+  if (!Array.isArray(messages)) return [];
   return selectRecentMessages(
-    input.messages.map(extractMessage).filter((message) => message !== null),
+    messages
+      .map((item) => {
+        const { info, parts } = objectFields(item);
+        return sessionMessage(objectFields(info).role, parts, 'opencode');
+      })
+      .filter((message) => message !== null),
   );
 };
 
@@ -196,26 +144,8 @@ const readOpenCodeSessionContext = async (
     return null;
   }
 
-  let session;
-  try {
-    session = await exportOpenCodeSession(threadId);
-  } catch {
-    session = null;
-  }
-  const messages = extractSessionMessages(session);
-  return {
-    messages,
-    risks:
-      messages.length === 0
-        ? ['Codophon could not find recent readable messages for the linked OpenCode session.']
-        : undefined,
-    source: {
-      generatedAt: new Date().toISOString(),
-      threadId,
-      type: 'opencode-session-excerpt',
-    },
-    version: 1,
-  };
+  const session = await exportOpenCodeSession(threadId).catch(() => null);
+  return sessionContext('opencode', threadId, extractSessionMessages(session));
 };
 
 export { readOpenCodeSessionContext };

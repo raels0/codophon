@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { isAgentBackend } from '../core/config/agents.ts';
+import { AGENT_BACKENDS, isAgentBackend } from '../core/config/agents.ts';
 import { parseReviewUrl, resolveReviewUrl } from '../electron/review-source.ts';
 
 export const flagDefinitions = [
@@ -275,12 +275,10 @@ export const parseArguments = (args) => {
 
   let commitRef = typeof values.commit === 'string' ? values.commit : null;
   let branchRef = typeof values.branch === 'string' ? values.branch : null;
-  const codexSessionId =
-    typeof values['codex-session'] === 'string' ? values['codex-session'] : null;
-  const claudeSessionId =
-    typeof values['claude-session'] === 'string' ? values['claude-session'] : null;
-  const opencodeSessionId =
-    typeof values['opencode-session'] === 'string' ? values['opencode-session'] : null;
+  const agentSessions = AGENT_BACKENDS.flatMap((agent) => {
+    const id = values[`${agent}-session`];
+    return typeof id === 'string' && id ? [{ agent, id }] : [];
+  });
   // `--completions` without a value parses as `true`; keep it as an empty shell
   // so the command can tell "no shell given" apart from "flag not used".
   const completionShell =
@@ -385,9 +383,7 @@ export const parseArguments = (args) => {
 
   return {
     ...(agentBackend ? { agentBackend } : {}),
-    ...(claudeSessionId ? { claudeSessionId } : {}),
-    ...(codexSessionId ? { codexSessionId } : {}),
-    ...(opencodeSessionId ? { opencodeSessionId } : {}),
+    ...(agentSessions.length ? { agentSessions } : {}),
     ...(branchRef ? { branchRef } : {}),
     ...(range ? { range } : {}),
     commitRef,

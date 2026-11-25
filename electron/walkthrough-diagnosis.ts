@@ -1,9 +1,9 @@
 import { gitOrEmpty } from './git-state/common.ts';
 
-export type WalkthroughSource = { kind: string; type?: string };
+type WalkthroughSource = { kind?: unknown; type?: unknown };
 
-export type WalkthroughInput = {
-  generatedAt: unknown;
+type WalkthroughInput = {
+  generatedAt?: unknown;
   source?: WalkthroughSource;
   chapters?: unknown;
   support?: unknown;
@@ -92,15 +92,17 @@ const isWorkingTreeWalkthrough = (input: WalkthroughInput) => {
  */
 const diagnoseWalkthroughMismatch = async ({
   repositoryRoot,
-  input,
+  input: rawInput,
   hasFiles,
 }: {
   repositoryRoot: string;
-  input: WalkthroughInput;
+  input: unknown;
   hasFiles: boolean;
 }): Promise<string | null> => {
   // With files present, the mismatch is about anchors, not a vanished diff; the
   // caller's existing detail message is more appropriate there.
+  if (!rawInput || typeof rawInput !== 'object') return null;
+  const input = rawInput as WalkthroughInput;
   if (hasFiles || !isWorkingTreeWalkthrough(input)) {
     return null;
   }

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { CodophonReviewTheme } from '../../config/types.ts';
-import type { CodophonPreferences } from '../../types.ts';
+import type { CodophonSettings } from '../../config/types.ts';
 
 export const CODE_FONT_SIZE_DEFAULT = 13;
 const CODE_FONT_SIZE_MAX = 32;
@@ -14,7 +14,7 @@ export const normalizeCodeFontSizePreference = (size: number) =>
 export const getCodeFontLineHeight = (size: number) => Math.round((size * 20) / 13);
 
 type UseDocumentAppearanceOptions = Pick<
-  CodophonPreferences,
+  CodophonSettings,
   'codeFontFamily' | 'codeFontSize' | 'theme'
 > & {
   cleanupCodeFontProperties?: boolean;

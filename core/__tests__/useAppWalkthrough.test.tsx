@@ -44,13 +44,13 @@ function AppWalkthroughHarness({
 }: {
   onController: (controller: AppWalkthroughController) => void;
   state: RepositoryState;
-  stateGenerationRef: Parameters<typeof useAppWalkthrough>[0]['stateGenerationRef'];
-  stateRef: Parameters<typeof useAppWalkthrough>[0]['stateRef'];
+  stateGenerationRef: { current: number };
+  stateRef: { current: RepositoryState | null };
 }) {
   const controller = useAppWalkthrough({
+    getGeneration: () => stateGenerationRef.current,
+    getRepository: () => stateRef.current,
     state,
-    stateGenerationRef,
-    stateRef,
   });
   onController(controller);
   return null;
@@ -172,13 +172,13 @@ test('walkthrough controller routes progress and commit APIs through current sta
   expect(getController().walkthroughProgress.phase).toBe('agent-generation');
   expect(getController().walkthroughProgress.stageRevision).toBe(1);
   await act(async () => {
-    await getController().commitWalkthrough({
+    await getController().commitSession.commit({
       body: 'Body',
       paths: ['src/app.ts'],
       source: { ref: 'old', type: 'commit' },
       subject: 'Subject',
     });
-    await getController().updateWalkthroughCommitMessage({
+    await getController().commitSession.updateMessage({
       body: 'Body',
       paths: ['src/app.ts'],
       source: { ref: 'old', type: 'commit' },
