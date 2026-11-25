@@ -1,6 +1,6 @@
 {
   "name": "codophon",
-  "version": "1.19.2",
+  "version": "0.1.0",
   "private": true,
   "description": "Desktop code review for Git, GitHub, and Azure DevOps.",
   "license": "MIT",
