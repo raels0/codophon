@@ -31,6 +31,40 @@ test('the command palette runs commands and the setting persists to config', asy
   }
 });
 
+test('changed words and file cards keep their colors in light and dark appearance', async ({
+  home,
+  repo,
+}) => {
+  repo.commit('init', { 'math.ts': 'export const total = add(1, 2);\n' });
+  repo.write({ 'math.ts': 'export const total = add(1, 3);\n' });
+
+  const background = (selector: string) =>
+    app.page
+      .locator(selector)
+      .first()
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+  const app = await Codophon.launch(home, { repositoryPath: repo.path });
+  try {
+    for (const theme of ['light', 'dark'] as const) {
+      await app.app.evaluate(
+        ({ nativeTheme }, source) => (nativeTheme.themeSource = source),
+        theme,
+      );
+      await expect(app.page.locator('[data-line-type="change-addition"]').first()).toBeVisible();
+      // A themed color that fails to resolve renders as transparent.
+      for (const selector of [
+        '[data-line-type="change-addition"] [data-diff-span]',
+        '[data-line-type="change-deletion"] [data-diff-span]',
+        '.codophon-file-header',
+      ]) {
+        await expect.poll(() => background(selector)).not.toBe('rgba(0, 0, 0, 0)');
+      }
+    }
+  } finally {
+    await app.close();
+  }
+});
+
 test('Markdown changes render as a document with inline word changes', async ({ home, repo }) => {
   repo.commit('init', { 'docs/flow.md': '# Flow\n\nOld text.\n' });
   repo.write({

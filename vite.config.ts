@@ -10,6 +10,9 @@ export default defineConfig({
   base: './',
   build: {
     chunkSizeWarningLimit: 10 * 1024,
+    // Electron's Chromium supports light-dark() natively. Lowering it for older
+    // browsers emits a fallback that resolves every themed color to transparent.
+    cssTarget: 'chrome130',
   },
   fmt: {
     experimentalSortImports: {
