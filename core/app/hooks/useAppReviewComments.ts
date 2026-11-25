@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { ReviewComment } from '../../lib/app-types.ts';
+import type { DraftComment, ReviewComment } from '../../lib/app-types.ts';
 import {
   clearAskCache,
   getAskConversationKey,
@@ -100,13 +100,15 @@ export function useAppReviewComments({
       }
       lastAskPR.current = pr;
       const ordinaryComments = comments.filter(
-        (comment) => !comment.codexReply || comment.isReadOnly,
+        (comment) => !comment.codexReply || comment.kind === 'posted',
       );
       let restored: ReadonlyArray<ReviewComment> = changedTarget
         ? ordinaryComments
         : comments.filter(
             (comment) =>
-              !comment.codexReply || comment.isReadOnly || isCurrentAskComment(state, comment),
+              !comment.codexReply ||
+              comment.kind === 'posted' ||
+              isCurrentAskComment(state, comment),
           );
       withAskStorage(() => {
         restored = restoreAskComments(state, ordinaryComments, readAskThreads(pr));
@@ -185,7 +187,7 @@ export function useAppReviewComments({
     (commentId: string, filePath: string, codexReply: NonNullable<ReviewComment['codexReply']>) => {
       const pr = getAskPR(getRepository());
       const comment = reviewCommentsRef.current.find(({ id }) => id === commentId);
-      if (pr && comment && !comment.isReadOnly) {
+      if (pr && comment && comment.kind === 'draft') {
         const { remoteSubmit: _submit, ...draft } = comment;
         const activeDraft = activeReviewCommentDraftRef.current;
         withAskStorage(() =>
@@ -220,7 +222,7 @@ export function useAppReviewComments({
   );
 
   const updateRemoteSubmit = useCallback(
-    (commentId: string, remoteSubmit: ReviewComment['remoteSubmit']) => {
+    (commentId: string, remoteSubmit: DraftComment['remoteSubmit']) => {
       setReviewComments((current) =>
         current.map((comment) =>
           comment.id === commentId
@@ -246,7 +248,7 @@ export function useAppReviewComments({
       if (
         !currentState ||
         !comment ||
-        comment.remoteSubmit?.status === 'submitting' ||
+        (comment.kind === 'draft' && comment.remoteSubmit?.status === 'submitting') ||
         pendingAnswers.current.has(commentId) ||
         comment.body.trim().length === 0 ||
         comment.codexReply?.status === 'loading'
@@ -411,7 +413,7 @@ export function useAppReviewComments({
         currentState?.source.type !== 'pull-request' ||
         !comment ||
         comment.body.trim().length === 0 ||
-        comment.remoteSubmit?.status === 'submitting'
+        (comment.kind === 'draft' && comment.remoteSubmit?.status === 'submitting')
       ) {
         return;
       }
@@ -442,7 +444,7 @@ export function useAppReviewComments({
                     body: submittedComment.body,
                     filePath: submittedComment.filePath,
                     id: submittedComment.id,
-                    isReadOnly: true,
+                    kind: 'posted' as const,
                     ...(submittedComment.anchor === 'file' ? { anchor: 'file' as const } : {}),
                     ...(submittedComment.lineNumber != null
                       ? { lineNumber: submittedComment.lineNumber }

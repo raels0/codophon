@@ -189,7 +189,7 @@ export const toSubmittedReviewComment = (
   filePath: comment.filePath,
   id: comment.id,
   ...(comment.isOutdated ? { isOutdated: true } : {}),
-  isReadOnly: true,
+  kind: 'posted' as const,
   ...(comment.lineNumber != null ? { lineNumber: comment.lineNumber } : {}),
   sectionId: comment.sectionId ?? draft.sectionId,
   ...(comment.side ? { side: comment.side } : {}),
@@ -209,7 +209,7 @@ export const mergeReviewComments = (
 };
 
 const isPendingPullRequestReviewComment = (comment: ReviewComment) =>
-  !comment.isReadOnly &&
+  comment.kind === 'draft' &&
   !comment.threadId &&
   comment.remoteSubmit?.status !== 'submitting' &&
   comment.body.trim().length > 0;
@@ -231,7 +231,7 @@ export const findReusableReviewCommentDraft = (
 ) =>
   comments.find(
     (comment) =>
-      !comment.isReadOnly &&
+      comment.kind === 'draft' &&
       comment.body.length === 0 &&
       !(activeDraft?.id === comment.id && activeDraft.body.trim().length > 0),
   );
@@ -269,8 +269,8 @@ export const getReviewCommentsDigest = (comments: ReadonlyArray<ReviewComment>) 
             )
             .join(';') ?? ''
         }:${
-          comment.remoteSubmit?.status ?? ''
-        }:${comment.remoteSubmit?.error ?? ''}:${comment.threadId ?? ''}`,
+          comment.kind === 'draft' ? (comment.remoteSubmit?.status ?? '') : ''
+        }:${comment.kind === 'draft' ? (comment.remoteSubmit?.error ?? '') : ''}:${comment.threadId ?? ''}`,
     )
     .join('\0');
 
@@ -393,7 +393,9 @@ export const buildReviewCommentsMarkdown = (
   showWhitespace: boolean,
   prefix?: string,
 ) => {
-  const pendingComments = comments.filter((comment) => !comment.isReadOnly && comment.body.trim());
+  const pendingComments = comments.filter(
+    (comment) => comment.kind === 'draft' && comment.body.trim(),
+  );
   const filesByPath = new Map(files.map((file) => [file.path, file]));
   const orderedComments = pendingComments.sort((left, right) => {
     const leftFileIndex = files.findIndex((file) => file.path === left.filePath);
@@ -444,7 +446,7 @@ export const getReviewCommentsFromState = (state: RepositoryState): ReadonlyArra
             filePath: comment.filePath,
             id: comment.id,
             ...(comment.isOutdated ? { isOutdated: true } : {}),
-            isReadOnly: true,
+            kind: 'posted' as const,
             ...(comment.anchor === 'file' ? { anchor: 'file' as const } : {}),
             ...(comment.lineNumber != null ? { lineNumber: comment.lineNumber } : {}),
             sectionId: section.id,
@@ -467,14 +469,16 @@ export const getRefreshedReviewComments = (
 ): ReadonlyArray<ReviewComment> =>
   mergeReviewComments(
     getReviewCommentsFromState(state),
-    currentComments.filter((comment) => !comment.isReadOnly),
+    currentComments.filter((comment) => comment.kind === 'draft'),
   );
 
 export const getVisibleReviewComments = (
   comments: ReadonlyArray<ReviewComment>,
   showOutdated: boolean,
 ): ReadonlyArray<ReviewComment> =>
-  showOutdated ? comments : comments.filter((comment) => !comment.isOutdated);
+  showOutdated
+    ? comments
+    : comments.filter((comment) => comment.kind === 'draft' || !comment.isOutdated);
 
 export const shouldDiscardReviewCommentOnEscape = (
   body: string,

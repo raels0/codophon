@@ -1225,7 +1225,7 @@ export function ReviewCodeView({
         }
         flushDraft();
         clearCommentLineHighlight();
-        if (!comment.isReadOnly && body.trim().length === 0) {
+        if (comment.kind === 'draft' && body.trim().length === 0) {
           const existingTimer = emptyCommentDeleteTimersRef.current.get(comment.id);
           if (existingTimer != null) {
             window.clearTimeout(existingTimer);

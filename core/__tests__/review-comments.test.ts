@@ -1,5 +1,5 @@
 import { expect, test } from 'vite-plus/test';
-import type { ReviewComment } from '../lib/app-types.ts';
+import type { PostedComment, ReviewComment } from '../lib/app-types.ts';
 import {
   findReusableReviewCommentDraft,
   getPendingPullRequestReviewComments,
@@ -12,15 +12,17 @@ import {
 } from '../lib/review-comments.ts';
 import type { RepositoryState } from '../types.ts';
 
-const createReviewComment = (overrides: Partial<ReviewComment>): ReviewComment => ({
-  body: 'A comment.',
-  filePath: 'src/a.ts',
-  id: 'github:1',
-  lineNumber: 5,
-  sectionId: 'src/a.ts:pull-request:1',
-  side: 'additions',
-  ...overrides,
-});
+const createReviewComment = (overrides: Partial<ReviewComment>): ReviewComment =>
+  ({
+    body: 'A comment.',
+    filePath: 'src/a.ts',
+    id: 'github:1',
+    kind: 'draft',
+    lineNumber: 5,
+    sectionId: 'src/a.ts:pull-request:1',
+    side: 'additions',
+    ...overrides,
+  }) as ReviewComment;
 
 const createPullRequestState = (): RepositoryState => ({
   branch: null,
@@ -71,8 +73,14 @@ test('getReviewCommentsFromState carries the outdated flag through to review com
   const comments = getReviewCommentsFromState(createPullRequestState());
 
   expect(comments).toHaveLength(2);
-  expect(comments.find((comment) => comment.id === 'github:1')?.isOutdated).toBe(true);
-  expect(comments.find((comment) => comment.id === 'github:2')?.isOutdated).toBeUndefined();
+  expect(
+    (comments.find((comment) => comment.id === 'github:1') as PostedComment | undefined)
+      ?.isOutdated,
+  ).toBe(true);
+  expect(
+    (comments.find((comment) => comment.id === 'github:2') as PostedComment | undefined)
+      ?.isOutdated,
+  ).toBeUndefined();
 });
 
 test('getReviewCommentsFromState hydrates shared comments on their exact working-tree section', () => {
@@ -113,7 +121,7 @@ test('getReviewCommentsFromState hydrates shared comments on their exact working
     expect.objectContaining({
       body: 'Persist this shared walkthrough comment.',
       id: 'shared:1',
-      isReadOnly: true,
+      kind: 'posted' as const,
       sectionId: 'src/a.ts:unstaged',
     }),
   ]);
@@ -171,7 +179,9 @@ test('getPendingPullRequestReviewComments excludes comments being submitted indi
   const comment = createReviewComment({ body: 'Already submitting.', id: 'draft' });
 
   expect(
-    getPendingPullRequestReviewComments([{ ...comment, remoteSubmit: { status: 'submitting' } }]),
+    getPendingPullRequestReviewComments([
+      { ...comment, kind: 'draft', remoteSubmit: { status: 'submitting' } },
+    ]),
   ).toEqual([]);
 });
 
@@ -199,7 +209,7 @@ test('findReusableReviewCommentDraft returns no draft when the only empty draft 
 });
 
 test('findReusableReviewCommentDraft skips read-only drafts and reuses whitespace-only drafts', () => {
-  const readOnlyDraft = createReviewComment({ body: '', id: 'readonly', isReadOnly: true });
+  const readOnlyDraft = createReviewComment({ body: '', id: 'readonly', kind: 'posted' as const });
   const activeDraft = createReviewComment({ body: '', id: 'active' });
 
   expect(
@@ -212,7 +222,7 @@ test('findReusableReviewCommentDraft skips read-only drafts and reuses whitespac
 
 test('getVisibleReviewComments hides outdated comments unless they are shown', () => {
   const comments = [
-    createReviewComment({ id: 'github:1', isOutdated: true }),
+    createReviewComment({ id: 'github:1', isOutdated: true, kind: 'posted' }),
     createReviewComment({ id: 'github:2' }),
   ];
 
@@ -226,7 +236,7 @@ test('getVisibleReviewComments hides outdated comments unless they are shown', (
 });
 
 test('getVisibleReviewComments keeps user-authored comments that are never outdated', () => {
-  const comments = [createReviewComment({ id: 'draft', isReadOnly: false })];
+  const comments = [createReviewComment({ id: 'draft', kind: 'draft' })];
 
   expect(getVisibleReviewComments(comments, false)).toHaveLength(1);
 });
@@ -311,7 +321,7 @@ test('getRefreshedReviewComments replaces read-only comments with the refreshed 
   const staleComment = createReviewComment({
     body: 'Stale server comment.',
     id: 'github:1',
-    isReadOnly: true,
+    kind: 'posted' as const,
   });
 
   const comments = getRefreshedReviewComments(state, [staleComment, localComment]);

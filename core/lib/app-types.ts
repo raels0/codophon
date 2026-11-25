@@ -89,11 +89,10 @@ export type DiffLineCount = {
   deletions: number;
 };
 
-export type ReviewComment = {
+type ReviewCommentBase = {
   anchor?: 'file' | 'line';
-  author?: PullRequestExistingReviewComment['author'];
   body: string;
-  canReplyThread?: boolean;
+  /** The Ask conversation attached to this comment, if any. */
   codexReply?: {
     body?: string;
     context?: ReviewAssistantContext;
@@ -107,21 +106,32 @@ export type ReviewComment = {
   };
   filePath: string;
   id: string;
-  isOutdated?: boolean;
-  isReadOnly?: boolean;
   lineNumber?: number;
-  remoteSubmit?: {
-    error?: string;
-    status: 'error' | 'submitting';
-  };
   sectionId: string;
   side?: 'additions' | 'deletions';
   startLineNumber?: number;
   startSide?: 'additions' | 'deletions';
-  submittedAt?: string;
+  /** The pull request thread this comment belongs to or replies to. */
   threadId?: string;
+};
+
+/** A note written in Codophon: kept locally, posted on submit, or sent to Ask. */
+export type DraftComment = ReviewCommentBase & {
+  kind: 'draft';
+  remoteSubmit?: { error?: string; status: 'error' | 'submitting' };
+};
+
+/** A comment that already exists on the pull request. */
+export type PostedComment = ReviewCommentBase & {
+  author?: PullRequestExistingReviewComment['author'];
+  canReplyThread?: boolean;
+  isOutdated?: boolean;
+  kind: 'posted';
+  submittedAt?: string;
   url?: string;
 };
+
+export type ReviewComment = DraftComment | PostedComment;
 
 export type SidebarMode = 'tree' | 'walkthrough' | 'history';
 

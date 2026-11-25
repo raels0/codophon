@@ -39,6 +39,7 @@ const comment: ReviewComment = {
   body: 'Review this',
   filePath: 'src/app.ts',
   id: 'comment-1',
+  kind: 'draft',
   lineNumber: 4,
   sectionId: 'src/app.ts:pull-request',
   side: 'additions',
@@ -245,7 +246,7 @@ test('the re-review brief keeps submitted Ask questions after posting and isolat
   await act(async () => getState().askCodex(comment.id));
   await act(async () => getState().askCodex(comment.id, 'What happens when the gate is disabled?'));
   await act(async () => getState().submitPullRequestComment(comment.id));
-  expect(getState().reviewComments[0]?.isReadOnly).toBe(true);
+  expect(getState().reviewComments[0]?.kind).toBe('posted');
   expect(getState().reviewComments[0]?.codexReply).toBeUndefined();
   expect(readAskThreads(state)[0]).toMatchObject({
     archived: true,
@@ -602,7 +603,7 @@ test('app review comments submit a draft and replace it with the remote comment'
         body: comment.body,
         filePath: comment.filePath,
         id: 'remote-comment',
-        isReadOnly: true,
+        kind: 'posted' as const,
         lineNumber: comment.lineNumber,
         sectionId: comment.sectionId,
         side: comment.side,

@@ -20,7 +20,11 @@ import opencodeIconUrl from '../../assets/opencode.svg';
 import type { AgentBackend } from '../../config/agents.ts';
 import { getShortcutLabel, matchesShortcut } from '../../config/keymap.ts';
 import type { CodophonKeymap } from '../../config/types.ts';
-import type { ReviewComment, ReviewCommentAnnotationMetadata } from '../../lib/app-types.ts';
+import type {
+  DraftComment,
+  ReviewComment,
+  ReviewCommentAnnotationMetadata,
+} from '../../lib/app-types.ts';
 import { isPrimaryModifier } from '../../lib/keyboard.ts';
 import {
   getReviewCommentLineLabel,
@@ -42,7 +46,7 @@ export type ReviewCommentActions = {
   onAskCodex?: (commentId: string, followUp?: string) => void;
   onAskFollowUpDraftChange?: (commentId: string, body: string) => void;
   onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
-  onCreateComment: (comment: Omit<ReviewComment, 'body' | 'id'>) => void;
+  onCreateComment: (comment: Omit<DraftComment, 'body' | 'id' | 'kind'>) => void;
   onDeleteComment: (commentId: string) => void;
   onSubmitComment: (commentId: string) => void;
   onUpdateComment: (commentId: string, body: string) => void;
@@ -104,10 +108,12 @@ const agentIconUrl = (agentId: AgentBackend) => {
 };
 
 const canAskCodexForComment = (comment: ReviewComment) =>
-  !comment.isReadOnly && comment.body.trim().length > 0 && comment.codexReply?.status !== 'loading';
+  comment.kind === 'draft' &&
+  comment.body.trim().length > 0 &&
+  comment.codexReply?.status !== 'loading';
 
 const canSubmitComment = (comment: ReviewComment) =>
-  !comment.isReadOnly &&
+  comment.kind === 'draft' &&
   comment.body.trim().length > 0 &&
   comment.remoteSubmit?.status !== 'submitting';
 
@@ -355,7 +361,7 @@ function ReviewCommentEditor({
             draft,
           },
     );
-    if (!comment.isReadOnly && draft !== comment.body) {
+    if (comment.kind === 'draft' && draft !== comment.body) {
       onUpdateComment(comment.id, draft);
     }
     return withCommentBody(comment, draft);
@@ -434,7 +440,7 @@ function ReviewCommentEditor({
         return;
       }
 
-      if (comment.isReadOnly) {
+      if (comment.kind === 'posted') {
         return;
       }
 
@@ -449,7 +455,7 @@ function ReviewCommentEditor({
       canAskCodex,
       commentCanSubmit,
       comment.id,
-      comment.isReadOnly,
+      comment.kind,
       draft,
       handleAddComment,
       handleAskCodex,
@@ -462,7 +468,7 @@ function ReviewCommentEditor({
   return (
     <Fragment>
       <div className="review-comment">
-        {comment.author ? (
+        {comment.kind === 'posted' && comment.author ? (
           <ReviewAvatar author={comment.author} />
         ) : (
           <IdentityReviewAvatar identity={identity} />
@@ -470,11 +476,11 @@ function ReviewCommentEditor({
         <div className="review-comment-body">
           <div
             className={`review-comment-header${
-              supportsReviewCommentActions && !comment.isReadOnly ? ' with-comment-action' : ''
-            }${comment.isReadOnly ? ' read-only' : ''}`}
+              supportsReviewCommentActions && comment.kind === 'draft' ? ' with-comment-action' : ''
+            }${comment.kind === 'posted' ? ' read-only' : ''}`}
           >
             <strong>{displayName}</strong>
-            {!comment.isReadOnly && onAskCodex ? (
+            {comment.kind === 'draft' && onAskCodex ? (
               <Button
                 className="review-comment-action"
                 disabled={!canAskCodex}
@@ -498,7 +504,7 @@ function ReviewCommentEditor({
                 Ask
               </Button>
             ) : null}
-            {supportsReviewCommentActions && !comment.isReadOnly ? (
+            {supportsReviewCommentActions && comment.kind === 'draft' ? (
               <Button
                 className="review-comment-action review-comment-action-primary"
                 disabled={!commentCanSubmit}
@@ -521,7 +527,7 @@ function ReviewCommentEditor({
                 {comment.remoteSubmit?.status === 'submitting' ? 'Posting...' : 'Post comment'}
               </Button>
             ) : null}
-            {!comment.isReadOnly ? (
+            {comment.kind === 'draft' ? (
               <button
                 aria-label="Delete comment"
                 className="review-comment-delete"
@@ -533,7 +539,7 @@ function ReviewCommentEditor({
               </button>
             ) : null}
           </div>
-          {comment.isReadOnly ? (
+          {comment.kind === 'posted' ? (
             <ReadOnlyMarkdownView
               ariaLabel={`Comment on ${comment.filePath} ${getReviewCommentLineLabel(comment)}`}
               className="review-comment-markdown-editor"
@@ -562,7 +568,7 @@ function ReviewCommentEditor({
               />
             </Suspense>
           )}
-          {comment.remoteSubmit?.status === 'error' ? (
+          {comment.kind === 'draft' && comment.remoteSubmit?.status === 'error' ? (
             <div className="review-comment-error">{comment.remoteSubmit.error}</div>
           ) : null}
         </div>
@@ -624,9 +630,9 @@ function ReviewCommentThreadGroup({
   const canReplyToThread =
     supportsReviewCommentActions &&
     threadId != null &&
-    comments.some((comment) => comment.isReadOnly) &&
-    !comments.some((comment) => !comment.isReadOnly) &&
-    !comments.some((comment) => comment.canReplyThread === false);
+    comments.some((comment) => comment.kind === 'posted') &&
+    !comments.some((comment) => comment.kind === 'draft') &&
+    !comments.some((comment) => comment.kind === 'posted' && comment.canReplyThread === false);
 
   const handleReply = useCallback(() => {
     if (!threadId || !lastComment) {
@@ -638,9 +644,10 @@ function ReviewCommentThreadGroup({
   return (
     <div className="review-comment-thread-group">
       {comments.map((comment) => {
-        const displayName = comment.author
-          ? getReviewAuthorDisplayName(comment.author)
-          : getGitIdentityDisplayName(identity);
+        const displayName =
+          comment.kind === 'posted' && comment.author
+            ? getReviewAuthorDisplayName(comment.author)
+            : getGitIdentityDisplayName(identity);
 
         return (
           <ReviewCommentEditor

@@ -12,15 +12,17 @@ type ReviewCommentDrafts = ReturnType<typeof useReviewCommentDrafts> & {
   comments: ReadonlyArray<ReviewComment>;
 };
 
-const createComment = (id: string, overrides: Partial<ReviewComment> = {}): ReviewComment => ({
-  body: '',
-  filePath: 'src/app.ts',
-  id,
-  lineNumber: 1,
-  sectionId: 'src/app.ts:unstaged',
-  side: 'additions',
-  ...overrides,
-});
+const createComment = (id: string, overrides: Partial<ReviewComment> = {}): ReviewComment =>
+  ({
+    body: '',
+    filePath: 'src/app.ts',
+    id,
+    kind: 'draft',
+    lineNumber: 1,
+    sectionId: 'src/app.ts:unstaged',
+    side: 'additions',
+    ...overrides,
+  }) as ReviewComment;
 
 function ReviewCommentDraftsHarness({
   canCreateComment,

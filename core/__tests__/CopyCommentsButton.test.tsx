@@ -15,18 +15,19 @@ const createReviewComment = (comment: Partial<ReviewComment>) =>
     body: 'Rename this helper.',
     filePath: file.path,
     id: 'comment-1',
+    kind: 'draft',
     lineNumber: 1,
     sectionId: file.sections[0].id,
     side: 'additions',
     ...comment,
-  }) satisfies ReviewComment;
+  }) as ReviewComment;
 
 test('stays visible but disabled until a comment with a body exists', async () => {
   await using app = await renderReact(
     <CopyCommentsButton
       comments={[
         createReviewComment({ body: '   ' }),
-        createReviewComment({ id: 'comment-2', isReadOnly: true }),
+        createReviewComment({ id: 'comment-2', kind: 'posted' as const }),
       ]}
       files={[file]}
       reviewCommentsPrefix=""

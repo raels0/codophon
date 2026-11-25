@@ -371,7 +371,7 @@ export function CopyCommentsButton({
 }) {
   const [copied, markCopied] = useCopiedState(2000);
   const pendingCommentCount = comments.filter(
-    (comment) => !comment.isReadOnly && comment.body.trim(),
+    (comment) => comment.kind === 'draft' && comment.body.trim(),
   ).length;
 
   const copyComments = useCallback(async () => {

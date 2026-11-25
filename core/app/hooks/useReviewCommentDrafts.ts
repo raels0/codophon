@@ -6,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { ReviewComment } from '../../lib/app-types.ts';
+import type { DraftComment, ReviewComment } from '../../lib/app-types.ts';
 import { findReusableReviewCommentDraft, getCommentKey } from '../../lib/review-comments.ts';
 
 type ReviewCommentDraft = Pick<ReviewComment, 'body' | 'id'>;
@@ -25,7 +25,7 @@ const updateCommentBody = (
 ) => {
   let changed = false;
   const next = comments.map((comment) => {
-    if (comment.id !== commentId || comment.isReadOnly || comment.body === body) {
+    if (comment.id !== commentId || comment.kind === 'posted' || comment.body === body) {
       return comment;
     }
     changed = true;
@@ -80,7 +80,7 @@ export function useReviewCommentDrafts({
   }, []);
 
   const createComment = useCallback(
-    (comment: Omit<ReviewComment, 'body' | 'id'>) => {
+    (comment: Omit<DraftComment, 'body' | 'id' | 'kind'>) => {
       if (!canCreateComment) {
         return;
       }
@@ -108,6 +108,7 @@ export function useReviewCommentDrafts({
                   ...comment,
                   body: '',
                   id,
+                  kind: 'draft' as const,
                 }
               : candidate,
           ),
@@ -119,7 +120,7 @@ export function useReviewCommentDrafts({
 
       const id = crypto.randomUUID();
       focusComment(id);
-      setComments((current) => [...current, { ...comment, body: '', id }]);
+      setComments((current) => [...current, { ...comment, body: '', id, kind: 'draft' }]);
       onCommentFileChange(comment.filePath);
     },
     [canCreateComment, focusComment, onCommentFileChange, setComments],
