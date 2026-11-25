@@ -240,6 +240,7 @@ test('app commands register the complete command set and delegate dynamic action
     'toggle-word-wrap',
     'review-theme-neutral',
     'review-theme-blue-amber',
+    'check-for-updates',
     'increase-code-font-size',
     'decrease-code-font-size',
     'reset-code-font-size',
@@ -255,7 +256,10 @@ test('app commands register the complete command set and delegate dynamic action
     return match;
   };
   const updateSettings = vi.fn(async () => {});
-  vi.stubGlobal('codophon', { updateSettings });
+  const checkForUpdates = vi.fn(async () => ({ currentVersion: '1.0.0' }));
+  vi.stubGlobal('codophon', { checkForUpdates, updateSettings });
+  command('check-for-updates').execute();
+  expect(checkForUpdates).toHaveBeenCalledOnce();
   for (const [commandName, action] of [
     ['Increase', 'increase'],
     ['Decrease', 'decrease'],

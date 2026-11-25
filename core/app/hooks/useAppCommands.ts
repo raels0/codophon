@@ -248,6 +248,14 @@ export function useAppCommands({
         title: 'Review Theme: Blue/Amber',
       }),
       registry.register({
+        description: () => 'Download a newer Codophon release if there is one',
+        execute: () => {
+          void window.codophon.checkForUpdates().catch(() => {});
+        },
+        id: 'check-for-updates',
+        title: 'Check for Updates',
+      }),
+      registry.register({
         execute: () => {
           void window.codophon.updateSettings({ codeFontSize: 'increase' }).catch(() => {});
         },

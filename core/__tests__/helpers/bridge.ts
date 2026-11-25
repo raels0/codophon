@@ -8,6 +8,7 @@ export const createFakeBridge = (
     reason: 'Unavailable in tests.',
     status: 'unavailable' as const,
   })),
+  checkForUpdates: vi.fn(async () => ({ currentVersion: '1.0.0' })),
   createWalkthroughCommit: vi.fn(async () => ({
     hash: '0000000000000000000000000000000000000000',
     status: 'committed' as const,
@@ -83,6 +84,7 @@ export const createFakeBridge = (
     installed: true,
     path: '/usr/local/bin/codophon',
   })),
+  installUpdate: vi.fn(async () => ({ currentVersion: '1.0.0' })),
   isWindowFullScreen: vi.fn(async () => false),
   markWindowReady: vi.fn(),
   onConfigChanged: vi.fn(() => () => {}),
@@ -100,7 +102,6 @@ export const createFakeBridge = (
   onWindowFullScreenChanged: vi.fn(() => () => {}),
   openConfigFile: vi.fn(async () => {}),
   openFile: vi.fn(async () => {}),
-  openReleasePage: vi.fn(async () => {}),
   openRepositoryFolder: vi.fn(async () => {}),
   resolvePullRequestUrl: vi.fn(async () => 'https://github.com/owner/repo/pull/1'),
   saveMarkdownDocument: vi.fn(async (request) => ({

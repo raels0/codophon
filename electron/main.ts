@@ -53,9 +53,9 @@ import { readKeyboardLayout, watchKeyboardLayout } from './keyboard-layout.ts';
 import { getInitialRepositoryPath, readLaunch } from './main/launch-request.ts';
 import { renderOpenCodeCommand } from './opencode.ts';
 import { createPendingCommentsClipboardController } from './pending-comments.ts';
-import { createReleaseCheck } from './release-check.ts';
 import { readReviewAssistantReply } from './review-assist.ts';
 import { parseReviewUrl, resolveReviewUrl } from './review-source.ts';
+import { createUpdater, fetchLatestRelease, getInstallTarget } from './updater.ts';
 import { readCommitMessageReply } from './walkthrough-commit-message.ts';
 import { createWalkthroughCommit } from './walkthrough-commit.ts';
 import { loadWalkthrough } from './walkthrough-service.ts';
@@ -626,6 +626,15 @@ const buildApplicationMenu = (): import('electron').Menu =>
           label: 'Open Folder...',
         },
         { type: 'separator' },
+        ...(process.platform === 'darwin'
+          ? []
+          : [
+              {
+                click: () => void checkForUpdatesFromMenu(),
+                label: 'Check for Updates…',
+              },
+              { type: 'separator' as const },
+            ]),
         process.platform === 'darwin' ? { role: 'close' } : { role: 'quit' },
       ],
     },
@@ -1042,10 +1051,10 @@ const walkthroughLaunchController = createWalkthroughLaunchController({
   readRepositoryState: readInitialRepositoryStateWithConfig,
 });
 
-const INITIAL_RELEASE_CHECK_DELAY_MS = 10 * 1000;
-const RELEASE_CHECK_TIMER_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const INITIAL_UPDATE_CHECK_DELAY_MS = 10 * 1000;
+const UPDATE_CHECK_TIMER_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
-let releaseCheck: ReturnType<typeof createReleaseCheck> | null = null;
+let updater: ReturnType<typeof createUpdater> | null = null;
 
 const sendUpdateStatusChanged = (status: import('../core/types.ts').CodophonUpdateStatus) => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -1056,12 +1065,32 @@ const sendUpdateStatusChanged = (status: import('../core/types.ts').CodophonUpda
 };
 
 const checkForUpdatesFromMenu = async () => {
-  const status = await releaseCheck?.check({ force: true });
-  if (status && !status.availableVersion) {
+  const status = await updater?.check({ force: true });
+  if (!updater || !status) {
+    return;
+  }
+  if (!status.availableVersion) {
     void dialog.showMessageBox({
       message: `Codophon ${app.getVersion()} is the latest release.`,
       type: 'info',
     });
+  } else if (!updater.canInstall()) {
+    const { response } = await dialog.showMessageBox({
+      buttons: ['Open Release Page', 'Later'],
+      message: `Codophon ${status.availableVersion} is available.`,
+      type: 'info',
+    });
+    if (response === 0) void shell.openExternal(updater.releaseUrl());
+  } else {
+    await updater.download();
+    if (updater.getStatus().download?.state !== 'ready') return;
+    const { response } = await dialog.showMessageBox({
+      buttons: ['Restart to Update', 'Later'],
+      detail: 'You can also restart from the sidebar, or the update installs when you quit.',
+      message: `Codophon ${status.availableVersion} is ready to install.`,
+      type: 'info',
+    });
+    if (response === 0) updater.installAndRestart();
   }
 };
 
@@ -1106,15 +1135,27 @@ if (!lock) {
       }
     });
 
-    releaseCheck = createReleaseCheck({
+    // End-to-end tests serve a release feed and a stand-in install locally.
+    const updateFeed = process.env.CODOPHON_UPDATE_FEED;
+    const updateTarget = process.env.CODOPHON_UPDATE_TARGET;
+    const updatesEnabled = () =>
+      config.settings.checkForUpdates && (app.isPackaged || !!updateFeed);
+    updater = createUpdater({
       currentVersion: app.getVersion(),
-      enabled: config.settings.checkForUpdates && app.isPackaged,
+      enabled: updatesEnabled(),
+      ...(updateFeed ? { fetchRelease: () => fetchLatestRelease(updateFeed) } : {}),
+      installTarget: updateTarget
+        ? getInstallTarget(join(updateTarget, 'Contents', 'MacOS', 'Codophon'))
+        : app.isPackaged
+          ? getInstallTarget()
+          : null,
       onChange: sendUpdateStatusChanged,
+      quit: () => app.quit(),
       stateDirectory: app.getPath('userData'),
     });
-    const runReleaseCheck = () => void releaseCheck?.check();
-    setTimeout(runReleaseCheck, INITIAL_RELEASE_CHECK_DELAY_MS).unref();
-    setInterval(runReleaseCheck, RELEASE_CHECK_TIMER_INTERVAL_MS).unref();
+    const runUpdateCheck = () => void updater?.check();
+    setTimeout(runUpdateCheck, INITIAL_UPDATE_CHECK_DELAY_MS).unref();
+    setInterval(runUpdateCheck, UPDATE_CHECK_TIMER_INTERVAL_MS).unref();
 
     const launchOptions = getLaunchOptions();
     void walkthroughLaunchController.open(
@@ -1131,7 +1172,7 @@ if (!lock) {
     watchConfig((nextConfig) => {
       const previousAgent = config.settings.agentBackend;
       config = nextConfig;
-      releaseCheck?.setEnabled(config.settings.checkForUpdates && app.isPackaged);
+      updater?.setEnabled(updatesEnabled());
       refreshInstalledAgentFiles();
       nativeTheme.themeSource = config.settings.theme;
       sendConfigChanged();
@@ -1140,7 +1181,10 @@ if (!lock) {
     });
   });
 
-  app.on('will-quit', () => codexModelDiscoveryAbort.abort());
+  app.on('will-quit', () => {
+    codexModelDiscoveryAbort.abort();
+    updater?.installOnQuit();
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0 && !walkthroughLaunchController.hasPending()) {
@@ -1196,14 +1240,26 @@ function handle<K extends keyof Invoke>(
   ipcMain.handle('codophon:' + method, listener);
 }
 
-handle('getUpdateStatus', () => releaseCheck?.getStatus() ?? { currentVersion: app.getVersion() });
+handle('getUpdateStatus', () => updater?.getStatus() ?? { currentVersion: app.getVersion() });
 
-handle('dismissUpdate', () => releaseCheck?.dismiss() ?? { currentVersion: app.getVersion() });
+handle('dismissUpdate', () => updater?.dismiss() ?? { currentVersion: app.getVersion() });
 
-handle('openReleasePage', () => {
-  if (releaseCheck) {
-    return shell.openExternal(releaseCheck.releaseUrl());
+handle('checkForUpdates', async () =>
+  updater ? updater.check({ force: true }) : { currentVersion: app.getVersion() },
+);
+
+handle('installUpdate', async () => {
+  if (!updater) {
+    return { currentVersion: app.getVersion() };
   }
+  if (updater.getStatus().download?.state === 'ready') {
+    updater.installAndRestart();
+  } else if (updater.canInstall()) {
+    void updater.download();
+  } else {
+    await shell.openExternal(updater.releaseUrl());
+  }
+  return updater.getStatus();
 });
 
 handle('getRepositoryState', async (event, source) => {

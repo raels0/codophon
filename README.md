@@ -11,6 +11,23 @@ doesn't add up. You can also review local Git changes without setting up an AI a
 2. Extract the **whole ZIP** to a folder you own and run `codophon.exe` from that folder. Don't move the executable out on its own. You don't need the terminal helper on Windows.
 3. To review an Azure DevOps PR, follow the [Azure DevOps setup](#open-an-azure-devops-pr). If you're just looking at a local diff, open a Git checkout and you're done.
 
+## Install on macOS
+
+1. Download the `darwin-arm64` ZIP from [Codophon Releases](https://github.com/raels0/codophon/releases) (Apple silicon Macs) and unzip it.
+2. Move `Codophon.app` into **Applications** before opening it. Opened straight from Downloads, macOS runs a read-only copy that can't update itself.
+3. The app isn't signed yet, so macOS blocks the first launch. Open it once, then choose **Open Anyway** in **System Settings > Privacy & Security**. Or run `xattr -dr com.apple.quarantine /Applications/Codophon.app`.
+
+## Updates
+
+Codophon checks [Releases](https://github.com/raels0/codophon/releases) once a day. When a newer version
+is out, it downloads in the background and is verified against the release's checksum. The sidebar then
+shows **Restart to update**. If you don't restart, the update installs when you quit. Use **Check for
+Updates** in the command palette (or the Codophon/File menu) to check right away.
+
+Codophon replaces itself in the folder it runs from, so that folder needs to be writable. If it isn't
+(for example, a managed install), the update notice links to the release page instead. Set
+`settings.checkForUpdates` to `false` to turn checks off.
+
 ## Open an Azure DevOps PR
 
 Install Git for Windows and Azure CLI if you don't already have them. In PowerShell:

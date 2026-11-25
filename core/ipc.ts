@@ -49,6 +49,7 @@ import type {
 
 export type Invoke = {
   askReviewAssistant: (request: ReviewAssistantRequest) => Promise<ReviewAssistantResult>;
+  checkForUpdates: () => Promise<CodophonUpdateStatus>;
   createWalkthroughCommit: (request: WalkthroughCommitRequest) => Promise<WalkthroughCommitResult>;
   dismissUpdate: () => Promise<CodophonUpdateStatus>;
   findDefinitions: (request: DefinitionSearchRequest) => Promise<DefinitionSearchResult>;
@@ -79,10 +80,11 @@ export type Invoke = {
   getUpdateStatus: () => Promise<CodophonUpdateStatus>;
   installAgentSkill: () => Promise<AgentSkillStatus>;
   installTerminalHelper: () => Promise<TerminalHelperStatus>;
+  /** Restarts into a downloaded update, retries a failed download, or opens the release page. */
+  installUpdate: () => Promise<CodophonUpdateStatus>;
   isWindowFullScreen: () => Promise<boolean>;
   openConfigFile: () => Promise<void>;
   openFile: (path: string, lineNumber?: number) => Promise<void>;
-  openReleasePage: () => Promise<void>;
   openRepositoryFolder: () => Promise<void>;
   resolvePullRequestUrl: (value: string) => Promise<string>;
   saveMarkdownDocument: (

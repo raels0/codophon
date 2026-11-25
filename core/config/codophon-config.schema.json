@@ -23,7 +23,7 @@
         "checkForUpdates": {
           "type": "boolean",
           "default": true,
-          "description": "Check GitHub Releases once a day for a newer Codophon version and show an update notification. Set to false if updates are centrally managed."
+          "description": "Check GitHub Releases once a day for a newer Codophon version, download it in the background, and offer to restart into it. Set to false if updates are centrally managed."
         },
         "codeFontFamily": {
           "type": "string",

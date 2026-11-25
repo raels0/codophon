@@ -660,6 +660,11 @@ export type CodophonTheme = 'system' | 'light' | 'dark';
 export type CodophonUpdateStatus = {
   availableVersion?: string;
   currentVersion: string;
+  /** Absent when the update has to be downloaded by hand from the release page. */
+  download?:
+    | { progress: number; state: 'downloading' }
+    | { state: 'ready' }
+    | { error: string; state: 'failed' };
 };
 
 export type PullRequestReviewComment = {

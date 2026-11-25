@@ -93,6 +93,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Exercises the PowerShell installer and Windows' zip extraction for real.
+      - name: Test Self-Update
+        run: pnpm exec vp test run electron/__tests__/updater.test.ts
+
       - name: Build Windows App
         shell: bash
         env:

@@ -1892,8 +1892,8 @@ export default function App({
             onDismiss={() => {
               window.codophon.dismissUpdate().then(setUpdateStatus, () => {});
             }}
-            onOpen={() => {
-              void window.codophon.openReleasePage();
+            onInstall={() => {
+              window.codophon.installUpdate().then(setUpdateStatus, () => {});
             }}
             status={updateStatus}
           />

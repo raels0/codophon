@@ -101,29 +101,54 @@ export function RepositoryChangeBanner({
 
 export type { CodophonUpdateStatus as UpdateStatus } from '../../types.ts';
 
+const getUpdatePillContent = ({
+  availableVersion,
+  currentVersion,
+  download,
+}: CodophonUpdateStatus) => {
+  const update = `Codophon ${availableVersion} (you have ${currentVersion})`;
+  switch (download?.state) {
+    case 'downloading':
+      return {
+        label: `Downloading update… ${download.progress}%`,
+        title: `Downloading ${update}.`,
+      };
+    case 'ready':
+      return { label: 'Restart to update', title: `Install ${update} and restart.` };
+    case 'failed':
+      return { label: 'Retry update', title: `${download.error} Retries downloading ${update}.` };
+    default:
+      return {
+        label: 'Update available',
+        title: `${update} is available. Opens the release page.`,
+      };
+  }
+};
+
 export function UpdatePill({
   onDismiss,
-  onOpen,
+  onInstall,
   status,
 }: {
   onDismiss: () => void;
-  onOpen: () => void;
+  onInstall: () => void;
   status: CodophonUpdateStatus;
 }) {
-  const { availableVersion, currentVersion } = status;
-  if (!availableVersion) {
+  if (!status.availableVersion) {
     return null;
   }
+  const { label, title } = getUpdatePillContent(status);
 
   return (
     <div aria-live="polite" className="update-pill-anchor">
       <Button
         className="update-pill available"
-        onClick={onOpen}
-        title={`Codophon ${availableVersion} is available (you have ${currentVersion}). Opens the release page.`}
+        disabled={status.download?.state === 'downloading'}
+        onClick={onInstall}
+        title={title}
         type="button"
       >
-        <span>Update available</span>
+        <span>{label}</span>
       </Button>
       <button
         aria-label="Dismiss update"
